@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
 
@@ -26,6 +26,9 @@ albedo_color = Color(0.73, 0.62, 0.48, 1)
 material = SubResource("BuildingMaterial")
 size = Vector3(5, 3, 5)
 
+[sub_resource type="BoxShape3D" id="BuildingShape"]
+size = Vector3(5, 3, 5)
+
 [node name="Main" type="Node3D"]
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
@@ -45,13 +48,23 @@ shape = SubResource("GroundShape")
 position = Vector3(0, 0.01, 0)
 mesh = SubResource("RoadMesh")
 
-[node name="Building1" type="MeshInstance3D" parent="."]
+[node name="Building1" type="StaticBody3D" parent="."]
 position = Vector3(-8, 1.5, -6)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Building1"]
 mesh = SubResource("BuildingMesh")
 
-[node name="Building2" type="MeshInstance3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Building1"]
+shape = SubResource("BuildingShape")
+
+[node name="Building2" type="StaticBody3D" parent="."]
 position = Vector3(8, 1.5, 6)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Building2"]
 mesh = SubResource("BuildingMesh")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Building2"]
+shape = SubResource("BuildingShape")
 
 [node name="Player" parent="." instance=ExtResource("1_player")]
 position = Vector3(0, 0.9, 0)

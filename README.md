@@ -6,9 +6,10 @@ auf Basis realer Kartendaten geplant.
 
 ## Aktueller Prototyp
 
-Der erste Prototyp enthält eine kleine 3D-Testfläche und eine Spielfigur mit
-Kamera. Mit **WASD** bewegt sich die Figur in die jeweilige Richtung. Fahrzeuge,
-Multiplayer und echte Kartendaten sind noch nicht implementiert.
+Der erste Prototyp enthält eine kleine 3D-Testfläche, Gebäude mit Kollisionen
+und eine Spielfigur mit Kamera. Mit **WASD** bewegt sich die Figur in die
+jeweilige Richtung. Fahrzeuge, Multiplayer und echte Kartendaten sind noch nicht
+implementiert.
 
 ## Projekt öffnen
 
