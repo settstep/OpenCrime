@@ -1,0 +1,66 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
+
+[sub_resource type="StandardMaterial3D" id="GroundMaterial"]
+albedo_color = Color(0.35, 0.52, 0.31, 1)
+
+[sub_resource type="BoxMesh" id="GroundMesh"]
+material = SubResource("GroundMaterial")
+size = Vector3(50, 1, 50)
+
+[sub_resource type="BoxShape3D" id="GroundShape"]
+size = Vector3(50, 1, 50)
+
+[sub_resource type="StandardMaterial3D" id="RoadMaterial"]
+albedo_color = Color(0.24, 0.25, 0.27, 1)
+
+[sub_resource type="BoxMesh" id="RoadMesh"]
+material = SubResource("RoadMaterial")
+size = Vector3(8, 0.02, 50)
+
+[sub_resource type="StandardMaterial3D" id="BuildingMaterial"]
+albedo_color = Color(0.73, 0.62, 0.48, 1)
+
+[sub_resource type="BoxMesh" id="BuildingMesh"]
+material = SubResource("BuildingMaterial")
+size = Vector3(5, 3, 5)
+
+[node name="Main" type="Node3D"]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-60, -30, 0)
+shadow_enabled = true
+
+[node name="Ground" type="StaticBody3D" parent="."]
+position = Vector3(0, -0.5, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("GroundMesh")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("GroundShape")
+
+[node name="Road" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0.01, 0)
+mesh = SubResource("RoadMesh")
+
+[node name="Building1" type="MeshInstance3D" parent="."]
+position = Vector3(-8, 1.5, -6)
+mesh = SubResource("BuildingMesh")
+
+[node name="Building2" type="MeshInstance3D" parent="."]
+position = Vector3(8, 1.5, 6)
+mesh = SubResource("BuildingMesh")
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+position = Vector3(0, 0.9, 0)
+
+[node name="HUD" type="CanvasLayer" parent="."]
+
+[node name="Instructions" type="Label" parent="HUD"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 320.0
+offset_bottom = 50.0
+text = "WASD: Bewegen"
