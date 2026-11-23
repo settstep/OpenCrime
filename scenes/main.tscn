@@ -1,6 +1,8 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
+[ext_resource type="PackedScene" path="res://scenes/car.tscn" id="2_car"]
+[ext_resource type="Script" path="res://scripts/main.gd" id="3_main"]
 
 [sub_resource type="StandardMaterial3D" id="GroundMaterial"]
 albedo_color = Color(0.35, 0.52, 0.31, 1)
@@ -30,6 +32,7 @@ size = Vector3(5, 3, 5)
 size = Vector3(5, 3, 5)
 
 [node name="Main" type="Node3D"]
+script = ExtResource("3_main")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 rotation_degrees = Vector3(-60, -30, 0)
@@ -69,11 +72,27 @@ shape = SubResource("BuildingShape")
 [node name="Player" parent="." instance=ExtResource("1_player")]
 position = Vector3(0, 0.9, 0)
 
+[node name="Car" parent="." instance=ExtResource("2_car")]
+position = Vector3(0, 0.5, -5)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(0, 20.9, 0)
+rotation_degrees = Vector3(-90, 0, 0)
+projection = 1
+size = 20.0
+current = true
+
 [node name="HUD" type="CanvasLayer" parent="."]
 
 [node name="Instructions" type="Label" parent="HUD"]
 offset_left = 20.0
 offset_top = 20.0
-offset_right = 320.0
+offset_right = 700.0
 offset_bottom = 50.0
-text = "WASD: Bewegen"
+text = "WASD: Bewegen / Fahren   |   E: Einsteigen / Aussteigen"
+
+[node name="Status" type="Label" parent="HUD"]
+offset_left = 20.0
+offset_top = 50.0
+offset_right = 700.0
+offset_bottom = 80.0

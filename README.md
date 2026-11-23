@@ -6,10 +6,11 @@ auf Basis realer Kartendaten geplant.
 
 ## Aktueller Prototyp
 
-Der erste Prototyp enthält eine kleine 3D-Testfläche, Gebäude mit Kollisionen
-und eine Spielfigur mit Kamera. Mit **WASD** bewegt sich die Figur in die
-jeweilige Richtung. Fahrzeuge, Multiplayer und echte Kartendaten sind noch nicht
-implementiert.
+Der erste Prototyp enthält eine kleine 3D-Testfläche, Gebäude mit Kollisionen,
+eine Spielfigur und ein einfaches Auto. Mit **WASD** bewegt sich die Figur oder
+fährt das Auto in die jeweilige Richtung. In der Nähe des Autos steigt man mit
+**E** ein und später wieder aus. Die Fahrphysik ist vorerst bewusst einfach;
+Multiplayer und echte Kartendaten sind noch nicht implementiert.
 
 ## Projekt öffnen
 
@@ -23,3 +24,12 @@ implementiert.
 
 Die Projektdateien und Skripte können auch in VS Code bearbeitet werden. Godot
 wird weiterhin benötigt, um das Spiel auszuführen und Szenen zu bearbeiten.
+
+## Test ausführen
+
+Im PowerShell-Terminal im Projektordner kann der Fahrzeugtest mit der
+Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
+
+```powershell
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/car_test.gd
+```
