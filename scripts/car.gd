@@ -3,6 +3,8 @@ extends CharacterBody3D
 const SPEED := 10.0
 
 var occupied := false
+var uses_local_input := true
+var movement_input := Vector2.ZERO
 
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 
@@ -10,7 +12,9 @@ var occupied := false
 func _physics_process(delta: float) -> void:
 	var input := Vector2.ZERO
 	if occupied:
-		input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+		input = movement_input
+		if uses_local_input:
+			input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 
 	if input != Vector2.ZERO:
 		var desired_angle := atan2(-input.x, -input.y)

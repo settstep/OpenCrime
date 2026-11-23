@@ -1,0 +1,68 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/menu.gd" id="1_menu"]
+
+[node name="Menu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Panel" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Options" type="VBoxContainer" parent="Panel"]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Panel/Options"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "OpenCrime"
+horizontal_alignment = 1
+
+[node name="SinglePlayer" type="Button" parent="Panel/Options"]
+layout_mode = 2
+text = "Einzelspieler"
+
+[node name="AddressLabel" type="Label" parent="Panel/Options"]
+layout_mode = 2
+text = "Serveradresse"
+
+[node name="Address" type="LineEdit" parent="Panel/Options"]
+layout_mode = 2
+text = "127.0.0.1"
+placeholder_text = "IP-Adresse oder Hostname"
+
+[node name="PortLabel" type="Label" parent="Panel/Options"]
+layout_mode = 2
+text = "UDP-Port"
+
+[node name="Port" type="LineEdit" parent="Panel/Options"]
+layout_mode = 2
+text = "7777"
+
+[node name="Host" type="Button" parent="Panel/Options"]
+layout_mode = 2
+text = "Spiel hosten"
+
+[node name="Join" type="Button" parent="Panel/Options"]
+layout_mode = 2
+text = "Spiel beitreten"
+
+[node name="Message" type="Label" parent="Panel/Options"]
+layout_mode = 2
+autowrap_mode = 2
+
+[connection signal="pressed" from="Panel/Options/SinglePlayer" to="." method="_on_single_pressed"]
+[connection signal="pressed" from="Panel/Options/Host" to="." method="_on_host_pressed"]
+[connection signal="pressed" from="Panel/Options/Join" to="." method="_on_join_pressed"]
