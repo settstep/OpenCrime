@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.10.0
+- Lebensenergie und Schaden bei starken Fahrzeugkollisionen.
+- Bei null Lebensenergie Wiederbelebung am Startpunkt mit 25 %; im Einzelspieler wird die Lebensenergie gespeichert.
+
 ## 0.9.0
 - SMS-Aufträge mit einmaligem Einstieg und wiederkehrenden Paketlieferungen.
 - Aufträge können angenommen, zurückgestellt und im Multiplayer weitergeleitet werden.

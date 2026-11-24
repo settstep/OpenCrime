@@ -20,3 +20,4 @@
 | 24.11.2026 | 14:06 | 28      | add speed-based camera zoom                                 |
 | 24.11.2026 | 15:38 | 32      | add SMS delivery missions and cooperative rewards           |
 | 24.11.2026 | 15:58 | 33      | add mission navigation and cooldown ideas                   |
+| 24.11.2026 | 16:52 | 34      | add player health and vehicle collision damage              |

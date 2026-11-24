@@ -2,6 +2,7 @@ extends RefCounted
 
 const PlaceStore = preload("res://scripts/place_store.gd")
 const Missions = preload("res://scripts/missions.gd")
+const PlayerScript = preload("res://scripts/player.gd")
 const FORMAT_VERSION := 1
 const MAX_FILE_BYTES := 16 * 1024 * 1024
 const GRID_SIZE := 45 # Save format 1 uses the 45x45 exploration grid.
@@ -52,6 +53,8 @@ static func is_valid(data: Dictionary) -> bool:
 	if not _number(data.scale) or float(data.scale) <= 0.0:
 		return false
 	if not _vector(data.player_position) or not _vector(data.car_position) or not _number(data.car_rotation) or not data.in_car is bool:
+		return false
+	if data.has("health") and (not _number(data.health) or float(data.health) != floorf(float(data.health)) or data.health < 0 or data.health > PlayerScript.MAX_HEALTH or (data.health == 0 and data.in_car)):
 		return false
 	if not data.explored is Array or data.explored.size() > GRID_SIZE * GRID_SIZE:
 		return false

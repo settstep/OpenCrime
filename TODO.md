@@ -19,3 +19,4 @@ Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenf
 - Richtungspfeil zum aktuellen Auftragsziel am Bildschirmrand anzeigen.
 - Optional den kürzesten Weg zum aktuellen Ziel anzeigen.
 - Wiederkehrende zufällige Aufträge mit einer je Missionstyp einstellbaren Pause zwischen minimaler und maximaler Anzahl von Spielstunden anbieten.
+- Immobilien kaufen und als Startplatz nutzen; bei Wiederbelebung dort 50 % Lebensenergie geben.

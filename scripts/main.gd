@@ -1,6 +1,7 @@
 extends Node3D
 
 const CarScript = preload("res://scripts/car.gd")
+const PlayerScript = preload("res://scripts/player.gd")
 const VehicleInteraction = preload("res://scripts/vehicle_interaction.gd")
 const GameMapScene = preload("res://scenes/game_map.tscn")
 const SaveStore = preload("res://scripts/save_store.gd")
@@ -14,10 +15,12 @@ const CAMERA_ZOOM_START_SPEED := 6.0
 const CAMERA_ZOOM_MAX_SPEED := 25.0
 const CAMERA_ZOOM_RESPONSE := 3.0
 
-@onready var player: CharacterBody3D = $Player
+@onready var player: PlayerScript = $Player
 @onready var car: CarScript = $Car
 @onready var camera: Camera3D = $Camera3D
 @onready var status: Label = $HUD/Status
+@onready var health_label: Label = $HUD/Health/Label
+@onready var health_bar: ProgressBar = $HUD/Health/Bar
 
 var in_car := false
 var menu_open := false
@@ -41,6 +44,8 @@ var mission_ready := false
 func _ready() -> void:
 	player_collision_layer = player.collision_layer
 	player_collision_mask = player.collision_mask
+	player.spawn_position = player.global_position
+	car.impact.connect(_on_car_impact)
 	game_map = GameMapScene.instantiate()
 	game_map.hide()
 	game_map.close_requested.connect(_close_map)
@@ -80,7 +85,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	var target := car if in_car else player
+	_show_health(player.health)
+	var target: CharacterBody3D = car if in_car else player
 	_update_camera(target, _horizontal_speed(car) if in_car else 0.0, delta)
 	game_map.update_position(target.global_position)
 	if not save_id.is_empty():
@@ -133,6 +139,64 @@ func _handle_menu_input(event: InputEvent) -> bool:
 
 
 func _is_network_game() -> bool:
+	return false
+
+
+func _show_health(value: int) -> void:
+	health_label.text = "Lebensenergie: %d / %d" % [value, PlayerScript.MAX_HEALTH]
+	health_bar.value = value
+
+
+func _on_car_impact(speed: float) -> void:
+	if in_car:
+		if _damage_player(player, speed):
+			in_car = false
+			car.occupied = false
+			car.velocity = Vector3.ZERO
+			interact_requested = false
+			status.text = "Warte auf einen freien Startplatz zur Wiederbelebung."
+
+
+func _damage_player(body: PlayerScript, impact_speed: float) -> bool:
+	var damage := maxi(0, int((impact_speed - CarScript.DAMAGE_SPEED) * 4.0))
+	if damage == 0 or body.health <= 0:
+		return false
+	body.health = maxi(0, body.health - damage)
+	if body.health == 0:
+		VehicleInteraction.enter(body)
+		return true
+	return false
+
+
+func _try_respawn(body: PlayerScript) -> bool:
+	var shape: CollisionShape3D = body.get_node("CollisionShape3D")
+	var space := get_world_3d().direct_space_state
+	for radius in range(0, 13, 2):
+		var count := 1 if radius == 0 else 8
+		for index in count:
+			var angle := TAU * float(index) / float(count)
+			var origin := body.spawn_position + Vector3(cos(angle) * radius, 2.0, sin(angle) * radius)
+			var ray := PhysicsRayQueryParameters3D.create(origin, origin + Vector3.DOWN * 5.0, player_collision_mask, [body.get_rid()])
+			var floor_hit := space.intersect_ray(ray)
+			if floor_hit.is_empty() or floor_hit.collider != $Ground:
+				continue
+			var position: Vector3 = floor_hit.position + Vector3.UP * 0.95
+			var query := PhysicsShapeQueryParameters3D.new()
+			query.shape = shape.shape
+			query.transform = Transform3D(Basis.IDENTITY, position)
+			query.collision_mask = player_collision_mask
+			query.exclude = [body.get_rid()]
+			if not space.intersect_shape(query, 1).is_empty():
+				continue
+			body.global_position = position
+			body.velocity = Vector3.ZERO
+			body.movement_input = Vector2.ZERO
+			body.collision_layer = player_collision_layer
+			body.collision_mask = player_collision_mask
+			body.show()
+			body.set_physics_process(true)
+			body.health = PlayerScript.RESPAWN_HEALTH
+			return true
 	return false
 
 
@@ -307,7 +371,7 @@ func save_game() -> bool:
 	if save_id.is_empty() or map == null or not map.has_meta("place"):
 		_save_error("Spielstand konnte nicht erstellt werden: Ortsdaten fehlen.")
 		return false
-	var target := car if in_car else player
+	var target: CharacterBody3D = car if in_car else player
 	game_map.update_position(target.global_position)
 	var explored: Array = []
 	for cell: Vector2i in game_map.explored:
@@ -323,6 +387,7 @@ func save_game() -> bool:
 		"car_position": [car.global_position.x, car.global_position.y, car.global_position.z],
 		"car_rotation": car.global_rotation.y,
 		"in_car": in_car,
+		"health": player.health,
 		"explored": explored,
 	}
 	if mission_ready and mission_manager.players.has(1):
@@ -354,6 +419,7 @@ func _save_error(message: String) -> void:
 
 func _restore_game(data: Dictionary) -> void:
 	save_created_at = data.created_at
+	player.health = int(data.get("health", PlayerScript.MAX_HEALTH))
 	var position: Array = data.player_position
 	player.global_position = Vector3(float(position[0]), float(position[1]), float(position[2]))
 	position = data.car_position
@@ -365,9 +431,16 @@ func _restore_game(data: Dictionary) -> void:
 		in_car = true
 		car.occupied = true
 		VehicleInteraction.enter(player)
+	elif player.health == 0:
+		VehicleInteraction.enter(player)
+		status.text = "Warte auf einen freien Startplatz zur Wiederbelebung."
 
 
 func _physics_process(_delta: float) -> void:
+	if player.health == 0:
+		if _try_respawn(player):
+			status.text = "Am Startpunkt mit 25 % Lebensenergie wiederbelebt."
+		return
 	if mission_ready:
 		mission_manager.visit(1, player.global_position, not in_car)
 	if not interact_requested:

@@ -4,7 +4,7 @@ signal place_chosen(place: Dictionary)
 signal cancelled
 
 const PlaceStore = preload("res://scripts/place_store.gd")
-const USER_AGENT := "OpenCrime/0.9 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.10 (+https://github.com/settstep/OpenCrime)"
 const EXTENT_METERS := 165.0
 const MAX_RESPONSE_BYTES := 8 * 1024 * 1024
 

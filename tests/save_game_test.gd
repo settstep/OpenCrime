@@ -32,12 +32,27 @@ func _test() -> void:
 	world.car.global_position = Vector3(0, 0.5, -5)
 	world.car.global_rotation.y = 0.75
 	world._enter_car()
+	world.player.health = 63
 	world.game_map.update_position(Vector3(100, 0, 100))
 	world._process(world.AUTOSAVE_INTERVAL + 1.0)
 	var saved := SaveStore.read_slot(first_id)
 	if saved.error != OK or not saved.data.in_car or absf(float(saved.data.car_rotation) - 0.75) > 0.001 or saved.data.explored.size() < 50:
 		_fail("Autosave lost the car state or exploration.")
 		return
+	if saved.data.health != 63:
+		_fail("Autosave lost the player's health.")
+		return
+	var legacy: Dictionary = saved.data.duplicate(true)
+	legacy.erase("health")
+	if not SaveStore.is_valid(legacy):
+		_fail("Old saves without health should remain valid.")
+		return
+	var bad_health: Dictionary = saved.data.duplicate(true)
+	for value in [-1, 101, 2.5, 0]:
+		bad_health.health = value
+		if SaveStore.is_valid(bad_health):
+			_fail("Invalid health or an incapacitated driver was accepted.")
+			return
 	var invalid: Dictionary = saved.data.duplicate(true)
 	invalid.in_car = "yes"
 	if SaveStore.write_slot(invalid) != ERR_INVALID_DATA or SaveStore.read_slot(first_id).data.in_car != true:
@@ -102,6 +117,9 @@ func _test() -> void:
 	world = current_scene
 	if world.save_id != first_id or not world.in_car or not world.car.occupied or world.player.visible or world.player.collision_layer != 0:
 		_fail("Loading did not restore the player inside the car.")
+		return
+	if world.player.health != 63:
+		_fail("Loading did not restore the player's health.")
 		return
 	if world.get_node("OSMMap").get_meta("place").id != "only_in_save":
 		_fail("Loading did not restore the embedded place snapshot.")
@@ -185,11 +203,36 @@ func _test() -> void:
 			break
 		index += 1
 	selection.list.select(index)
+	var old_save: Dictionary = SaveStore.read_slot(first_id).data
+	old_save.erase("health")
+	if SaveStore.write_slot(old_save) != OK:
+		_fail("The old save could not be written for the migration test.")
+		return
 	selection._on_load_pressed()
 	await process_frame
 	world = current_scene
 	if world.in_car or not world.player.visible or world.player.collision_layer == 0 or world.save_id != first_id:
 		_fail("The on-foot state was not restored.")
+		return
+	if world.player.health != 100:
+		_fail("Old saves did not start with full health.")
+		return
+	if not world._damage_player(world.player, 40.0) or not world.save_game():
+		_fail("Saving a player waiting to respawn failed.")
+		return
+	world._open_pause_menu()
+	world.get_node("PauseMenu/Menu/Panel/Options/ReturnToMenu").pressed.emit()
+	await process_frame
+	menu = current_scene
+	menu.get_node("Panel/Options/LoadGame").pressed.emit()
+	await process_frame
+	menu.get_node("SaveSelection")._on_load_pressed()
+	await process_frame
+	world = current_scene
+	for i in range(5):
+		await physics_frame
+	if world.player.health != 25 or not world.player.visible:
+		_fail("Loading an incapacitated player did not complete the respawn.")
 		return
 	world.queue_free()
 	await process_frame

@@ -6,7 +6,7 @@ signal map_error(message: String)
 const TILE_SIZE := 256.0
 const CACHE_DIRECTORY := "user://tile_cache"
 const FALLBACK_CACHE_SECONDS := 604800
-const USER_AGENT := "OpenCrime/0.9 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.10 (+https://github.com/settstep/OpenCrime)"
 
 var center := Vector2(47.7748417, 10.6034933)
 var zoom := 15

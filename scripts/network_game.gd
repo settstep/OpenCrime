@@ -1,7 +1,6 @@
 extends "res://scripts/main.gd"
 
 const PlayerScene = preload("res://scenes/player.tscn")
-const PlayerScript = preload("res://scripts/player.gd")
 const OSMMap = preload("res://scripts/osm_map.gd")
 const PlaceStore = preload("res://scripts/place_store.gd")
 const SNAPSHOT_INTERVAL := 0.05
@@ -76,6 +75,8 @@ func _process(delta: float) -> void:
 		var local_player: CharacterBody3D = players[local_id]
 		_update_camera(local_player, 0.0, delta)
 		game_map.update_position(local_player.global_position)
+	if players.has(local_id):
+		_show_health(players[local_id].health)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -104,6 +105,10 @@ func _physics_process(delta: float) -> void:
 			_set_input(1, _local_movement_input())
 		for peer_id in players:
 			var body: PlayerScript = players[peer_id]
+			if body.health == 0:
+				if _try_respawn(body):
+					_notify(peer_id, "Am Startpunkt mit 25 % Lebensenergie wiederbelebt.")
+				continue
 			var direction := Vector2.ZERO
 			if Time.get_ticks_msec() - int(input_times.get(peer_id, 0)) <= INPUT_TIMEOUT_MS:
 				direction = inputs.get(peer_id, Vector2.ZERO)
@@ -115,7 +120,8 @@ func _physics_process(delta: float) -> void:
 		pending_interactions.clear()
 		if mission_ready:
 			for peer_id in players:
-				mission_manager.visit(peer_id, players[peer_id].global_position, driver_id != peer_id)
+				if players[peer_id].health > 0:
+					mission_manager.visit(peer_id, players[peer_id].global_position, driver_id != peer_id)
 		snapshot_timer += delta
 		if snapshot_timer >= SNAPSHOT_INTERVAL:
 			snapshot_timer = 0.0
@@ -127,6 +133,21 @@ func _physics_process(delta: float) -> void:
 
 func _is_network_game() -> bool:
 	return true
+
+
+func _on_car_impact(speed: float) -> void:
+	if not multiplayer.is_server() or not players.has(driver_id):
+		return
+	var peer_id := driver_id
+	if _damage_player(players[peer_id], speed):
+		driver_id = 0
+		car.occupied = false
+		car.movement_input = Vector2.ZERO
+		car.velocity = Vector3.ZERO
+		_set_input(peer_id, Vector2.ZERO)
+		while pending_interactions.has(peer_id):
+			pending_interactions.erase(peer_id)
+		_notify(peer_id, "Warte auf einen freien Startplatz zur Wiederbelebung.")
 
 
 func _local_movement_input() -> Vector2:
@@ -176,6 +197,7 @@ func _add_server_player(peer_id: int) -> void:
 	var body := _create_player(peer_id)
 	body.uses_local_input = false
 	body.position = Vector3(float(slot % 3 - 1) * 1.5, 0.9, 2.0 + float(slot / 3) * 1.5)
+	body.spawn_position = body.global_position
 	_set_input(peer_id, Vector2.ZERO)
 	if mission_ready:
 		var added := mission_manager.add_player(peer_id)
@@ -328,6 +350,8 @@ func _interact(peer_id: int) -> void:
 	if not players.has(peer_id):
 		return
 	var body: PlayerScript = players[peer_id]
+	if body.health == 0:
+		return
 	if driver_id == peer_id:
 		if VehicleInteraction.exit(body, car, player_collision_layer, player_collision_mask):
 			driver_id = 0
@@ -365,7 +389,7 @@ func _send_snapshot() -> void:
 	var states := {}
 	for peer_id in players:
 		var body: PlayerScript = players[peer_id]
-		states[peer_id] = [body.global_position, body.visible]
+		states[peer_id] = [body.global_position, body.visible, body.health]
 	_receive_snapshot.rpc(states, car.global_position, car.global_rotation.y, driver_id, _horizontal_speed(car))
 
 
@@ -391,6 +415,7 @@ func _receive_snapshot(states: Dictionary, car_position: Vector3, car_angle: flo
 			body = players[peer_id]
 		body.global_position = states[peer_id][0]
 		body.visible = states[peer_id][1]
+		body.health = states[peer_id][2]
 	car.global_position = car_position
 	car.global_rotation.y = car_angle
 	driver_id = current_driver

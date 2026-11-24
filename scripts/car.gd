@@ -1,15 +1,20 @@
 extends CharacterBody3D
 
+signal impact(speed: float)
+
 const SPEED := 18.0
+const DAMAGE_SPEED := 7.0
 
 var occupied := false
 var uses_local_input := true
 var movement_input := Vector2.ZERO
+var impact_contacts := {}
 
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 
 
 func _physics_process(delta: float) -> void:
+	var previous_velocity := get_real_velocity()
 	var input := Vector2.ZERO
 	if occupied:
 		input = movement_input
@@ -38,3 +43,19 @@ func _physics_process(delta: float) -> void:
 		velocity.y = 0.0
 
 	move_and_slide()
+	var contacts := {}
+	if occupied:
+		var impact_speed := 0.0
+		for index in get_slide_collision_count():
+			var collision := get_slide_collision(index)
+			var normal := collision.get_normal()
+			var horizontal_normal := Vector3(normal.x, 0, normal.z)
+			if horizontal_normal.length_squared() > 0.01:
+				var collider_id := collision.get_collider_id()
+				contacts[collider_id] = true
+				if not impact_contacts.has(collider_id):
+					horizontal_normal = horizontal_normal.normalized()
+					impact_speed = maxf(impact_speed, -previous_velocity.dot(horizontal_normal))
+		if impact_speed > DAMAGE_SPEED:
+			impact.emit(impact_speed)
+	impact_contacts = contacts

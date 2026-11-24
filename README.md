@@ -14,6 +14,17 @@ Beim schnelleren Fahren zeigt die Kamera sanft einen größeren Ausschnitt; beim
 Anhalten oder Aussteigen kehrt sie zur normalen Ansicht zurück. Zu Fuß bleibt
 die bisherige Ansicht erhalten.
 
+Die Lebensenergie steht oben rechts. Starke Fahrzeugkollisionen verletzen den
+Fahrer; langsame Kontakte und dauerhaftes Drücken gegen ein Hindernis verursachen
+keinen weiteren Schaden. Bei null Lebensenergie wird die Figur mit 25 %
+Lebensenergie am Startpunkt wiederbelebt. Ist dieser belegt, wird ein freier
+Platz in der Nähe gesucht; ist keiner verfügbar, wartet die Figur, bis ein Platz
+frei wird. Das Auto bleibt am Unfallort und aktive Aufträge bleiben erhalten.
+Im Einzelspieler wird die Lebensenergie gespeichert; alte Spielstände starten
+mit voller Lebensenergie. Im Multiplayer berechnet der Server den Schaden und
+die Wiederbelebung; die Lebensenergie gilt wie die übrigen Fortschrittsdaten
+nur für die laufende Sitzung. Eine Heilungsmöglichkeit gibt es noch nicht.
+
 Mit **Escape** öffnet sich das Menü; mit Escape oder **Spiel fortsetzen**
 kehrt man zurück. Im Einzelspieler pausiert das Spiel, im Multiplayer läuft
 der Server weiter und nur die eigene Steuerung wird gesperrt. **Zum Hauptmenü**
@@ -261,6 +272,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 
 ```powershell
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/car_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/health_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/pause_menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_map_test.gd
@@ -301,4 +313,14 @@ dann den Client starten. Standardmäßig wird UDP-Port 17785 verwendet:
 ```
 ```powershell
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/mission_network_test.gd
+```
+
+Der Multiplayer-Test für Lebensenergie läuft ebenso in zwei Terminals und
+verwendet standardmäßig UDP-Port 17786:
+
+```powershell
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/health_network_test.gd -- --host
+```
+```powershell
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/health_network_test.gd
 ```
