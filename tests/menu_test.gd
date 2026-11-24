@@ -23,7 +23,7 @@ func _test() -> void:
 		return
 	ProjectSettings.set_setting("application/config/version", original_version)
 	menu.get_node("Panel/Options/Changelog").pressed.emit()
-	if not menu.get_node("ChangelogPanel").visible or not menu.get_node("ChangelogPanel/Layout/Content").text.contains("0.5.1"):
+	if not menu.get_node("ChangelogPanel").visible or not menu.get_node("ChangelogPanel/Layout/Content").text.contains("0.6.0"):
 		_fail("The changelog did not open.")
 		return
 	menu.get_node("ChangelogPanel/Layout/Back").pressed.emit()

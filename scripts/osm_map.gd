@@ -8,6 +8,10 @@ const BUILDING_HEIGHT := 10.0
 const LEVEL_HEIGHT := 3.0
 const SCALE_SETTING := "opencrime/osm/scale"
 const PEDESTRIAN_WAYS := ["footway", "path", "pedestrian", "steps", "cycleway"]
+const ROAD_HEIGHT := 0.04
+const PATH_HEIGHT := 0.02
+const WAY_THICKNESS := 0.02
+const JOINT_SEGMENTS := 24
 
 
 static func populate(world: Node3D, place: Dictionary = {}) -> bool:
@@ -56,16 +60,22 @@ static func populate(world: Node3D, place: Dictionary = {}) -> bool:
 	parking_material.albedo_color = Color(0.37, 0.38, 0.39)
 	parking_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 
+	var road_joints: Array[Transform3D] = []
+	var path_joints: Array[Transform3D] = []
 	for way in place.ways:
 		if way.tags.has("building"):
 			_add_building(map, way, building_material, map_scale, place.origin)
 		elif way.tags.get("amenity", "") == "parking" and way.tags.get("parking", "") in ["", "surface"]:
 			_add_area(map, way, parking_material, map_scale, place.origin, "Parking", 0.015)
 		elif way.tags.get("area", "") == "yes" and way.tags.get("highway", "") in PEDESTRIAN_WAYS:
-			_add_area(map, way, pedestrian_material, map_scale, place.origin, "Pedestrian", 0.04)
+			_add_area(map, way, pedestrian_material, map_scale, place.origin, "Pedestrian", PATH_HEIGHT)
 		elif way.tags.has("highway") and way.tags.get("area", "") != "yes":
-			var material := pedestrian_material if way.tags.highway in PEDESTRIAN_WAYS else road_material
-			_add_road(map, way, material, map_scale, place.origin)
+			var is_path: bool = way.tags.highway in PEDESTRIAN_WAYS
+			var material := pedestrian_material if is_path else road_material
+			_add_road(map, way, material, map_scale, place.origin, PATH_HEIGHT if is_path else ROAD_HEIGHT, path_joints if is_path else road_joints)
+
+	_add_joints(map, "RoadJoints", road_joints, road_material)
+	_add_joints(map, "PathJoints", path_joints, pedestrian_material)
 
 	var credit := Label.new()
 	credit.name = "OSMCredit"
@@ -86,23 +96,53 @@ static func _project(point: Array, origin: Array = [ORIGIN_LAT, ORIGIN_LON]) -> 
 	return Vector2(x, z)
 
 
-static func _add_road(map: Node3D, way: Dictionary, material: Material, map_scale: float, origin: Array) -> void:
+static func _add_road(map: Node3D, way: Dictionary, material: Material, map_scale: float, origin: Array, height: float, joints: Array[Transform3D]) -> void:
 	var width := _road_width(way.tags)
+	var joint_indices := {}
 	for index in range(way.geometry.size() - 1):
 		var start := _project(way.geometry[index], origin)
 		var end := _project(way.geometry[index + 1], origin)
 		var direction := end - start
-		if direction.length() < 0.05:
+		if direction.length_squared() < 0.000000000001:
 			continue
 		var road_mesh := BoxMesh.new()
-		road_mesh.size = Vector3(width * map_scale, 0.02, direction.length() * map_scale)
+		road_mesh.size = Vector3(width * map_scale, WAY_THICKNESS, direction.length() * map_scale)
 		road_mesh.material = material
 		var segment := MeshInstance3D.new()
 		segment.name = "Road_%d_%d" % [int(way.id), index]
 		segment.mesh = road_mesh
-		segment.position = Vector3((start.x + end.x) * map_scale / 2.0, 0.02, (start.y + end.y) * map_scale / 2.0)
+		segment.position = Vector3((start.x + end.x) * map_scale / 2.0, height, (start.y + end.y) * map_scale / 2.0)
 		segment.rotation.y = atan2(direction.x, direction.y)
 		map.add_child(segment)
+		for endpoint in [index, index + 1]:
+			if joint_indices.has(endpoint):
+				continue
+			joint_indices[endpoint] = true
+			var point := start if endpoint == index else end
+			# Circumscribe the road width so polygonal round joins leave no gaps.
+			var diameter := width * map_scale / cos(PI / JOINT_SEGMENTS)
+			joints.append(Transform3D(Basis.IDENTITY.scaled(Vector3(diameter, 1.0, diameter)), Vector3(point.x * map_scale, height, point.y * map_scale)))
+
+
+static func _add_joints(map: Node3D, node_name: String, transforms: Array[Transform3D], material: Material) -> void:
+	if transforms.is_empty():
+		return
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.5
+	mesh.bottom_radius = 0.5
+	mesh.height = WAY_THICKNESS
+	mesh.radial_segments = JOINT_SEGMENTS
+	mesh.material = material
+	var multimesh := MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.mesh = mesh
+	multimesh.instance_count = transforms.size()
+	for index in transforms.size():
+		multimesh.set_instance_transform(index, transforms[index])
+	var visual := MultiMeshInstance3D.new()
+	visual.name = node_name
+	visual.multimesh = multimesh
+	map.add_child(visual)
 
 
 static func _measurement(value: Variant, max_value: float) -> float:

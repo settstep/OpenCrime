@@ -15,3 +15,4 @@
 | 24.11.2026 | 11:11 | 21      | add exploration map with fog of war                         |
 | 24.11.2026 | 12:10 | 23      | add multiple persistent single-player saves                 |
 | 24.11.2026 | 12:15 | 24      | handle missing save directory in load menu                  |
+| 24.11.2026 | 12:30 | 24      | improve road junctions and track future features            |

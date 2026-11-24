@@ -85,6 +85,11 @@ oberirdische Parkplatzflächen werden aus gespeicherten OpenStreetMap-Wegen
 erzeugt; die Gebäude haben Kollisionen. Straßenbreiten verwenden `width`, wo
 vorhanden, andernfalls wird aus `lanes` mit 3 Metern pro Fahrstreifen geschätzt.
 Ohne diese Angaben gelten je nach Wegtyp 2, 4, 6 oder 7 Meter.
+Straßen- und Wegstücke werden an ihren OSM-Punkten abgerundet verbunden;
+die OSM-Mittellinien bleiben unverändert. Überlappende Gehwege und
+Fußgängerflächen werden von Straßen verdeckt, auch auf der Spielkarte.
+Brücken, Tunnel und andere höhengetrennte Kreuzungen werden dabei noch nicht
+berücksichtigt.
 Gebäude verwenden `height`, andernfalls `building:levels` mit 3 Metern pro
 Etage; ohne Angaben sind es 10 Meter, für Garagen 3 Meter. Maße ohne Einheit
 oder mit `m` gelten als Meter; `ft` wird in Meter umgerechnet. Nicht auswertbare
@@ -148,6 +153,7 @@ eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
 allein prüft noch nicht die Multiplayer-Kompatibilität.
 Das Änderungsprotokoll ist über **Änderungsprotokoll** im Hauptmenü und in
 `CHANGELOG.md` verfügbar.
+Geplante Erweiterungen stehen in der [Todo-Liste](TODO.md).
 
 ## Windows-EXE exportieren
 

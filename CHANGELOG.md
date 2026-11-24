@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.6.0
+- Abgerundete Verbindungen schließen Lücken zwischen Straßen- und Wegstücken.
+- Straßen werden vor überlappenden Gehwegen dargestellt, auch auf der Spielkarte.
+
 ## 0.5.1
 - Der Ladebildschirm funktioniert auch, wenn noch keine Spielstände vorhanden sind.
 

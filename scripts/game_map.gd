@@ -104,7 +104,7 @@ func _draw_map() -> void:
 		return
 	var factor := canvas.size.x / (WORLD_SIZE * map_scale)
 	canvas.draw_rect(Rect2(Vector2.ZERO, canvas.size), Color(0.35, 0.52, 0.31))
-	for kind in ["parking", "pedestrian_area", "road", "pedestrian", "building"]:
+	for kind in ["parking", "pedestrian_area", "pedestrian", "road", "building"]:
 		for feature in features:
 			if feature.kind != kind:
 				continue
@@ -128,7 +128,10 @@ func _draw_map() -> void:
 					if absf((b - a).cross(c - a)) > 0.01:
 						canvas.draw_colored_polygon(PackedVector2Array([a, b, c]), color)
 			else:
-				canvas.draw_polyline(points, color, maxf(1.0, feature.width * factor), true)
+				var width := maxf(1.0, feature.width * factor)
+				canvas.draw_polyline(points, color, width, true)
+				for point in points:
+					canvas.draw_circle(point, width / 2.0, color)
 	var cell_pixels := canvas.size.x / GRID_SIZE
 	for x in range(GRID_SIZE):
 		for y in range(GRID_SIZE):

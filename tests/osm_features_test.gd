@@ -13,13 +13,36 @@ func _square(offset: float) -> Array:
 	return [[offset, 0.0], [offset, 0.0001], [offset + 0.0001, 0.0001], [offset + 0.0001, 0.0], [offset, 0.0]]
 
 
+func _joint_covers(transforms: Array[Transform3D], mesh: Mesh, center: Vector2, radius: float) -> bool:
+	var faces := mesh.get_faces()
+	for transform in transforms:
+		if Vector2(transform.origin.x, transform.origin.z).distance_to(center) > 0.001:
+			continue
+		for sample in 96:
+			var angle := TAU * float(sample) / 96.0
+			var point := center + Vector2(cos(angle), sin(angle)) * radius * 0.999
+			var covered := false
+			for index in range(0, faces.size(), 3):
+				var triangle := PackedVector2Array()
+				for vertex in range(3):
+					var position: Vector3 = transform * faces[index + vertex]
+					triangle.append(Vector2(position.x, position.z))
+				if Geometry2D.is_point_in_polygon(point, triangle):
+					covered = true
+					break
+			if not covered:
+				return false
+		return true
+	return false
+
+
 func _test() -> void:
 	var original: Variant = ProjectSettings.get_setting(OSMMap.SCALE_SETTING)
 	var place := {
 		"id": "features", "name": "Features", "origin": [0.0, 0.0],
 		"bounds": [-0.001, -0.001, 0.001, 0.001],
 		"ways": [
-			{"id": 1, "tags": {"highway": "residential", "width": "7.5 m", "lanes": "3"}, "geometry": [[0.0, 0.0], [0.0001, 0.0]]},
+			{"id": 1, "tags": {"highway": "residential", "width": "7.5 m", "lanes": "3"}, "geometry": [[0.0, 0.0], [0.0001, 0.0], [0.0001, 0.0001]]},
 			{"id": 2, "tags": {"highway": "residential", "lanes": "3"}, "geometry": [[0.0, 0.0001], [0.0001, 0.0001]]},
 			{"id": 3, "tags": {"highway": "footway", "width": "12ft"}, "geometry": [[0.0, 0.0002], [0.0001, 0.0002]]},
 			{"id": 4, "tags": {"highway": "service"}, "geometry": [[0.0, 0.0003], [0.0001, 0.0003]]},
@@ -32,6 +55,9 @@ func _test() -> void:
 			{"id": 11, "tags": {"amenity": "parking"}, "geometry": [[0.0, 0.0], [0.0001, 0.0], [0.0001, 0.0001]]},
 			{"id": 12, "tags": {"highway": "residential", "width": "unknown", "lanes": "2"}, "geometry": [[0.0, 0.0004], [0.0001, 0.0004]]},
 			{"id": 13, "tags": {"building": "yes", "height": "-1", "building:levels": "3"}, "geometry": _square(0.0007)},
+			{"id": 14, "tags": {"highway": "service"}, "geometry": [[0.0001, 0.0], [0.0002, -0.0001]]},
+			{"id": 15, "tags": {"highway": "footway"}, "geometry": [[0.0001, -0.0001], [0.0001, 0.0001]]},
+			{"id": 16, "tags": {"highway": "service"}, "geometry": [[0.0, 0.001], [0.0000001, 0.001], [0.0000001, 0.001], [0.0001, 0.001]]},
 		],
 	}
 	for factor in [1.0, 2.0]:
@@ -48,6 +74,33 @@ func _test() -> void:
 				return
 		if map.get_node("Road_1_0").mesh.material == map.get_node("Road_3_0").mesh.material:
 			_fail("Separately mapped footways are not visually distinct.")
+			return
+		var road: MeshInstance3D = map.get_node("Road_1_0")
+		var path: MeshInstance3D = map.get_node("Road_15_0")
+		var path_area: MeshInstance3D = map.get_node("Pedestrian_9")
+		if road.position.y + road.mesh.size.y / 2.0 <= path.position.y + path.mesh.size.y / 2.0 or road.position.y + road.mesh.size.y / 2.0 <= path_area.position.y:
+			_fail("Roads do not cover overlapping paths and pedestrian areas.")
+			return
+		var center: Vector2 = OSMMap._project([0.0001, 0.0], place.origin) * factor
+		var road_joints: MultiMeshInstance3D = map.get_node("RoadJoints")
+		var path_joints: MultiMeshInstance3D = map.get_node("PathJoints")
+		var road_transforms: Array[Transform3D] = []
+		var branch_transforms: Array[Transform3D] = []
+		var path_transforms: Array[Transform3D] = []
+		var test_map := Node3D.new()
+		OSMMap._add_road(test_map, place.ways[0], road.mesh.material, factor, place.origin, OSMMap.ROAD_HEIGHT, road_transforms)
+		OSMMap._add_road(test_map, place.ways[13], road.mesh.material, factor, place.origin, OSMMap.ROAD_HEIGHT, branch_transforms)
+		OSMMap._add_road(test_map, place.ways[14], path.mesh.material, factor, place.origin, OSMMap.PATH_HEIGHT, path_transforms)
+		test_map.free()
+		if road_joints.multimesh.instance_count < road_transforms.size() + branch_transforms.size() or not map.has_node("Road_1_1") or not _joint_covers(road_transforms, road_joints.multimesh.mesh, center, 7.5 * factor / 2.0) or not _joint_covers(branch_transforms, road_joints.multimesh.mesh, center, 2.0 * factor):
+			_fail("The road bend and shared intersection are not filled across their full width.")
+			return
+		if not map.has_node("Road_16_0") or map.has_node("Road_16_1") or not map.has_node("Road_16_2"):
+			_fail("A short segment was dropped or a duplicate point produced a segment.")
+			return
+		var path_end: Vector2 = OSMMap._project([0.0001, 0.0001], place.origin) * factor
+		if path_joints.multimesh.instance_count < path_transforms.size() or not _joint_covers(path_transforms, path_joints.multimesh.mesh, path_end, factor):
+			_fail("The path end is not rounded across its full width.")
 			return
 		for expected in [[5, 12.0], [6, 6.0], [7, 3.0], [13, 9.0]]:
 			var building: StaticBody3D = map.get_node("Building_%d" % expected[0])
