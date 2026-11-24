@@ -3,6 +3,7 @@ extends SceneTree
 const MainScene = preload("res://scenes/main.tscn")
 const MenuScene = preload("res://scenes/menu.tscn")
 const NetworkGame = preload("res://scripts/network_game.gd")
+const OSMMap = preload("res://scripts/osm_map.gd")
 
 var world: NetworkGame
 var role := ""
@@ -73,6 +74,9 @@ func _test() -> void:
 			return
 		root.multiplayer.multiplayer_peer = peer
 		var instance := MainScene.instantiate()
+		if not OSMMap.populate(instance):
+			_fail("The OSM map could not be loaded.")
+			return
 		instance.set_script(NetworkGame)
 		world = instance
 		root.add_child(world)

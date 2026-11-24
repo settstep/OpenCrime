@@ -13,8 +13,27 @@ fährt das Auto in die jeweilige Richtung. In der Nähe des Autos steigt man mit
 
 Der Multiplayer-Prototyp synchronisiert Spieler und das gemeinsame Auto über
 einen Server. Der Server berechnet Bewegung und Kollisionen; das Auto kann nur
-von einem Spieler gleichzeitig gefahren werden. Echte Kartendaten sind noch
-nicht implementiert.
+von einem Spieler gleichzeitig gefahren werden.
+
+## Kartenausschnitt
+
+Das Spiel startet mit einem kleinen Ausschnitt rund um den Gendarmenmarkt in
+Berlin. Straßen und zwei Gebäude werden aus gespeicherten
+OpenStreetMap-Wegen erzeugt; die Gebäude haben Kollisionen. Der Ausschnitt
+ist bewusst unvollständig: Flächen, Relationen und Gebäudedetails werden noch
+nicht ausgewertet, Straßenbreiten sind geschätzt und Gebäude pauschal 10 Meter
+hoch. Das Gelände ist eben; echte Höhendaten fehlen noch.
+
+Der abgefragte Bereich umfasst 52.5128–52.5136° Nord und
+13.3908–13.3922° Ost. Wege können über diesen Bereich hinausragen. Die
+Spielwelt wird offline aus `data/gendarmenmarkt.json` erzeugt. Die Daten stammen
+aus der [OpenStreetMap-API](https://api.openstreetmap.org/api/0.6/map?bbox=13.3908,52.5128,13.3922,52.5136),
+abgerufen am 24. November 2026. Gespeichert sind die Geometrien und ausgewählte
+Tags der Gebäude- und Straßenwege; die übrigen Daten wurden weggelassen.
+
+Kartendaten: © [OpenStreetMap-Mitwirkende](https://www.openstreetmap.org/copyright),
+verfügbar unter der [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/).
+Die OSM-Daten unterliegen dieser Lizenz und nicht der MIT-Lizenz des Projektcodes.
 
 ## Projekt öffnen
 
@@ -28,6 +47,22 @@ nicht implementiert.
 
 Die Projektdateien und Skripte können auch in VS Code bearbeitet werden. Godot
 wird weiterhin benötigt, um das Spiel auszuführen und Szenen zu bearbeiten.
+
+## Windows-EXE exportieren
+
+Godot erzeugt die EXE nicht automatisch beim Spielen mit F5. Für einen Export:
+
+1. In Godot **Editor → Exportvorlagen verwalten** öffnen und die zu Godot 4.7.2
+   passenden Standard-Exportvorlagen installieren.
+2. **Projekt → Exportieren** öffnen. Das vorhandene Exportprofil
+   **Windows Desktop** auswählen und **Projekt exportieren** wählen.
+3. Die erzeugte `.exe` **und** die gleichnamige `.pck`-Datei zusammen auf den
+   anderen Windows-64-Bit-Rechner kopieren. Die PCK enthält die Spieldaten,
+   darunter den Kartenausschnitt. Dort ist Godot nicht erforderlich.
+
+Alternativ können auf dem anderen Rechner Godot 4.7.2 und dieselben
+Projektdateien verwendet werden. Für den Multiplayer müssen beide Rechner
+dieselbe Projektversion verwenden; Netzwerkadresse und Firewall siehe unten.
 
 ## Multiplayer ausprobieren
 
@@ -76,6 +111,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 ```powershell
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/car_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/menu_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_map_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/connection_failure_test.gd
 ```
 

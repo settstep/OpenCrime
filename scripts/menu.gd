@@ -2,6 +2,7 @@ extends Control
 
 const MainScene = preload("res://scenes/main.tscn")
 const NetworkGame = preload("res://scripts/network_game.gd")
+const OSMMap = preload("res://scripts/osm_map.gd")
 const MAX_CLIENTS := 8
 const DEFAULT_PORT := 7777
 
@@ -77,6 +78,16 @@ func _start_server(server_port: int, is_dedicated: bool) -> void:
 
 func _open_game(networked: bool, is_dedicated: bool) -> void:
 	var world := MainScene.instantiate()
+	if not OSMMap.populate(world):
+		world.free()
+		if networked:
+			multiplayer.multiplayer_peer.close()
+			multiplayer.multiplayer_peer = null
+		if is_dedicated:
+			get_tree().quit(1)
+		else:
+			message.text = "Kartendaten konnten nicht geladen werden. Details stehen in der Konsole."
+		return
 	if networked:
 		world.set_script(NetworkGame)
 		world.dedicated = is_dedicated
