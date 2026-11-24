@@ -5,9 +5,15 @@ const ORIGIN_LAT := 47.7748417
 const ORIGIN_LON := 10.6034933
 const METERS_PER_DEGREE := 111320.0
 const BUILDING_HEIGHT := 10.0
+const SCALE_SETTING := "opencrime/osm/scale"
 
 
 static func populate(world: Node3D) -> bool:
+	var setting: Variant = ProjectSettings.get_setting(SCALE_SETTING)
+	if (typeof(setting) != TYPE_FLOAT and typeof(setting) != TYPE_INT) or not is_finite(float(setting)) or float(setting) <= 0.0:
+		push_error("Der OSM-Kartenfaktor muss eine endliche Zahl größer als 0 sein: " + str(setting))
+		return false
+	var map_scale := float(setting)
 	var file := FileAccess.open(DATA_PATH, FileAccess.READ)
 	if file == null:
 		push_error("OSM-Kartendaten konnten nicht geöffnet werden: " + DATA_PATH)
@@ -24,8 +30,8 @@ static func populate(world: Node3D) -> bool:
 	var ground_shape: CollisionShape3D = world.get_node("Ground/CollisionShape3D")
 	ground_mesh.mesh = ground_mesh.mesh.duplicate()
 	ground_shape.shape = ground_shape.shape.duplicate()
-	ground_mesh.mesh.size = Vector3(450, 1, 450)
-	ground_shape.shape.size = Vector3(450, 1, 450)
+	ground_mesh.mesh.size = Vector3(450 * map_scale, 1, 450 * map_scale)
+	ground_shape.shape.size = Vector3(450 * map_scale, 1, 450 * map_scale)
 
 	var map := Node3D.new()
 	map.name = "OSMMap"
@@ -38,9 +44,9 @@ static func populate(world: Node3D) -> bool:
 
 	for way in json.data.ways:
 		if way.tags.has("building"):
-			_add_building(map, way, building_material)
+			_add_building(map, way, building_material, map_scale)
 		elif way.tags.has("highway") and way.tags.get("area", "") != "yes":
-			_add_road(map, way, road_material)
+			_add_road(map, way, road_material, map_scale)
 
 	var credit := Label.new()
 	credit.name = "OSMCredit"
@@ -61,7 +67,7 @@ static func _project(point: Array) -> Vector2:
 	return Vector2(x, z)
 
 
-static func _add_road(map: Node3D, way: Dictionary, material: Material) -> void:
+static func _add_road(map: Node3D, way: Dictionary, material: Material, map_scale: float) -> void:
 	var width := 6.0
 	if way.tags.highway in ["footway", "path", "pedestrian", "steps", "cycleway"]:
 		width = 2.0
@@ -72,16 +78,16 @@ static func _add_road(map: Node3D, way: Dictionary, material: Material) -> void:
 		if direction.length() < 0.05:
 			continue
 		var road_mesh := BoxMesh.new()
-		road_mesh.size = Vector3(width, 0.02, direction.length())
+		road_mesh.size = Vector3(width * map_scale, 0.02, direction.length() * map_scale)
 		road_mesh.material = material
 		var segment := MeshInstance3D.new()
 		segment.mesh = road_mesh
-		segment.position = Vector3((start.x + end.x) / 2.0, 0.02, (start.y + end.y) / 2.0)
+		segment.position = Vector3((start.x + end.x) * map_scale / 2.0, 0.02, (start.y + end.y) * map_scale / 2.0)
 		segment.rotation.y = atan2(direction.x, direction.y)
 		map.add_child(segment)
 
 
-static func _add_building(map: Node3D, way: Dictionary, material: Material) -> void:
+static func _add_building(map: Node3D, way: Dictionary, material: Material, map_scale: float) -> void:
 	var points := PackedVector2Array()
 	for coordinate in way.geometry:
 		var point := _project(coordinate)
@@ -97,15 +103,16 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material) -> v
 	var surface := SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
 	surface.set_material(material)
+	var height := BUILDING_HEIGHT * map_scale
 	for index in triangles:
-		surface.add_vertex(Vector3(points[index].x, BUILDING_HEIGHT, points[index].y))
+		surface.add_vertex(Vector3(points[index].x * map_scale, height, points[index].y * map_scale))
 	for index in points.size():
 		var a := points[index]
 		var b := points[(index + 1) % points.size()]
-		var a_bottom := Vector3(a.x, 0, a.y)
-		var b_bottom := Vector3(b.x, 0, b.y)
-		var a_top := a_bottom + Vector3.UP * BUILDING_HEIGHT
-		var b_top := b_bottom + Vector3.UP * BUILDING_HEIGHT
+		var a_bottom := Vector3(a.x * map_scale, 0, a.y * map_scale)
+		var b_bottom := Vector3(b.x * map_scale, 0, b.y * map_scale)
+		var a_top := a_bottom + Vector3.UP * height
+		var b_top := b_bottom + Vector3.UP * height
 		for vertex in [a_bottom, a_top, b_top, a_bottom, b_top, b_bottom]:
 			surface.add_vertex(vertex)
 	surface.generate_normals()

@@ -119,7 +119,7 @@ func _open_game(networked: bool, is_dedicated: bool) -> void:
 		if is_dedicated:
 			get_tree().quit(1)
 		else:
-			message.text = "Kartendaten konnten nicht geladen werden. Details stehen in der Konsole."
+			message.text = "Kartendaten oder Kartenfaktor sind ungültig. Details stehen in der Konsole."
 		return
 	if networked:
 		world.set_script(NetworkGame)

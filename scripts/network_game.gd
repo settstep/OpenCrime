@@ -2,6 +2,7 @@ extends "res://scripts/main.gd"
 
 const PlayerScene = preload("res://scenes/player.tscn")
 const PlayerScript = preload("res://scripts/player.gd")
+const OSMMap = preload("res://scripts/osm_map.gd")
 const SNAPSHOT_INTERVAL := 0.05
 const INPUT_TIMEOUT_MS := 1000
 
@@ -106,6 +107,7 @@ func _local_movement_input() -> Vector2:
 
 func _on_peer_connected(peer_id: int) -> void:
 	_add_server_player(peer_id)
+	_verify_map_scale.rpc_id(peer_id, float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING)))
 	print("Spieler verbunden: ", peer_id)
 
 
@@ -152,6 +154,15 @@ func _set_input(peer_id: int, direction: Vector2) -> void:
 func _submit_input(direction: Vector2) -> void:
 	if multiplayer.is_server():
 		_set_input(multiplayer.get_remote_sender_id(), direction)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _verify_map_scale(server_scale: float) -> void:
+	var local_scale := float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING))
+	if server_scale != local_scale:
+		connected = false
+		multiplayer.multiplayer_peer.close()
+		status.text = "Kartenfaktor stimmt nicht mit dem Server überein (Server: %s, lokal: %s)." % [server_scale, local_scale]
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -238,5 +249,7 @@ func _on_connection_failed() -> void:
 
 
 func _on_server_disconnected() -> void:
+	if not connected:
+		return
 	connected = false
 	status.text = "Serververbindung verloren. Spiel zum erneuten Verbinden neu starten."

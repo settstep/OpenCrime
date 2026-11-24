@@ -56,6 +56,8 @@ func _test() -> void:
 			server_port = int(arg.trim_prefix("--port="))
 		elif arg == "--dedicated":
 			expected_players = 2
+		elif arg.begins_with("--scale="):
+			ProjectSettings.set_setting(OSMMap.SCALE_SETTING, float(arg.trim_prefix("--scale=")))
 	if role not in ["host", "driver", "observer"]:
 		_fail("Expected --role=host, driver or observer.")
 		return

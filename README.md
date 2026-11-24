@@ -32,13 +32,27 @@ hoch. Das Gelände ist eben; echte Höhendaten fehlen noch.
 
 Der abgefragte Bereich umfasst 47.7735–47.7765° Nord und
 10.6013–10.6057° Ost (ungefähr 330 × 330 Meter). Wege können über diesen
-Bereich hinausragen. Eine Godot-Einheit entspricht ungefähr einem Meter; die
-Spielfigur ist 1,8 Meter hoch. Die Spielwelt wird offline aus
+Bereich hinausragen. Bei Faktor 1,0 entspricht eine Godot-Einheit ungefähr
+einem Meter; die Spielfigur ist 1,8 Meter hoch. Die Spielwelt wird offline aus
 `data/thalhofen.json` erzeugt. Die Daten stammen aus der
 [Overpass API](https://overpass-api.de/), abgerufen am 24. November 2026;
 der OSM-Datenstand ist im Datensatz vermerkt. Gespeichert sind die Geometrien
 und ausgewählte Tags der Gebäude- und Straßenwege; die übrigen Daten wurden
 weggelassen. Der ältere Berliner Testdatensatz bleibt ebenfalls im Repository.
+
+### Kartenfaktor testen
+
+In `project.godot` steht unter `[opencrime]` der Parameter `osm/scale=1.0`.
+Er kann beispielsweise auf `1.2` gesetzt werden, um Abstände, Gebäudegrößen und
+die geschätzten Straßenbreiten um 20 % zu vergrößern. Der Wert muss eine
+endliche Zahl größer als 0 sein. Nach einer Änderung das Spiel neu starten;
+bei geöffnetem Godot-Editor die Projektdatei gegebenenfalls neu laden.
+
+Der Faktor skaliert auch die geschätzte Gebäudehöhe und den Boden; Figur und
+Auto bleiben unverändert. Parkplätze und zusätzliche Gehwege werden dadurch
+nicht ergänzt. Bei `1.0` entspricht eine Godot-Einheit ungefähr einem Meter.
+Im Multiplayer müssen Server und Clients denselben Faktor verwenden; bei
+unterschiedlichen Werten wird die Verbindung mit einer Meldung getrennt.
 
 Kartendaten: © [OpenStreetMap-Mitwirkende](https://www.openstreetmap.org/copyright),
 verfügbar unter der [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/).
@@ -131,6 +145,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/pause_menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_map_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_scale_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/connection_failure_test.gd
 ```
 
