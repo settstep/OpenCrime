@@ -23,17 +23,36 @@ von einem Spieler gleichzeitig gefahren werden.
 
 ## Kartenausschnitt
 
-Das Spiel startet mit einem Ausschnitt rund um die Waldmünchener Straße in
-Thalhofen bei Marktoberdorf. Straßen und Gebäude werden aus gespeicherten
+Bei **Einzelspieler** und **Spiel hosten** erscheint eine Ortsauswahl. Ziehen
+und zoomen Sie die OpenStreetMap-Karte und klicken Sie auf einen Ort, oder
+wählen Sie einen gespeicherten Ausschnitt aus der Liste. Für einen neuen Ort
+geben Sie einen Namen ein und wählen **Ort laden und starten**. Dafür werden
+Straßen und Gebäude in einem Gebiet von etwa 330 × 330 Metern über die Overpass
+API geladen. Ein geeigneter Startpunkt muss nahe einer Straße liegen; wird
+keiner gefunden, wählen Sie bitte einen anderen Punkt.
+
+Mitgeliefert werden Ausschnitte rund um die Waldmünchener Straße in Thalhofen
+bei Marktoberdorf und den Gendarmenmarkt in Berlin. Gespeicherte Orte werden
+ohne erneuten Download der OSM-Rohdaten gestartet; auch ein Klick innerhalb
+eines gespeicherten Ausschnitts wählt diesen aus. Neue Orte liegen unter
+`user://places`, unter Windows üblicherweise
+`%APPDATA%\Godot\app_userdata\OpenCrime\places`. Die Kartenansicht lädt sichtbare
+Kartenkacheln über das Internet und speichert sie zwischengespeichert unter
+`user://tile_cache`. Die Liste gespeicherter Orte funktioniert auch offline.
+Eine Textsuche ist noch nicht vorhanden.
+Ein späterer Bearbeitungsmodus mit lokalen Änderungen anhand von OSM-IDs ist
+geplant, aber noch nicht implementiert.
+
+Straßen und Gebäude werden aus gespeicherten
 OpenStreetMap-Wegen erzeugt; die Gebäude haben Kollisionen. Der Ausschnitt
 ist bewusst unvollständig: Flächen, Relationen und Gebäudedetails werden noch
 nicht ausgewertet, Straßenbreiten sind geschätzt und Gebäude pauschal 10 Meter
 hoch. Das Gelände ist eben; echte Höhendaten fehlen noch.
 
-Der abgefragte Bereich umfasst 47.7735–47.7765° Nord und
+Der mitgelieferte Thalhofen-Bereich umfasst 47.7735–47.7765° Nord und
 10.6013–10.6057° Ost (ungefähr 330 × 330 Meter). Wege können über diesen
 Bereich hinausragen. Bei Faktor 1,0 entspricht eine Godot-Einheit ungefähr
-einem Meter; die Spielfigur ist 1,8 Meter hoch. Die Spielwelt wird offline aus
+einem Meter; die Spielfigur ist 1,8 Meter hoch. Die Daten werden offline aus
 `data/thalhofen.json` erzeugt. Die Daten stammen aus der
 [Overpass API](https://overpass-api.de/), abgerufen am 24. November 2026;
 der OSM-Datenstand ist im Datensatz vermerkt. Gespeichert sind die Geometrien
@@ -79,6 +98,8 @@ Ausgangspunkt ist **0.1.0**. Bei einer neuen Version wird dieser Wert manuell
 angepasst; er folgt dem Schema `MAJOR.MINOR.PATCH`, zum Beispiel `0.2.0` für
 eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
 allein prüft noch nicht die Multiplayer-Kompatibilität.
+Das Änderungsprotokoll ist über **Änderungsprotokoll** im Hauptmenü und in
+`CHANGELOG.md` verfügbar.
 
 ## Windows-EXE exportieren
 
@@ -98,7 +119,8 @@ dieselbe Projektversion verwenden; Netzwerkadresse und Firewall siehe unten.
 
 ## Multiplayer ausprobieren
 
-1. Das Spiel starten und **Spiel hosten** wählen. Der Host spielt selbst mit.
+1. Das Spiel starten, **Spiel hosten** wählen und einen Ort auswählen. Der Host
+   spielt selbst mit.
 2. Eine zweite Spielinstanz starten, die Serveradresse und denselben UDP-Port
    eingeben und **Spiel beitreten** wählen. Zum Testen auf demselben Rechner
    ist die voreingestellte Adresse `127.0.0.1` richtig.
@@ -110,6 +132,9 @@ dieselbe Projektversion verwenden; Netzwerkadresse und Firewall siehe unten.
 Der Standardport ist **7777/UDP**. Ein Host kann bis zu acht weitere Spieler
 aufnehmen. Bei Verbindungsverlust muss das Spiel derzeit neu gestartet werden.
 Alle Beteiligten benötigen dieselbe Projektversion.
+Der Server überträgt den ausgewählten Kartenausschnitt an die Clients; diese
+benötigen dafür weder einen eigenen OSM-Download noch denselben gespeicherten
+Ort.
 
 Für einen zweiten lokalen Spielstart kann man beispielsweise ein neues
 PowerShell-Terminal öffnen und den folgenden Befehl ausführen (Pfade anpassen):
@@ -127,7 +152,12 @@ zur Godot-Konsolenprogrammdatei und zum Projektordner entsprechend anpassen:
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path "C:\GIT\OpenCrime" -- --server --port=7777
 ```
 
-Der Port ist optional und standardmäßig 7777. Zum Beenden **Strg+C** drücken.
+Der Port ist optional und standardmäßig 7777. Ohne weitere Angabe wird
+Thalhofen geladen. Mit `--place=gendarmenmarkt` lässt sich stattdessen Berlin
+wählen; für andere gespeicherte Orte kann die ID aus dem Dateinamen ohne
+`.json` verwendet werden, z. B. `--place=place_0123456789abcdef`. Diese Orte
+müssen auf dem Server in dessen `user://places` vorhanden sein. Ein unbekannter
+Ort wird als Fehler gemeldet. Zum Beenden **Strg+C** drücken.
 Auch auf einem entfernten Rechner funktioniert der Server mit einer passenden
 Godot-Version und denselben Projektdateien.
 
@@ -146,6 +176,9 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/pause_menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_map_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_scale_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_download_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/map_cache_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/connection_failure_test.gd
 ```
 

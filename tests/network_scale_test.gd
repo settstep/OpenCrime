@@ -26,6 +26,8 @@ func _test() -> void:
 	menu.get_node("Panel/Options/Port").text = str(port)
 	if is_host:
 		menu.get_node("Panel/Options/Host").pressed.emit()
+		await process_frame
+		menu.get_node("PlaceSelection")._on_start_pressed()
 	else:
 		menu.get_node("Panel/Options/Join").pressed.emit()
 	await process_frame

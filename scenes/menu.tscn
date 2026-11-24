@@ -83,6 +83,10 @@ text = "Spiel beitreten"
 layout_mode = 2
 autowrap_mode = 2
 
+[node name="Changelog" type="Button" parent="Panel/Options"]
+layout_mode = 2
+text = "Änderungsprotokoll"
+
 [node name="ReturnToMenu" type="Button" parent="Panel/Options"]
 visible = false
 layout_mode = 2
@@ -92,9 +96,36 @@ text = "Zum Hauptmenü"
 layout_mode = 2
 text = "Spiel beenden"
 
+[node name="ChangelogPanel" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 100.0
+offset_top = 50.0
+offset_right = -100.0
+offset_bottom = -50.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Layout" type="VBoxContainer" parent="ChangelogPanel"]
+layout_mode = 2
+
+[node name="Content" type="RichTextLabel" parent="ChangelogPanel/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+selection_enabled = true
+
+[node name="Back" type="Button" parent="ChangelogPanel/Layout"]
+layout_mode = 2
+text = "Zurück"
+
 [connection signal="pressed" from="Panel/Options/Resume" to="." method="_on_resume_pressed"]
 [connection signal="pressed" from="Panel/Options/SinglePlayer" to="." method="_on_single_pressed"]
 [connection signal="pressed" from="Panel/Options/Host" to="." method="_on_host_pressed"]
 [connection signal="pressed" from="Panel/Options/Join" to="." method="_on_join_pressed"]
+[connection signal="pressed" from="Panel/Options/Changelog" to="." method="_on_changelog_pressed"]
 [connection signal="pressed" from="Panel/Options/ReturnToMenu" to="." method="_on_return_to_menu_pressed"]
 [connection signal="pressed" from="Panel/Options/Quit" to="." method="_on_quit_pressed"]
+[connection signal="pressed" from="ChangelogPanel/Layout/Back" to="." method="_on_changelog_back_pressed"]

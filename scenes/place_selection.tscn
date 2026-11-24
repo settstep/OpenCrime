@@ -1,0 +1,84 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/place_selection.gd" id="1_selection"]
+[ext_resource type="Script" path="res://scripts/map_view.gd" id="2_map"]
+
+[node name="PlaceSelection" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_selection")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 12
+
+[node name="Layout" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Margin/Layout"]
+layout_mode = 2
+text = "Ort auswählen – Karte ziehen, zoomen und anklicken"
+
+[node name="Map" type="Control" parent="Margin/Layout"]
+custom_minimum_size = Vector2(400, 280)
+layout_mode = 2
+size_flags_vertical = 3
+script = ExtResource("2_map")
+
+[node name="Credit" type="Label" parent="Margin/Layout"]
+layout_mode = 2
+text = "© OpenStreetMap-Mitwirkende – https://www.openstreetmap.org/copyright"
+
+[node name="Bottom" type="HBoxContainer" parent="Margin/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Saved" type="VBoxContainer" parent="Margin/Layout/Bottom"]
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Margin/Layout/Bottom/Saved"]
+layout_mode = 2
+text = "Gespeicherte Orte"
+
+[node name="Places" type="ItemList" parent="Margin/Layout/Bottom/Saved"]
+custom_minimum_size = Vector2(0, 130)
+layout_mode = 2
+
+[node name="Details" type="VBoxContainer" parent="Margin/Layout/Bottom"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Name" type="LineEdit" parent="Margin/Layout/Bottom/Details"]
+layout_mode = 2
+placeholder_text = "Name des Ortes"
+
+[node name="Info" type="Label" parent="Margin/Layout/Bottom/Details"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="Start" type="Button" parent="Margin/Layout/Bottom/Details"]
+layout_mode = 2
+text = "Ort starten"
+
+[node name="Cancel" type="Button" parent="Margin/Layout/Bottom/Details"]
+layout_mode = 2
+text = "Zurück"
+
+[connection signal="item_selected" from="Margin/Layout/Bottom/Saved/Places" to="." method="_select_saved"]
+[connection signal="pressed" from="Margin/Layout/Bottom/Details/Start" to="." method="_on_start_pressed"]
+[connection signal="pressed" from="Margin/Layout/Bottom/Details/Cancel" to="." method="_on_cancel_pressed"]

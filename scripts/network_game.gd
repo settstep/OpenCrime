@@ -3,10 +3,16 @@ extends "res://scripts/main.gd"
 const PlayerScene = preload("res://scenes/player.tscn")
 const PlayerScript = preload("res://scripts/player.gd")
 const OSMMap = preload("res://scripts/osm_map.gd")
+const PlaceStore = preload("res://scripts/place_store.gd")
 const SNAPSHOT_INTERVAL := 0.05
 const INPUT_TIMEOUT_MS := 1000
+const MAX_PLACE_BYTES := 8 * 1024 * 1024
+const MAX_COMPRESSED_BYTES := 4 * 1024 * 1024
 
 var dedicated := false
+var place_data: Dictionary = {}
+var client_waiting_for_map := false
+var map_ready := true
 var players: Dictionary = {}
 var inputs: Dictionary = {}
 var input_times: Dictionary = {}
@@ -28,6 +34,8 @@ func _ready() -> void:
 	car.uses_local_input = false
 
 	if multiplayer.is_server():
+		if place_data.is_empty():
+			place_data = PlaceStore.find_by_id("thalhofen")
 		connected = true
 		multiplayer.peer_connected.connect(_on_peer_connected)
 		multiplayer.peer_disconnected.connect(_on_peer_disconnected)
@@ -37,6 +45,10 @@ func _ready() -> void:
 			_add_server_player(1)
 			status.text = "Server gestartet."
 	else:
+		map_ready = not client_waiting_for_map
+		if not map_ready:
+			for node_name in ["Ground", "Road", "Building1", "Building2", "Car"]:
+				get_node(node_name).hide()
 		car.set_physics_process(false)
 		car.collision_layer = 0
 		car.collision_mask = 0
@@ -47,7 +59,7 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if dedicated or not connected:
+	if dedicated or not connected or not map_ready:
 		return
 	var local_id := multiplayer.get_unique_id()
 	if driver_id == local_id:
@@ -60,7 +72,7 @@ func _process(_delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if dedicated:
 		return
-	if _handle_menu_input(event) or menu_open or not connected:
+	if _handle_menu_input(event) or menu_open or not connected or not map_ready:
 		return
 	if event.is_action_pressed("interact") and not event.is_echo():
 		if multiplayer.is_server():
@@ -70,7 +82,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if not connected:
+	if not connected or not map_ready:
 		return
 	if multiplayer.is_server():
 		if not dedicated:
@@ -106,8 +118,19 @@ func _local_movement_input() -> Vector2:
 
 
 func _on_peer_connected(peer_id: int) -> void:
+	var raw := JSON.stringify(place_data).to_utf8_buffer()
+	if raw.size() > MAX_PLACE_BYTES:
+		push_error("Server-Ort ist für die Übertragung zu groß.")
+		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+		return
+	var compressed := raw.compress(FileAccess.COMPRESSION_GZIP)
+	if compressed.size() > MAX_COMPRESSED_BYTES:
+		push_error("Komprimierter Server-Ort ist für die Übertragung zu groß.")
+		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+		return
 	_add_server_player(peer_id)
 	_verify_map_scale.rpc_id(peer_id, float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING)))
+	_receive_place.rpc_id(peer_id, compressed)
 	print("Spieler verbunden: ", peer_id)
 
 
@@ -165,6 +188,35 @@ func _verify_map_scale(server_scale: float) -> void:
 		status.text = "Kartenfaktor stimmt nicht mit dem Server überein (Server: %s, lokal: %s)." % [server_scale, local_scale]
 
 
+@rpc("authority", "call_remote", "reliable")
+func _receive_place(compressed: PackedByteArray) -> void:
+	if not connected:
+		return
+	if compressed.is_empty() or compressed.size() > MAX_COMPRESSED_BYTES:
+		_reject_place("Server-Ort ist zu groß oder leer.")
+		return
+	var data := compressed.decompress_dynamic(MAX_PLACE_BYTES, FileAccess.COMPRESSION_GZIP)
+	var json := JSON.new()
+	if data.is_empty() or json.parse(data.get_string_from_utf8()) != OK or not json.data is Dictionary or not PlaceStore.is_valid(json.data):
+		_reject_place("Server hat ungültige Ortsdaten gesendet.")
+		return
+	if not OSMMap.populate(self, json.data):
+		_reject_place("Server-Ort konnte nicht aufgebaut werden.")
+		return
+	place_data = json.data
+	map_ready = true
+	$Ground.show()
+	car.show()
+	status.text = "Mit dem Server verbunden: " + place_data.name
+
+
+func _reject_place(message: String) -> void:
+	connected = false
+	multiplayer.multiplayer_peer.close()
+	status.text = message
+	push_error(message)
+
+
 @rpc("any_peer", "call_remote", "reliable")
 func _request_interaction() -> void:
 	if multiplayer.is_server():
@@ -218,6 +270,8 @@ func _send_snapshot() -> void:
 
 @rpc("authority", "call_remote", "unreliable_ordered", 1)
 func _receive_snapshot(states: Dictionary, car_position: Vector3, car_angle: float, current_driver: int) -> void:
+	if not map_ready:
+		return
 	for peer_id in players.keys():
 		if not states.has(peer_id):
 			players[peer_id].queue_free()
@@ -240,7 +294,7 @@ func _receive_snapshot(states: Dictionary, car_position: Vector3, car_angle: flo
 
 func _on_connected() -> void:
 	connected = true
-	status.text = "Mit dem Server verbunden."
+	status.text = "Verbunden – lade Server-Ort ..." if not map_ready else "Mit dem Server verbunden."
 
 
 func _on_connection_failed() -> void:

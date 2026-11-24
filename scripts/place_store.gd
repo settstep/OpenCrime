@@ -1,0 +1,186 @@
+extends RefCounted
+
+const DIRECTORY := "user://places"
+const BUILTIN_PLACES := [
+	{"id": "thalhofen", "name": "Thalhofen – Waldmünchener Straße", "path": "res://data/thalhofen.json", "origin": [47.7748417, 10.6034933]},
+	{"id": "gendarmenmarkt", "name": "Berlin – Gendarmenmarkt", "path": "res://data/gendarmenmarkt.json", "origin": [52.5130, 13.3912]},
+]
+
+
+static func read_file(path: String) -> Dictionary:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		push_error("Ort konnte nicht geöffnet werden: " + path)
+		return {}
+	var json := JSON.new()
+	if json.parse(file.get_as_text()) != OK or not json.data is Dictionary:
+		push_error("Ortsdatei ist ungültig: " + path)
+		return {}
+	return json.data
+
+
+static func is_valid(place: Dictionary) -> bool:
+	if not place.has_all(["id", "name", "origin", "bounds", "ways"]):
+		return false
+	if not place.id is String or place.id.is_empty() or not place.name is String or place.name.is_empty():
+		return false
+	if not place.origin is Array or place.origin.size() != 2 or not place.bounds is Array or place.bounds.size() != 4 or not place.ways is Array:
+		return false
+	for value in place.origin + place.bounds:
+		if (typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT) or not is_finite(float(value)):
+			return false
+	var south := float(place.bounds[0])
+	var west := float(place.bounds[1])
+	var north := float(place.bounds[2])
+	var east := float(place.bounds[3])
+	if south < -85.0 or north > 85.0 or west < -180.0 or east > 180.0 or south >= north or west >= east:
+		return false
+	if float(place.origin[0]) < south or float(place.origin[0]) > north or float(place.origin[1]) < west or float(place.origin[1]) > east:
+		return false
+	for way in place.ways:
+		if not way is Dictionary or not way.has_all(["id", "tags", "geometry"]) or not way.tags is Dictionary or not way.geometry is Array:
+			return false
+		if (typeof(way.id) != TYPE_INT and typeof(way.id) != TYPE_FLOAT) or float(way.id) <= 0.0 or not is_finite(float(way.id)):
+			return false
+		for point in way.geometry:
+			if not point is Array or point.size() != 2:
+				return false
+			for value in point:
+				if (typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT) or not is_finite(float(value)):
+					return false
+			if absf(float(point[0])) > 90.0 or absf(float(point[1])) > 180.0:
+				return false
+	return true
+
+
+static func available_places() -> Array[Dictionary]:
+	var places: Array[Dictionary] = []
+	for item in BUILTIN_PLACES:
+		var place := read_file(item.path)
+		place["id"] = item.id
+		place["name"] = item.name
+		place["origin"] = item.origin
+		if is_valid(place):
+			places.append(place)
+		else:
+			push_error("Mitgelieferter Ort ist ungültig: " + item.path)
+	var directory := DirAccess.open(DIRECTORY)
+	if directory != null:
+		var files := directory.get_files()
+		files.sort()
+		for filename in files:
+			if not filename.begins_with("place_") or not filename.ends_with(".json"):
+				continue
+			var path := DIRECTORY.path_join(filename)
+			var place := read_file(path)
+			if is_valid(place):
+				places.append(place)
+			else:
+				push_error("Gespeicherter Ort ist ungültig: " + path)
+	return places
+
+
+static func find_by_id(id: String) -> Dictionary:
+	for place in available_places():
+		if place.id == id:
+			return place
+	return {}
+
+
+static func find_containing(places: Array[Dictionary], latitude: float, longitude: float) -> Dictionary:
+	for place in places:
+		var bounds: Array = place.bounds
+		if latitude >= float(bounds[0]) and latitude <= float(bounds[2]) and longitude >= float(bounds[1]) and longitude <= float(bounds[3]):
+			return place
+	return {}
+
+
+static func from_overpass(response: Dictionary, latitude: float, longitude: float, bounds: Array, place_name: String) -> Dictionary:
+	if response.has("remark") or not response.has("elements") or not response.elements is Array:
+		return {}
+	if response.has("osm3s") and not response.osm3s is Dictionary:
+		return {}
+	var ways: Array = []
+	var closest := Vector2.ZERO
+	var closest_distance := INF
+	var longitude_scale := 111320.0 * cos(deg_to_rad(latitude))
+	for element in response.elements:
+		if not element is Dictionary or element.get("type") != "way" or not element.has_all(["id", "tags", "geometry"]):
+			return {}
+		var geometry: Array = []
+		if not element.geometry is Array or not element.tags is Dictionary:
+			return {}
+		for point in element.geometry:
+			if not point is Dictionary or not point.has_all(["lat", "lon"]):
+				return {}
+			if (typeof(point.lat) != TYPE_INT and typeof(point.lat) != TYPE_FLOAT) or (typeof(point.lon) != TYPE_INT and typeof(point.lon) != TYPE_FLOAT):
+				return {}
+			if not is_finite(float(point.lat)) or not is_finite(float(point.lon)) or absf(float(point.lat)) > 90.0 or absf(float(point.lon)) > 180.0:
+				return {}
+			geometry.append([point.lat, point.lon])
+		if element.tags.has("highway") and element.tags.get("area", "") != "yes":
+			for index in range(geometry.size() - 1):
+				var a := Vector2((float(geometry[index][1]) - longitude) * longitude_scale, (latitude - float(geometry[index][0])) * 111320.0)
+				var b := Vector2((float(geometry[index + 1][1]) - longitude) * longitude_scale, (latitude - float(geometry[index + 1][0])) * 111320.0)
+				var candidate := Geometry2D.get_closest_point_to_segment(Vector2.ZERO, a, b)
+				if candidate.length() < closest_distance:
+					closest = candidate
+					closest_distance = candidate.length()
+		var way := {"id": element.id, "tags": element.tags, "geometry": geometry}
+		if element.has("nodes"):
+			way["nodes"] = element.nodes
+		ways.append(way)
+	if closest_distance > 100.0:
+		return {}
+	var scale: Variant = ProjectSettings.get_setting("opencrime/osm/scale")
+	if (typeof(scale) != TYPE_INT and typeof(scale) != TYPE_FLOAT) or not is_finite(float(scale)) or float(scale) <= 0.0:
+		return {}
+	var spawn_points: Array[Vector2] = [closest, closest + Vector2(0, -5.0 / float(scale))]
+	for slot in range(9):
+		spawn_points.append(closest + Vector2(float(slot % 3 - 1) * 1.5, 2.0 + float(slot / 3) * 1.5) / float(scale))
+	for way in ways:
+		if not way.tags.has("building") or way.geometry.size() < 3:
+			continue
+		var polygon := PackedVector2Array()
+		for point in way.geometry:
+			polygon.append(Vector2((float(point[1]) - longitude) * longitude_scale, (latitude - float(point[0])) * 111320.0))
+		for index in spawn_points.size():
+			var radius := (2.0 if index == 1 else 0.6) / float(scale)
+			if Geometry2D.is_point_in_polygon(spawn_points[index], polygon):
+				return {}
+			for edge in polygon.size():
+				if spawn_points[index].distance_to(Geometry2D.get_closest_point_to_segment(spawn_points[index], polygon[edge], polygon[(edge + 1) % polygon.size()])) < radius:
+					return {}
+	var id := "place_" + ("%0.6f,%0.6f" % [latitude, longitude]).sha256_text().substr(0, 16)
+	var place := {
+		"id": id,
+		"name": place_name,
+		"origin": [latitude - closest.y / 111320.0, longitude + closest.x / longitude_scale],
+		"bounds": bounds,
+		"ways": ways,
+		"source": ProjectSettings.get_setting("opencrime/osm/overpass_url"),
+		"osm_timestamp": response.get("osm3s", {}).get("timestamp_osm_base", ""),
+	}
+	return place if is_valid(place) and not ways.is_empty() else {}
+
+
+static func save_place(place: Dictionary) -> Error:
+	if not is_valid(place) or not place.id.begins_with("place_") or place.id.length() != 22 or not place.id.substr(6).is_valid_hex_number(false):
+		return ERR_INVALID_DATA
+	var error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DIRECTORY))
+	if error != OK:
+		return error
+	var path := DIRECTORY.path_join(place.id + ".json")
+	if FileAccess.file_exists(path):
+		return ERR_ALREADY_EXISTS
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return FileAccess.get_open_error()
+	file.store_string(JSON.stringify(place))
+	error = file.get_error()
+	file.close()
+	if error != OK:
+		var cleanup_error := DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+		if cleanup_error != OK:
+			push_error("Unvollständige Ortsdatei konnte nicht entfernt werden: " + path)
+	return error

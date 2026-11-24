@@ -1,6 +1,6 @@
 extends RefCounted
 
-const DATA_PATH := "res://data/thalhofen.json"
+const PlaceStore = preload("res://scripts/place_store.gd")
 const ORIGIN_LAT := 47.7748417
 const ORIGIN_LON := 10.6034933
 const METERS_PER_DEGREE := 111320.0
@@ -8,23 +8,28 @@ const BUILDING_HEIGHT := 10.0
 const SCALE_SETTING := "opencrime/osm/scale"
 
 
-static func populate(world: Node3D) -> bool:
+static func populate(world: Node3D, place: Dictionary = {}) -> bool:
 	var setting: Variant = ProjectSettings.get_setting(SCALE_SETTING)
 	if (typeof(setting) != TYPE_FLOAT and typeof(setting) != TYPE_INT) or not is_finite(float(setting)) or float(setting) <= 0.0:
 		push_error("Der OSM-Kartenfaktor muss eine endliche Zahl größer als 0 sein: " + str(setting))
 		return false
 	var map_scale := float(setting)
-	var file := FileAccess.open(DATA_PATH, FileAccess.READ)
-	if file == null:
-		push_error("OSM-Kartendaten konnten nicht geöffnet werden: " + DATA_PATH)
-		return false
-	var json := JSON.new()
-	if json.parse(file.get_as_text()) != OK or not json.data is Dictionary or not json.data.has("ways"):
-		push_error("OSM-Kartendaten sind ungültig: " + DATA_PATH)
+	if place.is_empty():
+		place = PlaceStore.find_by_id("thalhofen")
+	if not PlaceStore.is_valid(place):
+		push_error("OSM-Kartendaten sind ungültig.")
 		return false
 
 	for node_name in ["Road", "Building1", "Building2"]:
-		world.get_node(node_name).free()
+		var old_node := world.get_node_or_null(node_name)
+		if old_node != null:
+			old_node.free()
+	var old_map := world.get_node_or_null("OSMMap")
+	if old_map != null:
+		old_map.free()
+	var old_credit := world.get_node_or_null("HUD/OSMCredit")
+	if old_credit != null:
+		old_credit.free()
 
 	var ground_mesh: MeshInstance3D = world.get_node("Ground/MeshInstance3D")
 	var ground_shape: CollisionShape3D = world.get_node("Ground/CollisionShape3D")
@@ -42,11 +47,11 @@ static func populate(world: Node3D) -> bool:
 	building_material.albedo_color = Color(0.73, 0.62, 0.48)
 	building_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 
-	for way in json.data.ways:
+	for way in place.ways:
 		if way.tags.has("building"):
-			_add_building(map, way, building_material, map_scale)
+			_add_building(map, way, building_material, map_scale, place.origin)
 		elif way.tags.has("highway") and way.tags.get("area", "") != "yes":
-			_add_road(map, way, road_material, map_scale)
+			_add_road(map, way, road_material, map_scale, place.origin)
 
 	var credit := Label.new()
 	credit.name = "OSMCredit"
@@ -61,19 +66,19 @@ static func populate(world: Node3D) -> bool:
 	return true
 
 
-static func _project(point: Array) -> Vector2:
-	var x := (float(point[1]) - ORIGIN_LON) * METERS_PER_DEGREE * cos(deg_to_rad(ORIGIN_LAT))
-	var z := (ORIGIN_LAT - float(point[0])) * METERS_PER_DEGREE
+static func _project(point: Array, origin: Array = [ORIGIN_LAT, ORIGIN_LON]) -> Vector2:
+	var x := (float(point[1]) - float(origin[1])) * METERS_PER_DEGREE * cos(deg_to_rad(float(origin[0])))
+	var z := (float(origin[0]) - float(point[0])) * METERS_PER_DEGREE
 	return Vector2(x, z)
 
 
-static func _add_road(map: Node3D, way: Dictionary, material: Material, map_scale: float) -> void:
+static func _add_road(map: Node3D, way: Dictionary, material: Material, map_scale: float, origin: Array) -> void:
 	var width := 6.0
 	if way.tags.highway in ["footway", "path", "pedestrian", "steps", "cycleway"]:
 		width = 2.0
 	for index in range(way.geometry.size() - 1):
-		var start := _project(way.geometry[index])
-		var end := _project(way.geometry[index + 1])
+		var start := _project(way.geometry[index], origin)
+		var end := _project(way.geometry[index + 1], origin)
 		var direction := end - start
 		if direction.length() < 0.05:
 			continue
@@ -87,10 +92,10 @@ static func _add_road(map: Node3D, way: Dictionary, material: Material, map_scal
 		map.add_child(segment)
 
 
-static func _add_building(map: Node3D, way: Dictionary, material: Material, map_scale: float) -> void:
+static func _add_building(map: Node3D, way: Dictionary, material: Material, map_scale: float, origin: Array) -> void:
 	var points := PackedVector2Array()
 	for coordinate in way.geometry:
-		var point := _project(coordinate)
+		var point := _project(coordinate, origin)
 		if points.is_empty() or point.distance_to(points[points.size() - 1]) > 0.01:
 			points.append(point)
 	if points.size() > 1 and points[0].distance_to(points[points.size() - 1]) < 0.01:
