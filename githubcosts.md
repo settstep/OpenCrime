@@ -8,3 +8,4 @@
 | 24.11.2026 | 08:49 | 11      | loading openstreetmap data for test |
 | 24.11.2026 | 08:52 | 12      | added game version                  |
 | 24.11.2026 | 09:04 | 13      | player can exit game via main menu  |
+| 24.11.2026 | 09:26 | 14      | load another city for testing       |

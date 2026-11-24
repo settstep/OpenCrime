@@ -23,19 +23,22 @@ von einem Spieler gleichzeitig gefahren werden.
 
 ## Kartenausschnitt
 
-Das Spiel startet mit einem kleinen Ausschnitt rund um den Gendarmenmarkt in
-Berlin. Straßen und zwei Gebäude werden aus gespeicherten
+Das Spiel startet mit einem Ausschnitt rund um die Waldmünchener Straße in
+Thalhofen bei Marktoberdorf. Straßen und Gebäude werden aus gespeicherten
 OpenStreetMap-Wegen erzeugt; die Gebäude haben Kollisionen. Der Ausschnitt
 ist bewusst unvollständig: Flächen, Relationen und Gebäudedetails werden noch
 nicht ausgewertet, Straßenbreiten sind geschätzt und Gebäude pauschal 10 Meter
 hoch. Das Gelände ist eben; echte Höhendaten fehlen noch.
 
-Der abgefragte Bereich umfasst 52.5128–52.5136° Nord und
-13.3908–13.3922° Ost. Wege können über diesen Bereich hinausragen. Die
-Spielwelt wird offline aus `data/gendarmenmarkt.json` erzeugt. Die Daten stammen
-aus der [OpenStreetMap-API](https://api.openstreetmap.org/api/0.6/map?bbox=13.3908,52.5128,13.3922,52.5136),
-abgerufen am 24. November 2026. Gespeichert sind die Geometrien und ausgewählte
-Tags der Gebäude- und Straßenwege; die übrigen Daten wurden weggelassen.
+Der abgefragte Bereich umfasst 47.7735–47.7765° Nord und
+10.6013–10.6057° Ost (ungefähr 330 × 330 Meter). Wege können über diesen
+Bereich hinausragen. Eine Godot-Einheit entspricht ungefähr einem Meter; die
+Spielfigur ist 1,8 Meter hoch. Die Spielwelt wird offline aus
+`data/thalhofen.json` erzeugt. Die Daten stammen aus der
+[Overpass API](https://overpass-api.de/), abgerufen am 24. November 2026;
+der OSM-Datenstand ist im Datensatz vermerkt. Gespeichert sind die Geometrien
+und ausgewählte Tags der Gebäude- und Straßenwege; die übrigen Daten wurden
+weggelassen. Der ältere Berliner Testdatensatz bleibt ebenfalls im Repository.
 
 Kartendaten: © [OpenStreetMap-Mitwirkende](https://www.openstreetmap.org/copyright),
 verfügbar unter der [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/).

@@ -1,8 +1,8 @@
 extends RefCounted
 
-const DATA_PATH := "res://data/gendarmenmarkt.json"
-const ORIGIN_LAT := 52.5130
-const ORIGIN_LON := 13.3912
+const DATA_PATH := "res://data/thalhofen.json"
+const ORIGIN_LAT := 47.7748417
+const ORIGIN_LON := 10.6034933
 const METERS_PER_DEGREE := 111320.0
 const BUILDING_HEIGHT := 10.0
 
