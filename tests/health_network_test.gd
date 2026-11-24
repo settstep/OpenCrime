@@ -55,7 +55,7 @@ func _test() -> void:
 		world.players[guest].position = world.car.position + Vector3(0, 0.4, 3)
 		await physics_frame
 		world._interact(guest)
-		if world.driver_id != guest:
+		if world.car.driver_id != guest:
 			_fail("Guest could not enter the test car.")
 			return
 		if not await _wait_for(func(): return world.players[guest].health < 100):
@@ -70,14 +70,14 @@ func _test() -> void:
 		if world.pending_interactions.has(guest):
 			_fail("Queued interactions were not cleared on death.")
 			return
-		if not await _wait_for(func(): return world.players[guest].health == 25 and world.players[guest].visible and world.driver_id == 0):
+		if not await _wait_for(func(): return world.players[guest].health == 25 and world.players[guest].visible and world.car.driver_id == 0):
 			_fail("The server did not respawn the guest.")
 			return
 		await create_timer(2.0).timeout
 		print("Server-authoritative damage and respawn passed")
 	else:
 		var own_id := root.multiplayer.get_unique_id()
-		if not await _wait_for(func(): return world.driver_id == own_id):
+		if not await _wait_for(func(): return world.car.driver_id == own_id):
 			_fail("Client did not see car entry.")
 			return
 		Input.action_press("move_right")
@@ -89,7 +89,7 @@ func _test() -> void:
 		if int(world.health_bar.value) != world.players[own_id].health:
 			_fail("Client HUD did not show the server health.")
 			return
-		if not await _wait_for(func(): return world.players[own_id].health == 25 and world.players[own_id].visible and world.driver_id == 0):
+		if not await _wait_for(func(): return world.players[own_id].health == 25 and world.players[own_id].visible and world.car.driver_id == 0):
 			_fail("Client did not receive respawn state.")
 			return
 		await process_frame

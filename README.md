@@ -6,10 +6,10 @@ auf Basis realer Kartendaten geplant.
 
 ## Aktueller Prototyp
 
-Der erste Prototyp enthält eine kleine 3D-Testfläche, Gebäude mit Kollisionen,
-eine Spielfigur und ein einfaches Auto. Mit **WASD** bewegt sich die Figur oder
-fährt das Auto in die jeweilige Richtung. In der Nähe des Autos steigt man mit
-**E** ein und später wieder aus. Die Fahrphysik ist vorerst bewusst einfach.
+Der Prototyp enthält Gebäude mit Kollisionen, eine Spielfigur und mehrere
+einfache Testautos. Mit **WASD** bewegt sich die Figur oder fährt das Auto in
+die jeweilige Richtung. Mit **E** steigt man in das nächstgelegene Auto ein
+und später wieder aus. Die Fahrphysik ist vorerst bewusst einfach.
 Beim schnelleren Fahren zeigt die Kamera sanft einen größeren Ausschnitt; beim
 Anhalten oder Aussteigen kehrt sie zur normalen Ansicht zurück. Zu Fuß bleibt
 die bisherige Ansicht erhalten.
@@ -50,9 +50,11 @@ der Server weiter und nur die eigene Steuerung wird gesperrt. **Zum Hauptmenü**
 verlässt das laufende Spiel; beim Host werden dabei die Clients getrennt.
 Mit **Spiel beenden** wird das Programm geschlossen.
 
-Der Multiplayer-Prototyp synchronisiert Spieler und das gemeinsame Auto über
-einen Server. Der Server berechnet Bewegung und Kollisionen; das Auto kann nur
-von einem Spieler gleichzeitig gefahren werden.
+Pro Ort werden bis zu drei Testautos platziert; wenn nicht genügend geeignete
+Stellen gefunden werden, erscheint ein Hinweis. Auf der Spielkarte sind die
+Autos orange markiert. Im Multiplayer synchronisiert der Server alle Autos,
+berechnet Bewegung und Kollisionen und lässt pro Auto nur einen Fahrer zu.
+Mehrere Spieler können verschiedene Autos gleichzeitig fahren.
 
 ## SMS-Aufträge
 
@@ -111,7 +113,9 @@ diese Kopie automatisch weitergespeichert.
 Über **Spielstand laden** im Hauptmenü können Spielstände ausgewählt, geladen
 und nach einer Bestätigung gelöscht werden. Gespeichert werden der Ort samt
 seinen konkreten Kartendaten, der Kartenfaktor, die Positionen von Figur und
-Auto, die Ausrichtung und Belegung des Autos sowie die erkundeten Bereiche.
+Autos, ihre Ausrichtung, das belegte Auto sowie die erkundeten Bereiche.
+Alte Spielstände mit nur einem Auto bleiben ladbar und erhalten, soweit
+geeignete Plätze verfügbar sind, zusätzliche Testautos.
 Zum Laden ist kein OSM-Download nötig. Der eingestellte Kartenfaktor muss dem
 gespeicherten Wert entsprechen; bei einem Unterschied wird das Laden mit
 einer Meldung abgebrochen.
@@ -291,6 +295,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 
 ```powershell
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/car_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/multicar_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/health_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/first_aid_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/menu_test.gd
@@ -344,4 +349,14 @@ verwendet standardmäßig UDP-Port 17786:
 ```
 ```powershell
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/health_network_test.gd
+```
+
+Der Test für mehrere gleichzeitig fahrende Spieler läuft ebenfalls in zwei
+Terminals und verwendet standardmäßig UDP-Port 17787:
+
+```powershell
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/multicar_network_test.gd -- --host
+```
+```powershell
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/multicar_network_test.gd
 ```

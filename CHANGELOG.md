@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.12.0
+- Mehrere Testfahrzeuge können unabhängig benutzt und im Multiplayer gleichzeitig gefahren werden.
+- Die Spielkarte markiert Fahrzeuge; Einzelspieler-Spielstände speichern alle Fahrzeugpositionen und das belegte Auto.
+
 ## 0.11.0
 - Markierte Erste-Hilfe-Teststation mit einstellbarem Preis und Heilwert.
 - Behandlungen verwenden das persönliche Auftragsgeld und werden im Multiplayer vom Server verwaltet.

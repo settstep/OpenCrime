@@ -103,7 +103,7 @@ func _test() -> void:
 		await _frames(45)
 		Input.action_release("move_forward")
 		await _interact()
-		if not await _wait_for(func(): return world.driver_id == root.multiplayer.get_unique_id(), 180):
+		if not await _wait_for(func(): return world.car.driver_id == root.multiplayer.get_unique_id(), 180):
 			_fail("Driver could not enter the car.")
 			return
 		await _frames(180)
@@ -128,12 +128,12 @@ func _test() -> void:
 			_fail("The driving client's camera did not zoom in after stopping.")
 			return
 		await _interact()
-		if not await _wait_for(func(): return world.driver_id == 0 and world.players[root.multiplayer.get_unique_id()].visible, 180):
+		if not await _wait_for(func(): return world.car.driver_id == 0 and world.players[root.multiplayer.get_unique_id()].visible, 180):
 			_fail("Driver could not exit the car.")
 			return
 		await _frames(30)
 		await _interact()
-		if not await _wait_for(func(): return world.driver_id == root.multiplayer.get_unique_id(), 180):
+		if not await _wait_for(func(): return world.car.driver_id == root.multiplayer.get_unique_id(), 180):
 			_fail("Driver could not re-enter the car.")
 			return
 		await _frames(60)
@@ -141,11 +141,11 @@ func _test() -> void:
 		var initial_positions := {}
 		for peer_id in world.players:
 			initial_positions[peer_id] = world.players[peer_id].position
-		if not await _wait_for(func(): return world.driver_id != 0, 300):
+		if not await _wait_for(func(): return world.car.driver_id != 0, 300):
 			_fail("Observer did not see the driver enter.")
 			return
-		var driver: CharacterBody3D = world.players[world.driver_id]
-		if driver.visible or driver.position.distance_to(initial_positions[world.driver_id]) < 1.0:
+		var driver: CharacterBody3D = world.players[world.car.driver_id]
+		if driver.visible or driver.position.distance_to(initial_positions[world.car.driver_id]) < 1.0:
 			_fail("Driver movement or visibility was not synchronized.")
 			return
 		Input.action_press("move_forward")
@@ -181,13 +181,13 @@ func _test() -> void:
 		if absf(world.camera.size - 20.0) > 0.01:
 			_fail("Another player's driving changed the observer's camera.")
 			return
-		if not await _wait_for(func(): return world.driver_id == 0 and driver.visible, 300):
+		if not await _wait_for(func(): return world.car.driver_id == 0 and driver.visible, 300):
 			_fail("Observer did not see the driver exit.")
 			return
-		if not await _wait_for(func(): return world.driver_id != 0 and not driver.visible, 180):
+		if not await _wait_for(func(): return world.car.driver_id != 0 and not driver.visible, 180):
 			_fail("Observer did not see the driver re-enter.")
 			return
-		if not await _wait_for(func(): return world.driver_id == 0 and world.players.size() == expected_players - 1, 300):
+		if not await _wait_for(func(): return world.car.driver_id == 0 and world.players.size() == expected_players - 1, 300):
 			_fail("Driver disconnect was not synchronized.")
 			return
 		await _escape()
@@ -218,13 +218,13 @@ func _test() -> void:
 			_fail("The host moved while the menu was open.")
 			return
 		await _escape()
-		if not await _wait_for(func(): return world.driver_id != 0, 300):
+		if not await _wait_for(func(): return world.car.driver_id != 0, 300):
 			_fail("Host did not see the driver enter.")
 			return
 		if not await _wait_for(func(): return world.car.position.x > 3.0, 400):
 			_fail("Host did not see the car move.")
 			return
-		if not await _wait_for(func(): return world.driver_id == 0 and world.players.size() == 2, 300):
+		if not await _wait_for(func(): return world.car.driver_id == 0 and world.players.size() == 2, 300):
 			_fail("Host did not release the disconnected driver's car.")
 			return
 		if not await _wait_for(func(): return world.players.size() == 1, 300):
@@ -236,7 +236,7 @@ func _test() -> void:
 		host_player.velocity = Vector3.ZERO
 		await _frames(3)
 		await _interact()
-		if world.driver_id != 1 or host_player.visible:
+		if world.car.driver_id != 1 or host_player.visible:
 			_fail("Host could not enter the car.")
 			return
 		var host_car_start := world.car.position.x
@@ -250,7 +250,7 @@ func _test() -> void:
 			_fail("Host could not drive the car.")
 			return
 		await _interact()
-		if world.driver_id != 0 or not host_player.visible:
+		if world.car.driver_id != 0 or not host_player.visible:
 			_fail("Host could not exit the car.")
 			return
 

@@ -81,9 +81,9 @@ func _test() -> void:
 			_fail("Server treated a guest outside the station.")
 			return
 		world.players[guest].global_position = Vector3(point.x, 0.9, point.y)
-		world.driver_id = guest
+		world.car.driver_id = guest
 		world._apply_first_aid(guest)
-		world.driver_id = 0
+		world.car.driver_id = 0
 		if world.players[guest].health != 20 or world.mission_manager.players[guest].money != 50:
 			_fail("Server treated a guest inside a vehicle.")
 			return

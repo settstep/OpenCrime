@@ -6,6 +6,7 @@ const SPEED := 18.0
 const DAMAGE_SPEED := 7.0
 
 var occupied := false
+var driver_id := 0
 var uses_local_input := true
 var movement_input := Vector2.ZERO
 var impact_contacts := {}

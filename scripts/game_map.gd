@@ -30,6 +30,7 @@ var mission_target := Vector2.ZERO
 var has_mission_target := false
 var first_aid_position := Vector2.ZERO
 var has_first_aid := false
+var car_positions: Array[Vector2] = []
 
 
 func _ready() -> void:
@@ -117,6 +118,12 @@ func set_mission_target(target: Vector2, enabled: bool) -> void:
 func set_first_aid(position: Vector2, enabled: bool) -> void:
 	first_aid_position = position
 	has_first_aid = enabled
+	if visible:
+		drawing.queue_redraw()
+
+
+func set_cars(positions: Array[Vector2]) -> void:
+	car_positions = positions
 	if visible:
 		drawing.queue_redraw()
 
@@ -245,6 +252,10 @@ func _draw_map() -> void:
 			drawing.draw_circle(point, 8.0, Color(0.1, 0.65, 0.25))
 			drawing.draw_line(point + Vector2(-4, 0), point + Vector2(4, 0), Color.WHITE, 2.0)
 			drawing.draw_line(point + Vector2(0, -4), point + Vector2(0, 4), Color.WHITE, 2.0)
+	for position in car_positions:
+		var point := _map_point(position, factor)
+		if visible_rect.has_point(point):
+			drawing.draw_circle(point, 5.0, Color(1.0, 0.45, 0.1))
 	if has_position:
 		var marker := _map_point(player_position, factor)
 		if Rect2(Vector2.ZERO, canvas.size).has_point(marker):

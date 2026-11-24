@@ -1,6 +1,7 @@
 extends Node3D
 
 const CarScript = preload("res://scripts/car.gd")
+const CarScene = preload("res://scenes/car.tscn")
 const PlayerScript = preload("res://scripts/player.gd")
 const VehicleInteraction = preload("res://scripts/vehicle_interaction.gd")
 const GameMapScene = preload("res://scenes/game_map.tscn")
@@ -9,6 +10,8 @@ const Missions = preload("res://scripts/missions.gd")
 const FirstAid = preload("res://scripts/first_aid.gd")
 const MissionUI = preload("res://scenes/mission_ui.tscn")
 const ENTER_DISTANCE := 3.5
+const INITIAL_CAR_COUNT := 3
+const CAR_SPAWN_WARNING := "Nicht genügend geeignete Plätze für alle Testfahrzeuge gefunden."
 const AUTOSAVE_INTERVAL := 30.0
 const CAMERA_BASE_SIZE := 20.0
 const CAMERA_MAX_SIZE := 40.0
@@ -25,6 +28,8 @@ const CAMERA_ZOOM_RESPONSE := 3.0
 @onready var first_aid_prompt: Label = $HUD/FirstAidPrompt
 
 var in_car := false
+var cars: Array[CarScript] = []
+var active_car: CarScript
 var menu_open := false
 var map_open := false
 var game_map: Control
@@ -49,7 +54,9 @@ func _ready() -> void:
 	player_collision_layer = player.collision_layer
 	player_collision_mask = player.collision_mask
 	player.spawn_position = player.global_position
-	car.impact.connect(_on_car_impact)
+	cars.append(car)
+	active_car = car
+	car.impact.connect(_on_car_impact.bind(car))
 	game_map = GameMapScene.instantiate()
 	game_map.hide()
 	game_map.close_requested.connect(_close_map)
@@ -94,6 +101,8 @@ func _ready() -> void:
 			save_created_at = Time.get_datetime_string_from_system()
 		else:
 			_restore_game(restore_data)
+	if not _is_network_game() and map != null and map.has_meta("place") and not restore_data.has("vehicles"):
+		_spawn_cars(map.get_meta("place"), player.global_position)
 	if not _is_network_game() and map != null and map.has_meta("place"):
 		_setup_missions(map.get_meta("place"))
 		if mission_ready:
@@ -106,8 +115,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	_show_health(player.health)
 	_update_first_aid_prompt(player, in_car)
-	var target: CharacterBody3D = car if in_car else player
-	_update_camera(target, _horizontal_speed(car) if in_car else 0.0, delta)
+	var target: CharacterBody3D = active_car if in_car else player
+	_update_camera(target, _horizontal_speed(active_car) if in_car else 0.0, delta)
 	game_map.update_position(target.global_position)
 	if not save_id.is_empty():
 		autosave_timer += delta
@@ -229,12 +238,12 @@ func _use_first_aid(peer_id: int, body: PlayerScript, in_vehicle: bool) -> Strin
 	return "Erste Hilfe: +%d Lebenspunkte für %d $." % [healed, first_aid.price]
 
 
-func _on_car_impact(speed: float) -> void:
-	if in_car:
+func _on_car_impact(speed: float, impacted_car: CarScript) -> void:
+	if in_car and impacted_car == active_car:
 		if _damage_player(player, speed):
 			in_car = false
-			car.occupied = false
-			car.velocity = Vector3.ZERO
+			impacted_car.occupied = false
+			impacted_car.velocity = Vector3.ZERO
 			interact_requested = false
 			status.text = "Warte auf einen freien Startplatz zur Wiederbelebung."
 
@@ -284,6 +293,58 @@ func _try_respawn(body: PlayerScript) -> bool:
 
 func _configure_map(place: Dictionary) -> void:
 	game_map.configure(place, float(ProjectSettings.get_setting("opencrime/osm/scale")))
+
+
+func _create_car(position: Vector3, angle: float = 0.0) -> CarScript:
+	var vehicle: CarScript = CarScene.instantiate()
+	vehicle.name = "Car%d" % (cars.size() + 1)
+	add_child(vehicle)
+	vehicle.global_position = position
+	vehicle.global_rotation.y = angle
+	vehicle.impact.connect(_on_car_impact.bind(vehicle))
+	cars.append(vehicle)
+	return vehicle
+
+
+func _spawn_cars(place: Dictionary, player_position: Vector3) -> bool:
+	var candidates := Missions._candidate_points(place, float(ProjectSettings.get_setting("opencrime/osm/scale")))
+	candidates.sort_custom(func(a: Dictionary, b: Dictionary): return a.point.length_squared() < b.point.length_squared())
+	for candidate in candidates:
+		if cars.size() >= INITIAL_CAR_COUNT:
+			break
+		var point: Vector2 = candidate.point
+		if point.length() < 12.0:
+			continue
+		var free := true
+		for vehicle in cars:
+			if Vector2(vehicle.global_position.x, vehicle.global_position.z).distance_to(point) < 6.0:
+				free = false
+				break
+		if free and Vector2(player_position.x, player_position.z).distance_to(point) >= 5.0:
+			_create_car(Vector3(point.x, 0.5, point.y))
+	if cars.size() < INITIAL_CAR_COUNT:
+		push_warning(CAR_SPAWN_WARNING)
+		status.text = CAR_SPAWN_WARNING
+		return false
+	return true
+
+
+func _nearest_car(position: Vector3) -> CarScript:
+	var nearest: CarScript
+	var distance := ENTER_DISTANCE
+	for vehicle in cars:
+		var current := position.distance_to(vehicle.global_position)
+		if current <= distance:
+			nearest = vehicle
+			distance = current
+	return nearest
+
+
+func _update_car_map() -> void:
+	var positions: Array[Vector2] = []
+	for vehicle in cars:
+		positions.append(Vector2(vehicle.global_position.x, vehicle.global_position.z))
+	game_map.set_cars(positions)
 
 
 func _setup_missions(place: Dictionary) -> void:
@@ -359,6 +420,7 @@ func _open_map() -> void:
 		status.text = "Für diesen Ort sind noch keine Kartendaten verfügbar."
 		return
 	map_open = true
+	_update_car_map()
 	interact_requested = false
 	mission_ui.hide()
 	game_map.show()
@@ -453,7 +515,7 @@ func save_game() -> bool:
 	if save_id.is_empty() or map == null or not map.has_meta("place"):
 		_save_error("Spielstand konnte nicht erstellt werden: Ortsdaten fehlen.")
 		return false
-	var target: CharacterBody3D = car if in_car else player
+	var target: CharacterBody3D = active_car if in_car else player
 	game_map.update_position(target.global_position)
 	var explored: Array = []
 	for cell: Vector2i in game_map.explored:
@@ -472,6 +534,11 @@ func save_game() -> bool:
 		"health": player.health,
 		"explored": explored,
 	}
+	var vehicles: Array[Dictionary] = []
+	for vehicle in cars:
+		vehicles.append({"position": [vehicle.global_position.x, vehicle.global_position.y, vehicle.global_position.z], "rotation": vehicle.global_rotation.y})
+	data["vehicles"] = vehicles
+	data["active_vehicle"] = cars.find(active_car) if in_car else -1
 	if mission_ready and mission_manager.players.has(1):
 		data["mission"] = mission_manager.save_for(1)
 	elif restore_data.has("mission"):
@@ -507,11 +574,22 @@ func _restore_game(data: Dictionary) -> void:
 	position = data.car_position
 	car.global_position = Vector3(float(position[0]), float(position[1]), float(position[2]))
 	car.global_rotation.y = float(data.car_rotation)
+	if data.has("vehicles"):
+		for index in data.vehicles.size():
+			var saved: Dictionary = data.vehicles[index]
+			var point: Array = saved.position
+			var vehicle_position := Vector3(float(point[0]), float(point[1]), float(point[2]))
+			if index == 0:
+				car.global_position = vehicle_position
+				car.global_rotation.y = float(saved.rotation)
+			else:
+				_create_car(vehicle_position, float(saved.rotation))
 	for cell in data.explored:
 		game_map.explored[Vector2i(int(cell[0]), int(cell[1]))] = true
 	if data.in_car:
 		in_car = true
-		car.occupied = true
+		active_car = cars[int(data.get("active_vehicle", 0))]
+		active_car.occupied = true
 		VehicleInteraction.enter(player)
 	elif player.health == 0:
 		VehicleInteraction.enter(player)
@@ -531,22 +609,27 @@ func _physics_process(_delta: float) -> void:
 
 	if in_car:
 		_exit_car()
-	elif player.global_position.distance_to(car.global_position) <= ENTER_DISTANCE:
-		_enter_car()
 	else:
-		status.text = "Gehe näher an das Auto heran."
+		var nearest := _nearest_car(player.global_position)
+		if nearest == null:
+			status.text = "Gehe näher an ein Auto heran."
+		elif nearest.occupied:
+			status.text = "Das Auto ist bereits besetzt."
+		else:
+			_enter_car(nearest)
 
 
-func _enter_car() -> void:
+func _enter_car(vehicle: CarScript = null) -> void:
+	active_car = vehicle if vehicle != null else car
 	in_car = true
-	car.occupied = true
+	active_car.occupied = true
 	VehicleInteraction.enter(player)
 	status.text = ""
 
 
 func _exit_car() -> void:
-	if VehicleInteraction.exit(player, car, player_collision_layer, player_collision_mask):
-		car.occupied = false
+	if VehicleInteraction.exit(player, active_car, player_collision_layer, player_collision_mask):
+		active_car.occupied = false
 		in_car = false
 		status.text = ""
 	else:

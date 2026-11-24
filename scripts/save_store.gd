@@ -6,6 +6,7 @@ const PlayerScript = preload("res://scripts/player.gd")
 const FORMAT_VERSION := 1
 const MAX_FILE_BYTES := 16 * 1024 * 1024
 const GRID_SIZE := 45 # Save format 1 uses the 45x45 exploration grid.
+const MAX_VEHICLES := 64
 
 static var directory := "user://saves"
 
@@ -56,6 +57,21 @@ static func is_valid(data: Dictionary) -> bool:
 		return false
 	if data.has("health") and (not _number(data.health) or float(data.health) != floorf(float(data.health)) or data.health < 0 or data.health > PlayerScript.MAX_HEALTH or (data.health == 0 and data.in_car)):
 		return false
+	if data.has("vehicles") != data.has("active_vehicle"):
+		return false
+	if data.has("vehicles"):
+		if not data.vehicles is Array or data.vehicles.is_empty() or data.vehicles.size() > MAX_VEHICLES:
+			return false
+		for vehicle in data.vehicles:
+			if not vehicle is Dictionary or not vehicle.has_all(["position", "rotation"]) or not _vector(vehicle.position) or not _number(vehicle.rotation):
+				return false
+		if data.vehicles[0].position != data.car_position or data.vehicles[0].rotation != data.car_rotation:
+			return false
+		if not _number(data.active_vehicle) or float(data.active_vehicle) != floorf(float(data.active_vehicle)):
+			return false
+		var active := int(data.active_vehicle)
+		if (data.in_car and (active < 0 or active >= data.vehicles.size())) or (not data.in_car and active != -1):
+			return false
 	if not data.explored is Array or data.explored.size() > GRID_SIZE * GRID_SIZE:
 		return false
 	for cell in data.explored:

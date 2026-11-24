@@ -73,4 +73,4 @@ mouse_filter = 2
 [node name="Footer" type="Label" parent="Margin/Layout"]
 layout_mode = 2
 autowrap_mode = 2
-text = "Mausrad: Zoomen | Linke Maustaste: Verschieben | Blau: eigene Position | Grün: Erste Hilfe | Dunkel: nicht erkundet\n© OpenStreetMap-Mitwirkende – https://www.openstreetmap.org/copyright"
+text = "Mausrad: Zoomen | Linke Maustaste: Verschieben | Blau: eigene Position | Orange: Fahrzeuge | Grün: Erste Hilfe | Dunkel: nicht erkundet\n© OpenStreetMap-Mitwirkende – https://www.openstreetmap.org/copyright"

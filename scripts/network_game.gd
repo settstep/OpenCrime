@@ -17,13 +17,13 @@ var players: Dictionary = {}
 var inputs: Dictionary = {}
 var input_times: Dictionary = {}
 var slots: Dictionary = {}
-var driver_id := 0
 var pending_interactions: Array[int] = []
 var snapshot_timer := 0.0
 var remote_car_speed := 0.0
 var last_car_snapshot_ms := 0
 var connected := false
 var players_container: Node3D
+var car_spawn_incomplete := false
 
 
 func _ready() -> void:
@@ -40,6 +40,9 @@ func _ready() -> void:
 			place_data = PlaceStore.find_by_id("thalhofen")
 		connected = true
 		_setup_missions(place_data)
+		car_spawn_incomplete = not _spawn_cars(place_data, Vector3.ZERO)
+		for vehicle in cars:
+			vehicle.uses_local_input = false
 		_setup_first_aid()
 		multiplayer.peer_connected.connect(_on_peer_connected)
 		multiplayer.peer_disconnected.connect(_on_peer_disconnected)
@@ -47,7 +50,7 @@ func _ready() -> void:
 			$HUD.hide()
 		else:
 			_add_server_player(1)
-			status.text = "Server gestartet."
+			status.text = "Server gestartet. " + CAR_SPAWN_WARNING if car_spawn_incomplete else "Server gestartet."
 	else:
 		map_ready = not client_waiting_for_map
 		if not map_ready:
@@ -66,19 +69,22 @@ func _process(delta: float) -> void:
 	if dedicated or not connected or not map_ready:
 		return
 	var local_id := multiplayer.get_unique_id()
-	if driver_id == local_id:
-		var speed := _horizontal_speed(car) if multiplayer.is_server() else remote_car_speed
+	var driven := _driven_car(local_id)
+	if driven != null:
+		var speed := _horizontal_speed(driven) if multiplayer.is_server() else remote_car_speed
 		if not multiplayer.is_server() and Time.get_ticks_msec() - last_car_snapshot_ms > SNAPSHOT_TIMEOUT_MS:
 			speed = 0.0
-		_update_camera(car, speed, delta)
-		game_map.update_position(car.global_position)
+		_update_camera(driven, speed, delta)
+		game_map.update_position(driven.global_position)
 	elif players.has(local_id):
 		var local_player: CharacterBody3D = players[local_id]
 		_update_camera(local_player, 0.0, delta)
 		game_map.update_position(local_player.global_position)
 	if players.has(local_id):
 		_show_health(players[local_id].health)
-		_update_first_aid_prompt(players[local_id], driver_id == local_id)
+		_update_first_aid_prompt(players[local_id], driven != null)
+	if map_open:
+		_update_car_map()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -118,15 +124,16 @@ func _physics_process(delta: float) -> void:
 			if Time.get_ticks_msec() - int(input_times.get(peer_id, 0)) <= INPUT_TIMEOUT_MS:
 				direction = inputs.get(peer_id, Vector2.ZERO)
 			body.movement_input = direction
-			if peer_id == driver_id:
-				car.movement_input = direction
+			var vehicle := _driven_car(peer_id)
+			if vehicle != null:
+				vehicle.movement_input = direction
 		for peer_id in pending_interactions:
 			_interact(peer_id)
 		pending_interactions.clear()
 		if mission_ready:
 			for peer_id in players:
 				if players[peer_id].health > 0:
-					mission_manager.visit(peer_id, players[peer_id].global_position, driver_id != peer_id)
+					mission_manager.visit(peer_id, players[peer_id].global_position, _driven_car(peer_id) == null)
 		snapshot_timer += delta
 		if snapshot_timer >= SNAPSHOT_INTERVAL:
 			snapshot_timer = 0.0
@@ -155,18 +162,18 @@ func _request_first_aid_rpc() -> void:
 
 func _apply_first_aid(peer_id: int) -> void:
 	if players.has(peer_id):
-		_notify(peer_id, _use_first_aid(peer_id, players[peer_id], driver_id == peer_id))
+		_notify(peer_id, _use_first_aid(peer_id, players[peer_id], _driven_car(peer_id) != null))
 
 
-func _on_car_impact(speed: float) -> void:
-	if not multiplayer.is_server() or not players.has(driver_id):
+func _on_car_impact(speed: float, impacted_car: CarScript) -> void:
+	if not multiplayer.is_server() or not players.has(impacted_car.driver_id):
 		return
-	var peer_id := driver_id
+	var peer_id := impacted_car.driver_id
 	if _damage_player(players[peer_id], speed):
-		driver_id = 0
-		car.occupied = false
-		car.movement_input = Vector2.ZERO
-		car.velocity = Vector3.ZERO
+		impacted_car.driver_id = 0
+		impacted_car.occupied = false
+		impacted_car.movement_input = Vector2.ZERO
+		impacted_car.velocity = Vector3.ZERO
 		_set_input(peer_id, Vector2.ZERO)
 		while pending_interactions.has(peer_id):
 			pending_interactions.erase(peer_id)
@@ -193,16 +200,19 @@ func _on_peer_connected(peer_id: int) -> void:
 	_verify_map_scale.rpc_id(peer_id, float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING)))
 	_receive_place.rpc_id(peer_id, compressed, first_aid)
 	_add_server_player(peer_id)
+	if car_spawn_incomplete:
+		_notify(peer_id, CAR_SPAWN_WARNING)
 	print("Spieler verbunden: ", peer_id)
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	if mission_ready:
 		mission_manager.remove_player(peer_id)
-	if driver_id == peer_id:
-		driver_id = 0
-		car.occupied = false
-		car.movement_input = Vector2.ZERO
+	var vehicle := _driven_car(peer_id)
+	if vehicle != null:
+		vehicle.driver_id = 0
+		vehicle.occupied = false
+		vehicle.movement_input = Vector2.ZERO
 	if players.has(peer_id):
 		players[peer_id].queue_free()
 		players.erase(peer_id)
@@ -379,23 +389,34 @@ func _interact(peer_id: int) -> void:
 	var body: PlayerScript = players[peer_id]
 	if body.health == 0:
 		return
-	if driver_id == peer_id:
-		if VehicleInteraction.exit(body, car, player_collision_layer, player_collision_mask):
-			driver_id = 0
-			car.occupied = false
-			car.movement_input = Vector2.ZERO
+	var vehicle := _driven_car(peer_id)
+	if vehicle != null:
+		if VehicleInteraction.exit(body, vehicle, player_collision_layer, player_collision_mask):
+			vehicle.driver_id = 0
+			vehicle.occupied = false
+			vehicle.movement_input = Vector2.ZERO
 			_notify(peer_id, "")
 		else:
 			_notify(peer_id, "Hier ist kein sicherer Platz zum Aussteigen.")
-	elif body.global_position.distance_to(car.global_position) > ENTER_DISTANCE:
-		_notify(peer_id, "Gehe näher an das Auto heran.")
-	elif driver_id != 0:
-		_notify(peer_id, "Das Auto ist bereits besetzt.")
 	else:
-		driver_id = peer_id
-		car.occupied = true
-		VehicleInteraction.enter(body)
-		_notify(peer_id, "")
+		vehicle = _nearest_car(body.global_position)
+		if vehicle == null:
+			_notify(peer_id, "Gehe näher an ein Auto heran.")
+		elif vehicle.driver_id != 0:
+			_notify(peer_id, "Das Auto ist bereits besetzt.")
+		else:
+			vehicle.driver_id = peer_id
+			vehicle.occupied = true
+			VehicleInteraction.enter(body)
+			_notify(peer_id, "")
+
+
+func _driven_car(peer_id: int) -> CarScript:
+	if peer_id != 0:
+		for vehicle in cars:
+			if vehicle.driver_id == peer_id:
+				return vehicle
+	return null
 
 
 func _notify(peer_id: int, message: String) -> void:
@@ -417,16 +438,23 @@ func _send_snapshot() -> void:
 	for peer_id in players:
 		var body: PlayerScript = players[peer_id]
 		states[peer_id] = [body.global_position, body.visible, body.health]
-	_receive_snapshot.rpc(states, car.global_position, car.global_rotation.y, driver_id, _horizontal_speed(car))
+	var vehicle_states := []
+	for vehicle in cars:
+		vehicle_states.append([vehicle.global_position, vehicle.global_rotation.y, vehicle.driver_id, _horizontal_speed(vehicle)])
+	_receive_snapshot.rpc(states, vehicle_states)
 
 
 @rpc("authority", "call_remote", "unreliable_ordered", 1)
-func _receive_snapshot(states: Dictionary, car_position: Vector3, car_angle: float, current_driver: int, car_speed: float) -> void:
+func _receive_snapshot(states: Dictionary, vehicle_states: Array) -> void:
 	if not map_ready:
 		return
-	if not is_finite(car_speed) or car_speed < 0.0:
-		push_error("Ungültige Fahrzeuggeschwindigkeit vom Server.")
+	if vehicle_states.is_empty() or vehicle_states.size() > SaveStore.MAX_VEHICLES:
+		push_error("Ungültige Fahrzeugliste vom Server.")
 		return
+	for state in vehicle_states:
+		if not state is Array or state.size() != 4 or not state[0] is Vector3 or not state[0].is_finite() or not (state[1] is float or state[1] is int) or not is_finite(float(state[1])) or not state[2] is int or not (state[3] is float or state[3] is int) or not is_finite(float(state[3])) or state[3] < 0:
+			push_error("Ungültiger Fahrzeugzustand vom Server.")
+			return
 	for peer_id in players.keys():
 		if not states.has(peer_id):
 			players[peer_id].queue_free()
@@ -443,10 +471,24 @@ func _receive_snapshot(states: Dictionary, car_position: Vector3, car_angle: flo
 		body.global_position = states[peer_id][0]
 		body.visible = states[peer_id][1]
 		body.health = states[peer_id][2]
-	car.global_position = car_position
-	car.global_rotation.y = car_angle
-	driver_id = current_driver
-	remote_car_speed = car_speed
+	while cars.size() < vehicle_states.size():
+		var vehicle := _create_car(Vector3.ZERO)
+		vehicle.uses_local_input = false
+		vehicle.set_physics_process(false)
+		vehicle.collision_layer = 0
+		vehicle.collision_mask = 0
+	while cars.size() > vehicle_states.size():
+		cars.pop_back().queue_free()
+	remote_car_speed = 0.0
+	for index in vehicle_states.size():
+		var vehicle := cars[index]
+		var state: Array = vehicle_states[index]
+		vehicle.global_position = state[0]
+		vehicle.global_rotation.y = state[1]
+		vehicle.driver_id = state[2]
+		vehicle.occupied = vehicle.driver_id != 0
+		if vehicle.driver_id == multiplayer.get_unique_id():
+			remote_car_speed = state[3]
 	last_car_snapshot_ms = Time.get_ticks_msec()
 
 
