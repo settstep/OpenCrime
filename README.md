@@ -26,6 +26,10 @@ Mit **M** öffnet und schließt man die Spielkarte; **Escape** oder
 Um die Figur beziehungsweise das gefahrene Auto wird die Umgebung nach und
 nach aufgedeckt; dunkle Bereiche sind noch nicht erkundet. Die Karte wird
 aus den bereits geladenen Ortsdaten gezeichnet und benötigt kein Internet.
+Mit dem **Mausrad** zoomt man auf die Mausposition; mit gedrückter **linker
+Maustaste** verschiebt man die Ansicht. **Zur Position** zentriert sie wieder
+auf die eigene Figur beziehungsweise das gefahrene Auto, ohne den Zoom zu ändern.
+Die Ansicht bleibt beim Schließen und erneuten Öffnen der Karte erhalten.
 
 Im Einzelspieler pausiert das Spiel, während die Karte geöffnet ist. Im
 Multiplayer läuft der Server weiter und die eigene Steuerung ist gesperrt.

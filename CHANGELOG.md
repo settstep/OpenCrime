@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.7.0
+- Die Spielkarte lässt sich mit dem Mausrad zoomen und mit der linken Maustaste verschieben.
+- Eine Schaltfläche zentriert die Kartenansicht auf die eigene Position.
+
 ## 0.6.0
 - Abgerundete Verbindungen schließen Lücken zwischen Straßen- und Wegstücken.
 - Straßen werden vor überlappenden Gehwegen dargestellt, auch auf der Spielkarte.

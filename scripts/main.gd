@@ -97,7 +97,7 @@ func _open_map() -> void:
 	map_open = true
 	interact_requested = false
 	game_map.show()
-	game_map.canvas.queue_redraw()
+	game_map.drawing.queue_redraw()
 	game_map.close_button.grab_focus()
 	if not _is_network_game():
 		get_tree().paused = true

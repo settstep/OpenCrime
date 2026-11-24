@@ -64,6 +64,16 @@ func _test() -> void:
 			if not world.map_open or paused or world._local_movement_input() != Vector2.ZERO:
 				_fail("Opening the multiplayer map paused the world or failed to block movement.")
 				return
+			await process_frame
+			var wheel := InputEventMouseButton.new()
+			wheel.button_index = MOUSE_BUTTON_WHEEL_UP
+			wheel.pressed = true
+			wheel.position = map.canvas.size / 2.0
+			map.canvas.gui_input.emit(wheel)
+			map.center_button.pressed.emit()
+			if map.zoom <= 1.0 or map.view_center.distance_to(map.player_position) > 0.01 or paused or world._local_movement_input() != Vector2.ZERO:
+				_fail("Interacting with the multiplayer map did not preserve the game state.")
+				return
 			Input.action_release("move_forward")
 			world._close_map()
 			if world.map_open or paused:
