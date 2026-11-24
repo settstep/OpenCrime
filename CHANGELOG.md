@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.3.0
+- Straßenbreiten und Gebäudehöhen werden nach Möglichkeit aus OSM-Tags übernommen.
+- Separat erfasste Gehwege und oberirdische Parkplatzflächen werden dargestellt.
+- Der mitgelieferte Thalhofen-Ausschnitt enthält zusätzliche OSM-Merkmale.
+
 ## 0.2.0
 - Ortsauswahl auf einer OpenStreetMap-Karte und Liste gespeicherter Orte.
 - Neue Kartenausschnitte werden heruntergeladen und lokal gespeichert.

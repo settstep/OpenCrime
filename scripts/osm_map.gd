@@ -5,7 +5,9 @@ const ORIGIN_LAT := 47.7748417
 const ORIGIN_LON := 10.6034933
 const METERS_PER_DEGREE := 111320.0
 const BUILDING_HEIGHT := 10.0
+const LEVEL_HEIGHT := 3.0
 const SCALE_SETTING := "opencrime/osm/scale"
+const PEDESTRIAN_WAYS := ["footway", "path", "pedestrian", "steps", "cycleway"]
 
 
 static func populate(world: Node3D, place: Dictionary = {}) -> bool:
@@ -46,12 +48,23 @@ static func populate(world: Node3D, place: Dictionary = {}) -> bool:
 	var building_material := StandardMaterial3D.new()
 	building_material.albedo_color = Color(0.73, 0.62, 0.48)
 	building_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var pedestrian_material := StandardMaterial3D.new()
+	pedestrian_material.albedo_color = Color(0.57, 0.57, 0.54)
+	pedestrian_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var parking_material := StandardMaterial3D.new()
+	parking_material.albedo_color = Color(0.37, 0.38, 0.39)
+	parking_material.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	for way in place.ways:
 		if way.tags.has("building"):
 			_add_building(map, way, building_material, map_scale, place.origin)
+		elif way.tags.get("amenity", "") == "parking" and way.tags.get("parking", "") in ["", "surface"]:
+			_add_area(map, way, parking_material, map_scale, place.origin, "Parking", 0.015)
+		elif way.tags.get("area", "") == "yes" and way.tags.get("highway", "") in PEDESTRIAN_WAYS:
+			_add_area(map, way, pedestrian_material, map_scale, place.origin, "Pedestrian", 0.04)
 		elif way.tags.has("highway") and way.tags.get("area", "") != "yes":
-			_add_road(map, way, road_material, map_scale, place.origin)
+			var material := pedestrian_material if way.tags.highway in PEDESTRIAN_WAYS else road_material
+			_add_road(map, way, material, map_scale, place.origin)
 
 	var credit := Label.new()
 	credit.name = "OSMCredit"
@@ -73,9 +86,7 @@ static func _project(point: Array, origin: Array = [ORIGIN_LAT, ORIGIN_LON]) -> 
 
 
 static func _add_road(map: Node3D, way: Dictionary, material: Material, map_scale: float, origin: Array) -> void:
-	var width := 6.0
-	if way.tags.highway in ["footway", "path", "pedestrian", "steps", "cycleway"]:
-		width = 2.0
+	var width := _road_width(way.tags)
 	for index in range(way.geometry.size() - 1):
 		var start := _project(way.geometry[index], origin)
 		var end := _project(way.geometry[index + 1], origin)
@@ -86,10 +97,97 @@ static func _add_road(map: Node3D, way: Dictionary, material: Material, map_scal
 		road_mesh.size = Vector3(width * map_scale, 0.02, direction.length() * map_scale)
 		road_mesh.material = material
 		var segment := MeshInstance3D.new()
+		segment.name = "Road_%d_%d" % [int(way.id), index]
 		segment.mesh = road_mesh
 		segment.position = Vector3((start.x + end.x) * map_scale / 2.0, 0.02, (start.y + end.y) * map_scale / 2.0)
 		segment.rotation.y = atan2(direction.x, direction.y)
 		map.add_child(segment)
+
+
+static func _measurement(value: Variant, max_value: float) -> float:
+	var text := str(value).strip_edges().to_lower()
+	var multiplier := 1.0
+	if text.ends_with("ft"):
+		text = text.trim_suffix("ft").strip_edges()
+		multiplier = 0.3048
+	elif text.ends_with("m"):
+		text = text.trim_suffix("m").strip_edges()
+	if not text.is_valid_float():
+		return 0.0
+	var result := float(text) * multiplier
+	return result if is_finite(result) and result > 0.0 and result <= max_value else 0.0
+
+
+static func _road_width(tags: Dictionary) -> float:
+	if tags.has("width"):
+		var width := _measurement(tags.width, 1000.0)
+		if width > 0.0:
+			return width
+		push_warning("Ungültige OSM-Straßenbreite: " + str(tags.width))
+	if tags.get("highway", "") in PEDESTRIAN_WAYS:
+		return 2.0
+	if tags.has("lanes"):
+		var lanes := str(tags.lanes).strip_edges()
+		if lanes.is_valid_int() and int(lanes) > 0 and int(lanes) <= 20:
+			return float(lanes.to_int()) * 3.0
+		push_warning("Ungültige OSM-Fahrstreifenanzahl: " + str(tags.lanes))
+	match tags.get("highway", ""):
+		"service":
+			return 4.0
+		"secondary":
+			return 7.0
+		_:
+			return 6.0
+
+
+static func _building_height(tags: Dictionary) -> float:
+	if tags.has("height"):
+		var height := _measurement(tags.height, 10000.0)
+		if height > 0.0:
+			return height
+		push_warning("Ungültige OSM-Gebäudehöhe: " + str(tags.height))
+	if tags.has("building:levels"):
+		var levels := str(tags["building:levels"]).strip_edges()
+		if levels.is_valid_int() and int(levels) > 0 and int(levels) <= 1000:
+			return float(levels.to_int()) * LEVEL_HEIGHT
+		push_warning("Ungültige OSM-Etagenzahl: " + str(tags["building:levels"]))
+	if tags.get("building", "") in ["garage", "garages"]:
+		return 3.0
+	return BUILDING_HEIGHT
+
+
+static func _add_area(map: Node3D, way: Dictionary, material: Material, map_scale: float, origin: Array, prefix: String, height: float) -> void:
+	if way.tags.get("area", "") == "no" or way.geometry.size() < 4 or way.geometry[0] != way.geometry[-1]:
+		return
+	var points := PackedVector2Array()
+	for coordinate in way.geometry:
+		var point := _project(coordinate, origin)
+		if points.is_empty() or point.distance_to(points[points.size() - 1]) > 0.01:
+			points.append(point)
+	if points.size() > 1 and points[0].distance_to(points[points.size() - 1]) < 0.01:
+		points.remove_at(points.size() - 1)
+	var triangles := Geometry2D.triangulate_polygon(points)
+	if triangles.is_empty():
+		push_warning("OSM-Fläche %d konnte nicht trianguliert werden." % int(way.id))
+		return
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	surface.set_material(material)
+	for index in range(0, triangles.size(), 3):
+		var a := points[triangles[index]]
+		var b := points[triangles[index + 1]]
+		var c := points[triangles[index + 2]]
+		if (b - a).cross(c - a) < 0.0:
+			var temporary := b
+			b = c
+			c = temporary
+		for point in [a, b, c]:
+			surface.add_vertex(Vector3(point.x * map_scale, height, point.y * map_scale))
+	surface.generate_normals()
+	var visual := MeshInstance3D.new()
+	visual.name = "%s_%d" % [prefix, int(way.id)]
+	visual.mesh = surface.commit()
+	map.add_child(visual)
 
 
 static func _add_building(map: Node3D, way: Dictionary, material: Material, map_scale: float, origin: Array) -> void:
@@ -108,7 +206,7 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 	var surface := SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
 	surface.set_material(material)
-	var height := BUILDING_HEIGHT * map_scale
+	var height := _building_height(way.tags) * map_scale
 	for index in triangles:
 		surface.add_vertex(Vector3(points[index].x * map_scale, height, points[index].y * map_scale))
 	for index in points.size():

@@ -4,7 +4,7 @@ signal place_chosen(place: Dictionary)
 signal cancelled
 
 const PlaceStore = preload("res://scripts/place_store.gd")
-const USER_AGENT := "OpenCrime/0.2 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.3 (+https://github.com/settstep/OpenCrime)"
 const EXTENT_METERS := 165.0
 const MAX_RESPONSE_BYTES := 8 * 1024 * 1024
 
@@ -92,7 +92,7 @@ func _on_start_pressed() -> void:
 		return
 	pending_bounds = [selected_latitude - latitude_delta, selected_longitude - longitude_delta, selected_latitude + latitude_delta, selected_longitude + longitude_delta]
 	var bbox := "%.7f,%.7f,%.7f,%.7f" % pending_bounds
-	var query := '[out:json][timeout:60];(way["highway"](%s);way["building"](%s););out body geom;' % [bbox, bbox]
+	var query := '[out:json][timeout:60];(way["highway"](%s);way["building"](%s);way["amenity"="parking"](%s););out body geom;' % [bbox, bbox, bbox]
 	var endpoint: String = ProjectSettings.get_setting("opencrime/osm/overpass_url")
 	var error := request.request(endpoint + "?data=" + query.uri_encode(), PackedStringArray(["User-Agent: " + USER_AGENT, "Accept: application/json"]))
 	if error != OK:

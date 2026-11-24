@@ -27,8 +27,8 @@ Bei **Einzelspieler** und **Spiel hosten** erscheint eine Ortsauswahl. Ziehen
 und zoomen Sie die OpenStreetMap-Karte und klicken Sie auf einen Ort, oder
 wählen Sie einen gespeicherten Ausschnitt aus der Liste. Für einen neuen Ort
 geben Sie einen Namen ein und wählen **Ort laden und starten**. Dafür werden
-Straßen und Gebäude in einem Gebiet von etwa 330 × 330 Metern über die Overpass
-API geladen. Ein geeigneter Startpunkt muss nahe einer Straße liegen; wird
+Straßen, Gebäude und Parkplatzflächen in einem Gebiet von etwa 330 × 330 Metern
+über die Overpass API geladen. Ein geeigneter Startpunkt muss nahe einer Straße liegen; wird
 keiner gefunden, wählen Sie bitte einen anderen Punkt.
 
 Mitgeliefert werden Ausschnitte rund um die Waldmünchener Straße in Thalhofen
@@ -43,11 +43,21 @@ Eine Textsuche ist noch nicht vorhanden.
 Ein späterer Bearbeitungsmodus mit lokalen Änderungen anhand von OSM-IDs ist
 geplant, aber noch nicht implementiert.
 
-Straßen und Gebäude werden aus gespeicherten
-OpenStreetMap-Wegen erzeugt; die Gebäude haben Kollisionen. Der Ausschnitt
-ist bewusst unvollständig: Flächen, Relationen und Gebäudedetails werden noch
-nicht ausgewertet, Straßenbreiten sind geschätzt und Gebäude pauschal 10 Meter
-hoch. Das Gelände ist eben; echte Höhendaten fehlen noch.
+Straßen, Gebäude und separat erfasste Gehwege sowie geschlossene,
+oberirdische Parkplatzflächen werden aus gespeicherten OpenStreetMap-Wegen
+erzeugt; die Gebäude haben Kollisionen. Straßenbreiten verwenden `width`, wo
+vorhanden, andernfalls wird aus `lanes` mit 3 Metern pro Fahrstreifen geschätzt.
+Ohne diese Angaben gelten je nach Wegtyp 2, 4, 6 oder 7 Meter.
+Gebäude verwenden `height`, andernfalls `building:levels` mit 3 Metern pro
+Etage; ohne Angaben sind es 10 Meter, für Garagen 3 Meter. Maße ohne Einheit
+oder mit `m` gelten als Meter; `ft` wird in Meter umgerechnet. Nicht auswertbare
+Angaben führen zur jeweils nächsten Schätzung.
+
+Parkplätze und Fußgängerflächen müssen als geschlossene Wege vorliegen;
+Parkplatzpunkte, unterirdische Parkplätze und Relationen werden noch nicht
+dargestellt. In Straßentags angegebene Gehwege werden nicht automatisch
+hinzuerfunden. Gebäudeformen und geschätzte Höhen bleiben vereinfacht; das
+Gelände ist eben und echte Höhendaten fehlen noch.
 
 Der mitgelieferte Thalhofen-Bereich umfasst 47.7735–47.7765° Nord und
 10.6013–10.6057° Ost (ungefähr 330 × 330 Meter). Wege können über diesen
@@ -56,20 +66,21 @@ einem Meter; die Spielfigur ist 1,8 Meter hoch. Die Daten werden offline aus
 `data/thalhofen.json` erzeugt. Die Daten stammen aus der
 [Overpass API](https://overpass-api.de/), abgerufen am 24. November 2026;
 der OSM-Datenstand ist im Datensatz vermerkt. Gespeichert sind die Geometrien
-und ausgewählte Tags der Gebäude- und Straßenwege; die übrigen Daten wurden
-weggelassen. Der ältere Berliner Testdatensatz bleibt ebenfalls im Repository.
+und Tags der Gebäude-, Straßen- und Parkplatzwege. Der ältere Berliner
+Testdatensatz enthält weiterhin nur eine reduzierte Auswahl von Tags und keine
+Parkplatzflächen. Früher gespeicherte Nutzerorte bleiben unverändert und können
+nicht automatisch um bisher fehlende Daten ergänzt werden.
 
 ### Kartenfaktor testen
 
 In `project.godot` steht unter `[opencrime]` der Parameter `osm/scale=1.0`.
 Er kann beispielsweise auf `1.2` gesetzt werden, um Abstände, Gebäudegrößen und
-die geschätzten Straßenbreiten um 20 % zu vergrößern. Der Wert muss eine
+die Straßenbreiten um 20 % zu vergrößern. Der Wert muss eine
 endliche Zahl größer als 0 sein. Nach einer Änderung das Spiel neu starten;
 bei geöffnetem Godot-Editor die Projektdatei gegebenenfalls neu laden.
 
-Der Faktor skaliert auch die geschätzte Gebäudehöhe und den Boden; Figur und
-Auto bleiben unverändert. Parkplätze und zusätzliche Gehwege werden dadurch
-nicht ergänzt. Bei `1.0` entspricht eine Godot-Einheit ungefähr einem Meter.
+Der Faktor skaliert auch Gebäudehöhen, Parkplatzflächen und den Boden; Figur und
+Auto bleiben unverändert. Bei `1.0` entspricht eine Godot-Einheit ungefähr einem Meter.
 Im Multiplayer müssen Server und Clients denselben Faktor verwenden; bei
 unterschiedlichen Werten wird die Verbindung mit einer Meldung getrennt.
 
@@ -175,6 +186,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/pause_menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_map_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_features_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_scale_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_download_test.gd

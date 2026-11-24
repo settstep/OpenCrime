@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="OpenCrime"
-config/version="0.2.0"
+config/version="0.3.0"
 run/main_scene="res://scenes/menu.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
@@ -51,7 +51,7 @@ move_back={
 
 [opencrime]
 
-osm/scale=1.0
+osm/scale=1.1
 osm/tile_url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 osm/overpass_url="https://overpass-api.de/api/interpreter"
 

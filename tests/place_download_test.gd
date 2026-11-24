@@ -3,6 +3,7 @@ extends SceneTree
 const Selection = preload("res://scenes/place_selection.tscn")
 const PlaceStore = preload("res://scripts/place_store.gd")
 
+var last_request := ""
 
 func _initialize() -> void:
 	call_deferred("_test")
@@ -18,6 +19,10 @@ func _respond(server: TCPServer, code: int, body: String) -> bool:
 	while connection.get_available_bytes() == 0 and Time.get_ticks_msec() < deadline:
 		connection.poll()
 		await process_frame
+	var received := connection.get_data(connection.get_available_bytes())
+	if received[0] != OK:
+		return false
+	last_request = received[1].get_string_from_utf8()
 	var data := body.to_utf8_buffer()
 	connection.put_data(("HTTP/1.1 %d Test\r\nContent-Type: application/json\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" % [code, data.size()]).to_utf8_buffer())
 	connection.put_data(data)
@@ -49,10 +54,21 @@ func _test() -> void:
 	if not await _respond(server, 500, "{}") or not await _wait_request(selection) or not selection.info.text.contains("fehlgeschlagen"):
 		_fail("HTTP error was not shown.")
 		return
+	if not last_request.contains('way["amenity"="parking"]'.uri_encode()):
+		_fail("The Overpass query did not request parking ways.")
+		return
 	var chosen := []
 	selection.place_chosen.connect(func(place: Dictionary): chosen.append(place))
 	selection._on_start_pressed()
-	var response := {"elements": [{"type": "way", "id": 123, "tags": {"highway": "residential"}, "geometry": [{"lat": latitude - 0.0005, "lon": longitude}, {"lat": latitude + 0.0005, "lon": longitude}]}]}
+	var response := {"elements": [
+		{"type": "way", "id": 123, "tags": {"highway": "residential"}, "geometry": [{"lat": latitude - 0.0005, "lon": longitude}, {"lat": latitude + 0.0005, "lon": longitude}]},
+		{"type": "way", "id": 124, "tags": {"amenity": "parking"}, "geometry": [
+			{"lat": latitude + 0.0005, "lon": longitude + 0.0005},
+			{"lat": latitude + 0.0006, "lon": longitude + 0.0005},
+			{"lat": latitude + 0.0006, "lon": longitude + 0.0006},
+			{"lat": latitude + 0.0005, "lon": longitude + 0.0005},
+		]},
+	]}
 	if not await _respond(server, 200, JSON.stringify(response)) or not await _wait_request(selection) or chosen.size() != 1:
 		_fail("Valid download was not selected.")
 		return
@@ -60,7 +76,7 @@ func _test() -> void:
 	var loaded := PlaceStore.find_by_id(id)
 	var path: String = PlaceStore.DIRECTORY.path_join(id + ".json")
 	var error := DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
-	if loaded.is_empty() or error != OK:
+	if loaded.is_empty() or error != OK or loaded.ways.size() != 2 or loaded.ways[1].tags.get("amenity") != "parking":
 		_fail("Downloaded place was not persisted.")
 		return
 	print("HTTP error, download and persistence passed")
