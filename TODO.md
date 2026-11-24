@@ -16,3 +16,6 @@ Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenf
 - Spezielle Mehrspieleraufträge mit einer Mindestanzahl an Spielern.
 - Auftragsangebote abhängig von Zeit oder Ereignissen verfallen lassen.
 - Aufträge über markierte NPC-Auftraggeber oder klingelnde Telefonzellen anbieten.
+- Richtungspfeil zum aktuellen Auftragsziel am Bildschirmrand anzeigen.
+- Optional den kürzesten Weg zum aktuellen Ziel anzeigen.
+- Wiederkehrende zufällige Aufträge mit einer je Missionstyp einstellbaren Pause zwischen minimaler und maximaler Anzahl von Spielstunden anbieten.
