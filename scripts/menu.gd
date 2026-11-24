@@ -12,6 +12,7 @@ const DEFAULT_PORT := 7777
 
 
 func _ready() -> void:
+	$Panel/Options/Version.text = "Version " + ProjectSettings.get_setting("application/config/version")
 	var args := OS.get_cmdline_user_args()
 	if args.has("--server"):
 		var server_port := DEFAULT_PORT

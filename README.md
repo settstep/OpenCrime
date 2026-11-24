@@ -48,6 +48,15 @@ Die OSM-Daten unterliegen dieser Lizenz und nicht der MIT-Lizenz des Projektcode
 Die Projektdateien und Skripte können auch in VS Code bearbeitet werden. Godot
 wird weiterhin benötigt, um das Spiel auszuführen und Szenen zu bearbeiten.
 
+## Versionierung
+
+Die aktuelle Spielversion steht als `config/version` im Abschnitt
+`[application]` der `project.godot` und wird im Hauptmenü angezeigt.
+Ausgangspunkt ist **0.1.0**. Bei einer neuen Version wird dieser Wert manuell
+angepasst; er folgt dem Schema `MAJOR.MINOR.PATCH`, zum Beispiel `0.2.0` für
+eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
+allein prüft noch nicht die Multiplayer-Kompatibilität.
+
 ## Windows-EXE exportieren
 
 Godot erzeugt die EXE nicht automatisch beim Spielen mit F5. Für einen Export:

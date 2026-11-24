@@ -30,6 +30,10 @@ theme_override_font_sizes/font_size = 32
 text = "OpenCrime"
 horizontal_alignment = 1
 
+[node name="Version" type="Label" parent="Panel/Options"]
+layout_mode = 2
+horizontal_alignment = 1
+
 [node name="SinglePlayer" type="Button" parent="Panel/Options"]
 layout_mode = 2
 text = "Einzelspieler"

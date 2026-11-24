@@ -9,10 +9,17 @@ func _initialize() -> void:
 
 
 func _test() -> void:
+	var original_version: String = ProjectSettings.get_setting("application/config/version")
+	ProjectSettings.set_setting("application/config/version", "9.8.7-test")
 	var menu := MenuScene.instantiate()
 	root.add_child(menu)
 	current_scene = menu
 	await process_frame
+	var version: Label = menu.get_node("Panel/Options/Version")
+	if not version.visible or version.text != "Version 9.8.7-test":
+		_fail("The menu did not display the configured project version.")
+		return
+	ProjectSettings.set_setting("application/config/version", original_version)
 	var port: LineEdit = menu.get_node("Panel/Options/Port")
 	var message: Label = menu.get_node("Panel/Options/Message")
 	port.text = "0"
