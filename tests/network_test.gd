@@ -37,6 +37,16 @@ func _interact() -> void:
 	Input.parse_input_event(event)
 
 
+func _escape() -> void:
+	var event := InputEventKey.new()
+	event.keycode = KEY_ESCAPE
+	event.pressed = true
+	Input.parse_input_event(event)
+	await _frames(3)
+	event.pressed = false
+	Input.parse_input_event(event)
+
+
 func _test() -> void:
 	var server_port := 17777
 	for arg in OS.get_cmdline_user_args():
@@ -127,6 +137,26 @@ func _test() -> void:
 		if not await _wait_for(func(): return world.status.text == "Das Auto ist bereits besetzt.", 180):
 			_fail("Second player could not see that the car is occupied.")
 			return
+		await _escape()
+		if not world.menu_open or paused:
+			_fail("Multiplayer menu did not open without pausing the server.")
+			return
+		await _frames(20)
+		var own_player: CharacterBody3D = world.players[root.multiplayer.get_unique_id()]
+		var own_position := own_player.position
+		Input.action_press("move_right")
+		await _frames(30)
+		Input.action_release("move_right")
+		if own_player.position.distance_to(own_position) > 0.1:
+			_fail("The local player moved while the menu was open.")
+			return
+		if not await _wait_for(func(): return world.car.position.x > 3.0, 300):
+			_fail("The server did not continue while the menu was open.")
+			return
+		await _escape()
+		if world.menu_open:
+			_fail("Escape did not close the multiplayer menu.")
+			return
 		if not await _wait_for(func(): return world.car.position.x > 3.0, 300):
 			_fail("Observer did not see the car move.")
 			return
@@ -139,6 +169,12 @@ func _test() -> void:
 		if not await _wait_for(func(): return world.driver_id == 0 and world.players.size() == expected_players - 1, 300):
 			_fail("Driver disconnect was not synchronized.")
 			return
+		await _escape()
+		world.get_node("PauseMenu/Menu/Panel/Options/ReturnToMenu").pressed.emit()
+		await process_frame
+		if current_scene.name != "Menu":
+			_fail("Returning to the main menu failed for the client.")
+			return
 	else:
 		var host_player: CharacterBody3D = world.players[1]
 		var host_start := host_player.position
@@ -148,6 +184,19 @@ func _test() -> void:
 		if host_player.position.x >= host_start.x - 0.5:
 			_fail("The host could not move.")
 			return
+		await _escape()
+		if not world.menu_open or paused:
+			_fail("The host menu should not pause the server.")
+			return
+		await _frames(10)
+		var paused_position := host_player.position
+		Input.action_press("move_left")
+		await _frames(20)
+		Input.action_release("move_left")
+		if host_player.position.distance_to(paused_position) > 0.1:
+			_fail("The host moved while the menu was open.")
+			return
+		await _escape()
 		if not await _wait_for(func(): return world.driver_id != 0, 300):
 			_fail("Host did not see the driver enter.")
 			return

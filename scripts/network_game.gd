@@ -57,7 +57,9 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if dedicated or not connected:
+	if dedicated:
+		return
+	if _handle_menu_input(event) or menu_open or not connected:
 		return
 	if event.is_action_pressed("interact") and not event.is_echo():
 		if multiplayer.is_server():
@@ -71,7 +73,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if multiplayer.is_server():
 		if not dedicated:
-			_set_input(1, Input.get_vector("move_left", "move_right", "move_forward", "move_back"))
+			_set_input(1, _local_movement_input())
 		for peer_id in players:
 			var body: PlayerScript = players[peer_id]
 			var direction := Vector2.ZERO
@@ -88,8 +90,18 @@ func _physics_process(delta: float) -> void:
 			snapshot_timer = 0.0
 			_send_snapshot()
 	else:
-		var direction := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+		var direction := _local_movement_input()
 		_submit_input.rpc_id(1, direction)
+
+
+func _is_network_game() -> bool:
+	return true
+
+
+func _local_movement_input() -> Vector2:
+	if menu_open:
+		return Vector2.ZERO
+	return Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 
 
 func _on_peer_connected(peer_id: int) -> void:

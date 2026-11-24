@@ -1,10 +1,15 @@
 extends Control
 
+signal resume_requested
+signal return_to_menu_requested
+
 const MainScene = preload("res://scenes/main.tscn")
 const NetworkGame = preload("res://scripts/network_game.gd")
 const OSMMap = preload("res://scripts/osm_map.gd")
 const MAX_CLIENTS := 8
 const DEFAULT_PORT := 7777
+
+var in_game := false
 
 @onready var address: LineEdit = $Panel/Options/Address
 @onready var port: LineEdit = $Panel/Options/Port
@@ -13,6 +18,15 @@ const DEFAULT_PORT := 7777
 
 func _ready() -> void:
 	$Panel/Options/Version.text = "Version " + ProjectSettings.get_setting("application/config/version")
+	if in_game:
+		$Backdrop.show()
+		$Panel/Options/Resume.show()
+		$Panel/Options/ReturnToMenu.show()
+		for node_name in ["SinglePlayer", "AddressLabel", "Address", "PortLabel", "Port", "Host", "Join"]:
+			$Panel/Options.get_node(node_name).hide()
+		$Panel/Options/Resume.grab_focus()
+		return
+
 	var args := OS.get_cmdline_user_args()
 	if args.has("--server"):
 		var server_port := DEFAULT_PORT
@@ -25,6 +39,24 @@ func _ready() -> void:
 					return
 				server_port = int(port_text)
 		_start_server.call_deferred(server_port, true)
+
+
+func _input(event: InputEvent) -> void:
+	if in_game and event.is_action_pressed("ui_cancel") and not event.is_echo():
+		get_viewport().set_input_as_handled()
+		resume_requested.emit()
+
+
+func _on_resume_pressed() -> void:
+	resume_requested.emit()
+
+
+func _on_return_to_menu_pressed() -> void:
+	return_to_menu_requested.emit()
+
+
+func _on_quit_pressed() -> void:
+	get_tree().quit()
 
 
 func _on_single_pressed() -> void:

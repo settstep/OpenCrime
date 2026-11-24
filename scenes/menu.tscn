@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/menu.gd" id="1_menu"]
 
 [node name="Menu" type="Control"]
+process_mode = 3
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -10,6 +11,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_menu")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.8)
 
 [node name="Panel" type="CenterContainer" parent="."]
 layout_mode = 1
@@ -33,6 +44,11 @@ horizontal_alignment = 1
 [node name="Version" type="Label" parent="Panel/Options"]
 layout_mode = 2
 horizontal_alignment = 1
+
+[node name="Resume" type="Button" parent="Panel/Options"]
+visible = false
+layout_mode = 2
+text = "Spiel fortsetzen"
 
 [node name="SinglePlayer" type="Button" parent="Panel/Options"]
 layout_mode = 2
@@ -67,6 +83,18 @@ text = "Spiel beitreten"
 layout_mode = 2
 autowrap_mode = 2
 
+[node name="ReturnToMenu" type="Button" parent="Panel/Options"]
+visible = false
+layout_mode = 2
+text = "Zum Hauptmenü"
+
+[node name="Quit" type="Button" parent="Panel/Options"]
+layout_mode = 2
+text = "Spiel beenden"
+
+[connection signal="pressed" from="Panel/Options/Resume" to="." method="_on_resume_pressed"]
 [connection signal="pressed" from="Panel/Options/SinglePlayer" to="." method="_on_single_pressed"]
 [connection signal="pressed" from="Panel/Options/Host" to="." method="_on_host_pressed"]
 [connection signal="pressed" from="Panel/Options/Join" to="." method="_on_join_pressed"]
+[connection signal="pressed" from="Panel/Options/ReturnToMenu" to="." method="_on_return_to_menu_pressed"]
+[connection signal="pressed" from="Panel/Options/Quit" to="." method="_on_quit_pressed"]

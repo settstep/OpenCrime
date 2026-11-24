@@ -11,6 +11,12 @@ eine Spielfigur und ein einfaches Auto. Mit **WASD** bewegt sich die Figur oder
 fährt das Auto in die jeweilige Richtung. In der Nähe des Autos steigt man mit
 **E** ein und später wieder aus. Die Fahrphysik ist vorerst bewusst einfach.
 
+Mit **Escape** öffnet sich das Menü; mit Escape oder **Spiel fortsetzen**
+kehrt man zurück. Im Einzelspieler pausiert das Spiel, im Multiplayer läuft
+der Server weiter und nur die eigene Steuerung wird gesperrt. **Zum Hauptmenü**
+verlässt das laufende Spiel; beim Host werden dabei die Clients getrennt.
+Mit **Spiel beenden** wird das Programm geschlossen.
+
 Der Multiplayer-Prototyp synchronisiert Spieler und das gemeinsame Auto über
 einen Server. Der Server berechnet Bewegung und Kollisionen; das Auto kann nur
 von einem Spieler gleichzeitig gefahren werden.
@@ -120,6 +126,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 ```powershell
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/car_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/menu_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/pause_menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_map_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/connection_failure_test.gd
 ```

@@ -33,7 +33,19 @@ func _test() -> void:
 			if world.connected:
 				_fail("Failed connection was still marked connected.")
 				return
-			print("Connection failure was reported")
+			var escape := InputEventKey.new()
+			escape.keycode = KEY_ESCAPE
+			escape.pressed = true
+			world._unhandled_input(escape)
+			if not world.menu_open:
+				_fail("The menu did not open after connection failure.")
+				return
+			world.get_node("PauseMenu/Menu/Panel/Options/ReturnToMenu").pressed.emit()
+			await process_frame
+			if current_scene.name != "Menu":
+				_fail("Could not return to the menu after connection failure.")
+				return
+			print("Connection failure and return to menu passed")
 			quit(0)
 			return
 		await process_frame
