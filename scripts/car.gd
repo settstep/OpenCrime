@@ -1,6 +1,6 @@
 extends CharacterBody3D
 
-const SPEED := 10.0
+const SPEED := 18.0
 
 var occupied := false
 var uses_local_input := true

@@ -10,6 +10,9 @@ Der erste Prototyp enthält eine kleine 3D-Testfläche, Gebäude mit Kollisionen
 eine Spielfigur und ein einfaches Auto. Mit **WASD** bewegt sich die Figur oder
 fährt das Auto in die jeweilige Richtung. In der Nähe des Autos steigt man mit
 **E** ein und später wieder aus. Die Fahrphysik ist vorerst bewusst einfach.
+Beim schnelleren Fahren zeigt die Kamera sanft einen größeren Ausschnitt; beim
+Anhalten oder Aussteigen kehrt sie zur normalen Ansicht zurück. Zu Fuß bleibt
+die bisherige Ansicht erhalten.
 
 Mit **Escape** öffnet sich das Menü; mit Escape oder **Spiel fortsetzen**
 kehrt man zurück. Im Einzelspieler pausiert das Spiel, im Multiplayer läuft

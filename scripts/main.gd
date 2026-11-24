@@ -6,6 +6,11 @@ const GameMapScene = preload("res://scenes/game_map.tscn")
 const SaveStore = preload("res://scripts/save_store.gd")
 const ENTER_DISTANCE := 3.5
 const AUTOSAVE_INTERVAL := 30.0
+const CAMERA_BASE_SIZE := 20.0
+const CAMERA_MAX_SIZE := 40.0
+const CAMERA_ZOOM_START_SPEED := 6.0
+const CAMERA_ZOOM_MAX_SPEED := 25.0
+const CAMERA_ZOOM_RESPONSE := 3.0
 
 @onready var player: CharacterBody3D = $Player
 @onready var car: CarScript = $Car
@@ -46,13 +51,25 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	var target := car if in_car else player
-	camera.global_position = target.global_position + Vector3(0, 20, 0)
+	_update_camera(target, _horizontal_speed(car) if in_car else 0.0, delta)
 	game_map.update_position(target.global_position)
 	if not save_id.is_empty():
 		autosave_timer += delta
 		if autosave_timer >= AUTOSAVE_INTERVAL:
 			autosave_timer = 0.0
 			save_game()
+
+
+func _horizontal_speed(body: CharacterBody3D) -> float:
+	var velocity := body.get_real_velocity()
+	return Vector2(velocity.x, velocity.z).length()
+
+
+func _update_camera(target: Node3D, speed: float, delta: float) -> void:
+	var fraction := clampf((speed - CAMERA_ZOOM_START_SPEED) / (CAMERA_ZOOM_MAX_SPEED - CAMERA_ZOOM_START_SPEED), 0.0, 1.0)
+	var target_size := lerpf(CAMERA_BASE_SIZE, CAMERA_MAX_SIZE, fraction)
+	camera.size = lerpf(camera.size, target_size, 1.0 - exp(-CAMERA_ZOOM_RESPONSE * delta))
+	camera.global_position = target.global_position + Vector3(0, camera.size, 0)
 
 
 func _notification(what: int) -> void:

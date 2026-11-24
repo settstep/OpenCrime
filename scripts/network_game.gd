@@ -6,6 +6,7 @@ const OSMMap = preload("res://scripts/osm_map.gd")
 const PlaceStore = preload("res://scripts/place_store.gd")
 const SNAPSHOT_INTERVAL := 0.05
 const INPUT_TIMEOUT_MS := 1000
+const SNAPSHOT_TIMEOUT_MS := 1000
 const MAX_PLACE_BYTES := 8 * 1024 * 1024
 const MAX_COMPRESSED_BYTES := 4 * 1024 * 1024
 
@@ -20,6 +21,8 @@ var slots: Dictionary = {}
 var driver_id := 0
 var pending_interactions: Array[int] = []
 var snapshot_timer := 0.0
+var remote_car_speed := 0.0
+var last_car_snapshot_ms := 0
 var connected := false
 var players_container: Node3D
 
@@ -58,16 +61,19 @@ func _ready() -> void:
 		status.text = "Verbinde mit dem Server ..."
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if dedicated or not connected or not map_ready:
 		return
 	var local_id := multiplayer.get_unique_id()
 	if driver_id == local_id:
-		camera.global_position = car.global_position + Vector3(0, 20, 0)
+		var speed := _horizontal_speed(car) if multiplayer.is_server() else remote_car_speed
+		if not multiplayer.is_server() and Time.get_ticks_msec() - last_car_snapshot_ms > SNAPSHOT_TIMEOUT_MS:
+			speed = 0.0
+		_update_camera(car, speed, delta)
 		game_map.update_position(car.global_position)
 	elif players.has(local_id):
 		var local_player: CharacterBody3D = players[local_id]
-		camera.global_position = local_player.global_position + Vector3(0, 20, 0)
+		_update_camera(local_player, 0.0, delta)
 		game_map.update_position(local_player.global_position)
 
 
@@ -271,12 +277,15 @@ func _send_snapshot() -> void:
 	for peer_id in players:
 		var body: PlayerScript = players[peer_id]
 		states[peer_id] = [body.global_position, body.visible]
-	_receive_snapshot.rpc(states, car.global_position, car.global_rotation.y, driver_id)
+	_receive_snapshot.rpc(states, car.global_position, car.global_rotation.y, driver_id, _horizontal_speed(car))
 
 
 @rpc("authority", "call_remote", "unreliable_ordered", 1)
-func _receive_snapshot(states: Dictionary, car_position: Vector3, car_angle: float, current_driver: int) -> void:
+func _receive_snapshot(states: Dictionary, car_position: Vector3, car_angle: float, current_driver: int, car_speed: float) -> void:
 	if not map_ready:
+		return
+	if not is_finite(car_speed) or car_speed < 0.0:
+		push_error("Ungültige Fahrzeuggeschwindigkeit vom Server.")
 		return
 	for peer_id in players.keys():
 		if not states.has(peer_id):
@@ -296,6 +305,8 @@ func _receive_snapshot(states: Dictionary, car_position: Vector3, car_angle: flo
 	car.global_position = car_position
 	car.global_rotation.y = car_angle
 	driver_id = current_driver
+	remote_car_speed = car_speed
+	last_car_snapshot_ms = Time.get_ticks_msec()
 
 
 func _on_connected() -> void:

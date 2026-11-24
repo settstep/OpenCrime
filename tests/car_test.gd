@@ -30,6 +30,25 @@ func _test() -> void:
 	var camera: Camera3D = scene.get_node("Camera3D")
 	var status: Label = scene.get_node("HUD/Status")
 	await _advance_frames(10)
+	if not is_equal_approx(camera.size, 20.0):
+		_fail("The stationary camera did not retain the original view.")
+		return
+	scene._update_camera(car, 18.0, 0.2)
+	var smooth_size := camera.size
+	camera.size = 20.0
+	scene._update_camera(car, 18.0, 0.1)
+	scene._update_camera(car, 18.0, 0.1)
+	if smooth_size <= 20.0 or smooth_size >= 40.0 or not is_equal_approx(camera.size, smooth_size):
+		_fail("Camera zoom is not smooth and frame-rate independent.")
+		return
+	scene._update_camera(car, 1000.0, 10.0)
+	if absf(camera.size - 40.0) > 0.01:
+		_fail("Camera zoom is not capped at high speeds.")
+		return
+	scene._update_camera(player, 0.0, 10.0)
+	if absf(camera.size - 20.0) > 0.01:
+		_fail("The camera did not return to the walking view.")
+		return
 
 	await _interact()
 	if not player.visible or status.text.is_empty():
@@ -39,6 +58,9 @@ func _test() -> void:
 	Input.action_press("move_forward")
 	await _advance_frames(20)
 	Input.action_release("move_forward")
+	if absf(camera.size - 20.0) > 0.01:
+		_fail("Walking changed the camera zoom.")
+		return
 	await _interact()
 	if player.visible or player.collision_layer != 0:
 		_fail("Entering the nearby car failed.")
@@ -47,6 +69,9 @@ func _test() -> void:
 	var start_x := car.position.x
 	Input.action_press("move_right")
 	await _advance_frames(30)
+	if camera.size <= 22.0 or absf(camera.global_position.y - car.global_position.y - camera.size) > 0.1:
+		_fail("The camera did not zoom out while driving.")
+		return
 	Input.action_release("move_right")
 	await _advance_frames(3)
 	if car.position.x <= start_x + 2.0 or absf(car.position.z + 5.0) > 0.1:
@@ -56,7 +81,7 @@ func _test() -> void:
 	Input.action_press("move_right")
 	Input.action_press("move_forward")
 	await _advance_frames(15)
-	if car.position.x <= diagonal_start.x + 1.0 or car.position.z >= diagonal_start.z - 1.0 or not is_equal_approx(Vector2(car.velocity.x, car.velocity.z).length(), 10.0):
+	if car.position.x <= diagonal_start.x + 1.0 or car.position.z >= diagonal_start.z - 1.0 or not is_equal_approx(Vector2(car.velocity.x, car.velocity.z).length(), 18.0):
 		_fail("Diagonal driving failed.")
 		return
 	Input.action_release("move_right")
@@ -70,6 +95,11 @@ func _test() -> void:
 	await _interact()
 	if not player.visible or player.collision_layer == 0:
 		_fail("Exiting the car failed.")
+		return
+	var zoom_after_exit := camera.size
+	await _advance_frames(30)
+	if camera.size >= zoom_after_exit or camera.size < 20.0:
+		_fail("The camera did not zoom back in after exiting the car.")
 		return
 	var player_start := player.position
 	Input.action_press("move_right")
@@ -93,6 +123,9 @@ func _test() -> void:
 	await _advance_frames(3)
 	Input.action_press("move_right")
 	await _advance_frames(50)
+	if scene._horizontal_speed(car) > 0.1 or camera.size > 21.5:
+		_fail("The camera remained zoomed out while the car was blocked.")
+		return
 	Input.action_release("move_right")
 	await _advance_frames(3)
 	if car.position.x < -12.3 or car.position.x > -12.05:

@@ -108,9 +108,25 @@ func _test() -> void:
 			return
 		await _frames(180)
 		Input.action_press("move_right")
-		await _frames(55)
+		await _frames(25)
+		if world.camera.size <= 22.0 or world.remote_car_speed < 10.0:
+			_fail("The driving client's camera did not zoom out: size %s, speed %s." % [world.camera.size, world.remote_car_speed])
+			return
+		var zoom_before_timeout := world.camera.size
+		var snapshot_time := world.last_car_snapshot_ms
+		world.last_car_snapshot_ms = Time.get_ticks_msec() - world.SNAPSHOT_TIMEOUT_MS - 1
+		world._process(0.1)
+		world.last_car_snapshot_ms = snapshot_time
+		if world.camera.size >= zoom_before_timeout:
+			_fail("The client's camera retained stale speed after snapshot timeout.")
+			return
+		await _frames(10)
+		var driving_zoom := world.camera.size
 		Input.action_release("move_right")
-		await _frames(5)
+		await _frames(25)
+		if world.camera.size >= driving_zoom:
+			_fail("The driving client's camera did not zoom in after stopping.")
+			return
 		await _interact()
 		if not await _wait_for(func(): return world.driver_id == 0 and world.players[root.multiplayer.get_unique_id()].visible, 180):
 			_fail("Driver could not exit the car.")
@@ -162,6 +178,9 @@ func _test() -> void:
 		if not await _wait_for(func(): return world.car.position.x > 3.0, 300):
 			_fail("Observer did not see the car move.")
 			return
+		if absf(world.camera.size - 20.0) > 0.01:
+			_fail("Another player's driving changed the observer's camera.")
+			return
 		if not await _wait_for(func(): return world.driver_id == 0 and driver.visible, 300):
 			_fail("Observer did not see the driver exit.")
 			return
@@ -211,6 +230,8 @@ func _test() -> void:
 		if not await _wait_for(func(): return world.players.size() == 1, 300):
 			_fail("Host did not remove the observer after disconnect.")
 			return
+		world.car.position = Vector3(0, 0.5, -5)
+		world.car.velocity = Vector3.ZERO
 		host_player.position = world.car.position + Vector3(0, 0.4, 2.4)
 		host_player.velocity = Vector3.ZERO
 		await _frames(3)
@@ -221,6 +242,9 @@ func _test() -> void:
 		var host_car_start := world.car.position.x
 		Input.action_press("move_right")
 		await _frames(15)
+		if world.camera.size <= 21.0:
+			_fail("The host's camera did not zoom out while driving: size %s, speed %s, position %s." % [world.camera.size, world._horizontal_speed(world.car), world.car.position])
+			return
 		Input.action_release("move_right")
 		if world.car.position.x <= host_car_start + 1.0:
 			_fail("Host could not drive the car.")

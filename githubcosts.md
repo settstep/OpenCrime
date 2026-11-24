@@ -17,3 +17,4 @@
 | 24.11.2026 | 12:15 | 24      | handle missing save directory in load menu                  |
 | 24.11.2026 | 12:30 | 25      | improve road junctions and track future features            |
 | 24.11.2026 | 12:53 | 26      | add game map zoom and pan                                   |
+| 24.11.2026 | 14:06 | 28      | add speed-based camera zoom                                 |

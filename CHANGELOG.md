@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.8.0
+- Die Kamera zoomt beim schnelleren Fahren sanft heraus und beim Anhalten wieder hinein.
+- Das Testauto fährt schneller.
+
 ## 0.7.0
 - Die Spielkarte lässt sich mit dem Mausrad zoomen und mit der linken Maustaste verschieben.
 - Eine Schaltfläche zentriert die Kartenansicht auf die eigene Position.

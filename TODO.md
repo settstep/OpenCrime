@@ -8,7 +8,8 @@ Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenf
 - Bessere Fahrzeugmodelle.
 - Begehbare Gebäude und Innenräume.
 - Uhrzeit und Tag-Nacht-Wechsel.
-- Geschwindigkeitsabhängiger Kameraabstand, insbesondere beim Fahren.
+- Fahrzeugbezogene Einstellungen für Geschwindigkeit und weitere Fahrzeugparameter.
+- Alternative Fahrzeugsteuerung: relativ zur Fahrzeugrichtung beschleunigen, bremsen und lenken; optional eine mitdrehende Welt beziehungsweise Kamera prüfen.
 - Benachbarte Kartengebiete am Spielweltrand automatisch laden, bei Bedarf aus OSM.
 - Orte im Spiel bearbeiten und lokale Änderungen anhand von OSM-IDs auch nach einer Aktualisierung beibehalten.
 - In der Ortsauswahl Informationen wie Aufträge, Shops und kaufbare Gebäude anzeigen.
