@@ -2,6 +2,7 @@ extends SceneTree
 
 const MenuScene = preload("res://scenes/menu.tscn")
 const NetworkGame = preload("res://scripts/network_game.gd")
+const SaveStore = preload("res://scripts/save_store.gd")
 
 
 func _initialize() -> void:
@@ -9,6 +10,7 @@ func _initialize() -> void:
 
 
 func _test() -> void:
+	SaveStore.directory = "user://menu_test_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
 	var original_version: String = ProjectSettings.get_setting("application/config/version")
 	ProjectSettings.set_setting("application/config/version", "9.8.7-test")
 	var menu := MenuScene.instantiate()
@@ -21,7 +23,7 @@ func _test() -> void:
 		return
 	ProjectSettings.set_setting("application/config/version", original_version)
 	menu.get_node("Panel/Options/Changelog").pressed.emit()
-	if not menu.get_node("ChangelogPanel").visible or not menu.get_node("ChangelogPanel/Layout/Content").text.contains("0.4.0"):
+	if not menu.get_node("ChangelogPanel").visible or not menu.get_node("ChangelogPanel/Layout/Content").text.contains("0.5.0"):
 		_fail("The changelog did not open.")
 		return
 	menu.get_node("ChangelogPanel/Layout/Back").pressed.emit()
@@ -51,6 +53,10 @@ func _test() -> void:
 	await process_frame
 	if current_scene.name != "Main" or current_scene is NetworkGame:
 		_fail("Single-player menu did not open the original game.")
+		return
+	var save_id: String = current_scene.save_id
+	if SaveStore.delete_slot(save_id) != OK or DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveStore.directory)) != OK:
+		_fail("The isolated test save could not be removed.")
 		return
 	current_scene.queue_free()
 	await process_frame

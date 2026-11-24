@@ -2,16 +2,21 @@ extends Control
 
 signal resume_requested
 signal return_to_menu_requested
+signal save_requested
+signal save_as_requested
+signal quit_requested
 
 const MainScene = preload("res://scenes/main.tscn")
 const NetworkGame = preload("res://scripts/network_game.gd")
 const OSMMap = preload("res://scripts/osm_map.gd")
 const PlaceStore = preload("res://scripts/place_store.gd")
+const SaveStore = preload("res://scripts/save_store.gd")
 const MAX_CLIENTS := 8
 const DEFAULT_PORT := 7777
 
 var in_game := false
 var host_selection := false
+var can_save := false
 
 @onready var address: LineEdit = $Panel/Options/Address
 @onready var port: LineEdit = $Panel/Options/Port
@@ -24,7 +29,9 @@ func _ready() -> void:
 		$Backdrop.show()
 		$Panel/Options/Resume.show()
 		$Panel/Options/ReturnToMenu.show()
-		for node_name in ["SinglePlayer", "AddressLabel", "Address", "PortLabel", "Port", "Host", "Join"]:
+		$Panel/Options/SaveGame.visible = can_save
+		$Panel/Options/SaveGameAs.visible = can_save
+		for node_name in ["SinglePlayer", "LoadGame", "AddressLabel", "Address", "PortLabel", "Port", "Host", "Join"]:
 			$Panel/Options.get_node(node_name).hide()
 		$Panel/Options/Resume.grab_focus()
 		return
@@ -69,7 +76,18 @@ func _on_return_to_menu_pressed() -> void:
 
 
 func _on_quit_pressed() -> void:
-	get_tree().quit()
+	if in_game:
+		quit_requested.emit()
+	else:
+		get_tree().quit()
+
+
+func _on_save_pressed() -> void:
+	save_requested.emit()
+
+
+func _on_save_as_pressed() -> void:
+	save_as_requested.emit()
 
 
 func _on_changelog_pressed() -> void:
@@ -92,6 +110,25 @@ func _on_changelog_back_pressed() -> void:
 
 func _on_single_pressed() -> void:
 	_open_place_selection(false)
+
+
+func _on_load_pressed() -> void:
+	var selection_scene: PackedScene = load("res://scenes/save_selection.tscn")
+	var selection := selection_scene.instantiate()
+	selection.name = "SaveSelection"
+	selection.save_chosen.connect(_on_save_chosen)
+	selection.cancelled.connect(_on_save_selection_cancelled)
+	$Panel.hide()
+	add_child(selection)
+
+
+func _on_save_selection_cancelled() -> void:
+	$SaveSelection.queue_free()
+	$Panel.show()
+
+
+func _on_save_chosen(data: Dictionary) -> void:
+	_open_game(false, false, data.place, data)
 
 
 func _on_host_pressed() -> void:
@@ -178,7 +215,7 @@ func _start_server(server_port: int, is_dedicated: bool, place: Dictionary) -> v
 	_open_game(true, is_dedicated, place)
 
 
-func _open_game(networked: bool, is_dedicated: bool, place: Dictionary) -> void:
+func _open_game(networked: bool, is_dedicated: bool, place: Dictionary, save_data: Dictionary = {}) -> void:
 	var world := MainScene.instantiate()
 	var waiting_for_server := networked and not multiplayer.is_server()
 	if not waiting_for_server and not OSMMap.populate(world, place):
@@ -192,12 +229,27 @@ func _open_game(networked: bool, is_dedicated: bool, place: Dictionary) -> void:
 			message.text = "Kartendaten oder Kartenfaktor sind ungültig. Details stehen in der Konsole."
 			if has_node("PlaceSelection"):
 				_on_place_selection_cancelled()
+			elif has_node("SaveSelection"):
+				$SaveSelection.info.text = message.text
 		return
 	if networked:
 		world.set_script(NetworkGame)
 		world.dedicated = is_dedicated
 		world.place_data = place
 		world.client_waiting_for_map = waiting_for_server
+	else:
+		world.save_id = save_data.get("id", "")
+		if world.save_id.is_empty():
+			world.save_id = SaveStore.new_id()
+		if world.save_id.is_empty():
+			world.free()
+			message.text = "Ein Spielstand konnte nicht angelegt werden."
+			if has_node("PlaceSelection"):
+				_on_place_selection_cancelled()
+			return
+		world.restore_data = save_data
 	get_tree().root.add_child(world)
 	get_tree().current_scene = world
+	if not networked and save_data.is_empty():
+		world.save_game()
 	queue_free()

@@ -54,6 +54,20 @@ text = "Spiel fortsetzen"
 layout_mode = 2
 text = "Einzelspieler"
 
+[node name="LoadGame" type="Button" parent="Panel/Options"]
+layout_mode = 2
+text = "Spielstand laden"
+
+[node name="SaveGame" type="Button" parent="Panel/Options"]
+visible = false
+layout_mode = 2
+text = "Spiel speichern"
+
+[node name="SaveGameAs" type="Button" parent="Panel/Options"]
+visible = false
+layout_mode = 2
+text = "Als neuen Spielstand speichern"
+
 [node name="AddressLabel" type="Label" parent="Panel/Options"]
 layout_mode = 2
 text = "Serveradresse"
@@ -123,6 +137,9 @@ text = "Zurück"
 
 [connection signal="pressed" from="Panel/Options/Resume" to="." method="_on_resume_pressed"]
 [connection signal="pressed" from="Panel/Options/SinglePlayer" to="." method="_on_single_pressed"]
+[connection signal="pressed" from="Panel/Options/LoadGame" to="." method="_on_load_pressed"]
+[connection signal="pressed" from="Panel/Options/SaveGame" to="." method="_on_save_pressed"]
+[connection signal="pressed" from="Panel/Options/SaveGameAs" to="." method="_on_save_as_pressed"]
 [connection signal="pressed" from="Panel/Options/Host" to="." method="_on_host_pressed"]
 [connection signal="pressed" from="Panel/Options/Join" to="." method="_on_join_pressed"]
 [connection signal="pressed" from="Panel/Options/Changelog" to="." method="_on_changelog_pressed"]

@@ -1,0 +1,133 @@
+extends RefCounted
+
+const PlaceStore = preload("res://scripts/place_store.gd")
+const FORMAT_VERSION := 1
+const MAX_FILE_BYTES := 16 * 1024 * 1024
+const GRID_SIZE := 45 # Save format 1 uses the 45x45 exploration grid.
+
+static var directory := "user://saves"
+
+
+static func _valid_id(id: String) -> bool:
+	return id.length() == 32 and id.is_valid_hex_number(false) and id == id.to_lower()
+
+
+static func _path(id: String) -> String:
+	return directory.path_join(id + ".json")
+
+
+static func new_id() -> String:
+	var crypto := Crypto.new()
+	for attempt in range(4):
+		var id := crypto.generate_random_bytes(16).hex_encode()
+		if _valid_id(id) and not FileAccess.file_exists(_path(id)):
+			return id
+	push_error("Ein eindeutiger Spielstand konnte nicht angelegt werden.")
+	return ""
+
+
+static func _number(value: Variant) -> bool:
+	return (typeof(value) == TYPE_INT or typeof(value) == TYPE_FLOAT) and is_finite(float(value))
+
+
+static func _vector(value: Variant) -> bool:
+	if not value is Array or value.size() != 3:
+		return false
+	for number in value:
+		if not _number(number) or absf(float(number)) > 1000000.0:
+			return false
+	return true
+
+
+static func is_valid(data: Dictionary) -> bool:
+	if not data.has_all(["format", "id", "created_at", "saved_at", "place", "scale", "player_position", "car_position", "car_rotation", "in_car", "explored"]):
+		return false
+	if data.format != FORMAT_VERSION or not data.id is String or not _valid_id(data.id):
+		return false
+	if not data.created_at is String or data.created_at.is_empty() or not data.saved_at is String or data.saved_at.is_empty():
+		return false
+	if not data.place is Dictionary or not PlaceStore.is_valid(data.place):
+		return false
+	if not _number(data.scale) or float(data.scale) <= 0.0:
+		return false
+	if not _vector(data.player_position) or not _vector(data.car_position) or not _number(data.car_rotation) or not data.in_car is bool:
+		return false
+	if not data.explored is Array or data.explored.size() > GRID_SIZE * GRID_SIZE:
+		return false
+	for cell in data.explored:
+		if not cell is Array or cell.size() != 2:
+			return false
+		for value in cell:
+			if not _number(value) or float(value) != floorf(float(value)) or float(value) < 0.0 or float(value) >= GRID_SIZE:
+				return false
+	return true
+
+
+static func read_slot(id: String) -> Dictionary:
+	if not _valid_id(id):
+		return {"error": ERR_INVALID_PARAMETER}
+	var file := FileAccess.open(_path(id), FileAccess.READ)
+	if file == null:
+		return {"error": FileAccess.get_open_error()}
+	if file.get_length() > MAX_FILE_BYTES:
+		return {"error": ERR_INVALID_DATA}
+	var json := JSON.new()
+	if json.parse(file.get_as_text()) != OK or not json.data is Dictionary or not is_valid(json.data) or json.data.id != id:
+		return {"error": ERR_INVALID_DATA}
+	return {"error": OK, "data": json.data}
+
+
+static func list_slots() -> Dictionary:
+	if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(directory)):
+		if FileAccess.file_exists(directory):
+			return {"error": ERR_CANT_OPEN, "slots": []}
+		return {"error": OK, "slots": []}
+	var dir := DirAccess.open(directory)
+	if dir == null:
+		return {"error": DirAccess.get_open_error(), "slots": []}
+	var slots: Array[Dictionary] = []
+	for filename in dir.get_files():
+		if not filename.ends_with(".json"):
+			continue
+		var id := filename.trim_suffix(".json")
+		if not _valid_id(id):
+			continue
+		var result := read_slot(id)
+		var metadata := {}
+		if result.error == OK:
+			metadata = {"place": {"name": result.data.place.name}, "created_at": result.data.created_at, "saved_at": result.data.saved_at}
+		slots.append({"id": id, "error": result.error, "data": metadata, "modified": FileAccess.get_modified_time(_path(id))})
+	slots.sort_custom(func(a: Dictionary, b: Dictionary): return a.modified > b.modified)
+	return {"error": OK, "slots": slots}
+
+
+static func write_slot(data: Dictionary) -> Error:
+	if not is_valid(data):
+		return ERR_INVALID_DATA
+	var json := JSON.stringify(data)
+	if json.to_utf8_buffer().size() > MAX_FILE_BYTES:
+		return ERR_INVALID_DATA
+	var error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(directory))
+	if error != OK:
+		return error
+	var temporary := directory.path_join(data.id + "." + Crypto.new().generate_random_bytes(8).hex_encode() + ".tmp")
+	var file := FileAccess.open(temporary, FileAccess.WRITE)
+	if file == null:
+		return FileAccess.get_open_error()
+	file.store_string(json)
+	file.flush()
+	error = file.get_error()
+	file.close()
+	if error == OK:
+		error = DirAccess.rename_absolute(ProjectSettings.globalize_path(temporary), ProjectSettings.globalize_path(_path(data.id)))
+	if error != OK and FileAccess.file_exists(temporary):
+		var cleanup_error := DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
+		if cleanup_error != OK:
+			push_error("Temporäre Spielstandsdatei konnte nicht entfernt werden: " + temporary)
+	return error
+
+
+static func delete_slot(id: String) -> Error:
+	if not _valid_id(id):
+		return ERR_INVALID_PARAMETER
+	return DirAccess.remove_absolute(ProjectSettings.globalize_path(_path(id)))

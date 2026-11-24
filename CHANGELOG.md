@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.5.0
+- Mehrere Einzelspieler-Spielstände mit automatischem und manuellem Speichern.
+- Ort, Figur, Auto und erkundete Kartenbereiche werden wiederhergestellt.
+- Spielstände können im Hauptmenü geladen und nach Bestätigung gelöscht werden.
+
 ## 0.4.0
 - Spielkarte mit eigener Position und Erkundungsnebel, erreichbar über M.
 - Erkundung gilt je Spieler während der aktuellen Sitzung und benötigt keine Kartendownloads.

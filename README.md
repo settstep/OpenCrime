@@ -29,8 +29,34 @@ aus den bereits geladenen Ortsdaten gezeichnet und benötigt kein Internet.
 
 Im Einzelspieler pausiert das Spiel, während die Karte geöffnet ist. Im
 Multiplayer läuft der Server weiter und die eigene Steuerung ist gesperrt.
-Jeder Spieler erkundet seine Karte selbst. Der Fortschritt gilt nur für die
-aktuelle Spielsitzung und wird beim Verlassen zurückgesetzt.
+Jeder Spieler erkundet seine Karte selbst. Im Einzelspieler wird der
+Erkundungsfortschritt im Spielstand gespeichert; im Multiplayer gilt er
+vorerst nur für die aktuelle Sitzung.
+
+## Einzelspieler-Spielstände
+
+Jedes neue Einzelspiel erhält einen eigenen Spielstand. Er wird beim Start,
+alle 30 Sekunden während des Spiels sowie beim regulären Beenden oder beim
+Zurückkehren zum Hauptmenü automatisch gespeichert. Im Pausenmenü steht
+zusätzlich **Spiel speichern** zur Verfügung. Beim unerwarteten Abbruch kann
+Fortschritt seit der letzten Speicherung verloren gehen. Mit **Als neuen
+Spielstand speichern** entsteht eine unabhängige Kopie; anschließend wird
+diese Kopie automatisch weitergespeichert.
+
+Über **Spielstand laden** im Hauptmenü können Spielstände ausgewählt, geladen
+und nach einer Bestätigung gelöscht werden. Gespeichert werden der Ort samt
+seinen konkreten Kartendaten, der Kartenfaktor, die Positionen von Figur und
+Auto, die Ausrichtung und Belegung des Autos sowie die erkundeten Bereiche.
+Zum Laden ist kein OSM-Download nötig. Der eingestellte Kartenfaktor muss dem
+gespeicherten Wert entsprechen; bei einem Unterschied wird das Laden mit
+einer Meldung abgebrochen.
+
+Die Dateien liegen unter `user://saves`, unter Windows üblicherweise
+`%APPDATA%\Godot\app_userdata\OpenCrime\saves`. Bei einem Speicherfehler wird
+eine Meldung angezeigt; das reguläre Verlassen des Einzelspiels wird dann
+verhindert, damit der Fehler behoben werden kann. Derselbe Spielstand sollte
+nicht gleichzeitig in mehreren Spielinstanzen geöffnet werden, da sonst die
+letzte Speicherung gewinnt. Multiplayer-Spielstände sind noch nicht vorhanden.
 
 ## Kartenausschnitt
 
@@ -183,8 +209,8 @@ Ort wird als Fehler gemeldet. Zum Beenden **Strg+C** drücken.
 Auch auf einem entfernten Rechner funktioniert der Server mit einer passenden
 Godot-Version und denselben Projektdateien.
 
-**Wichtig:** Dies ist ein früher Prototyp ohne Anmeldung, Verschlüsselung oder
-Spielstandspeicherung. Nur in vertrauenswürdigen Netzwerken verwenden und nicht
+**Wichtig:** Dies ist ein früher Multiplayer-Prototyp ohne Anmeldung,
+Verschlüsselung oder Multiplayer-Spielstandspeicherung. Nur in vertrauenswürdigen Netzwerken verwenden und nicht
 ungeschützt im Internet bereitstellen.
 
 ## Tests ausführen
@@ -200,11 +226,15 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_features_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_scale_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/game_map_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/save_game_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_download_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/map_cache_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/connection_failure_test.gd
 ```
+
+Der Spielstandtest simuliert absichtlich Speicherfehler; entsprechende
+Fehlermeldungen in der Konsole sind dabei erwartet.
 
 Für den Netzwerktest drei Terminals im Projektordner öffnen und nacheinander
 die folgenden Befehle starten. Der Test verwendet UDP-Port 17777 und beendet
