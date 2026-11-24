@@ -23,10 +23,49 @@ func _test() -> void:
 		return
 	ProjectSettings.set_setting("application/config/version", original_version)
 	menu.get_node("Panel/Options/Changelog").pressed.emit()
-	if not menu.get_node("ChangelogPanel").visible or not menu.get_node("ChangelogPanel/Layout/Content").text.contains("0.5.0"):
+	if not menu.get_node("ChangelogPanel").visible or not menu.get_node("ChangelogPanel/Layout/Content").text.contains("0.5.1"):
 		_fail("The changelog did not open.")
 		return
 	menu.get_node("ChangelogPanel/Layout/Back").pressed.emit()
+	for directory_exists in [false, true]:
+		if directory_exists and DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SaveStore.directory)) != OK:
+			_fail("Could not create an empty test save directory.")
+			return
+		menu.get_node("Panel/Options/LoadGame").pressed.emit()
+		await process_frame
+		var save_selection = menu.get_node("SaveSelection")
+		if not save_selection.slots.is_empty() or save_selection.info.text != "Noch keine Spielstände vorhanden.":
+			_fail("An empty save list was not displayed correctly.")
+			return
+		save_selection._on_load_pressed()
+		save_selection._on_delete_pressed()
+		if not save_selection.info.text.contains("auswählen") or save_selection.confirmation.visible:
+			_fail("An empty save list allowed loading or deleting a save.")
+			return
+		save_selection._on_cancel_pressed()
+		await process_frame
+		if not menu.get_node("Panel").visible:
+			_fail("Cancelling the empty save list did not restore the menu.")
+			return
+		if directory_exists and DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveStore.directory)) != OK:
+			_fail("Could not remove the empty test save directory.")
+			return
+	var blocker := FileAccess.open(SaveStore.directory, FileAccess.WRITE)
+	if blocker == null:
+		_fail("Could not create the save directory blocker.")
+		return
+	blocker.close()
+	menu.get_node("Panel/Options/LoadGame").pressed.emit()
+	await process_frame
+	var blocked_selection = menu.get_node("SaveSelection")
+	if not blocked_selection.slots.is_empty() or not blocked_selection.info.text.contains("nicht gelesen"):
+		_fail("An inaccessible save directory was not reported.")
+		return
+	blocked_selection._on_cancel_pressed()
+	await process_frame
+	if DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveStore.directory)) != OK:
+		_fail("Could not remove the test save directory blocker.")
+		return
 	var port: LineEdit = menu.get_node("Panel/Options/Port")
 	var message: Label = menu.get_node("Panel/Options/Message")
 	port.text = "0"

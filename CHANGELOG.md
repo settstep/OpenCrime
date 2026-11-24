@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.5.1
+- Der Ladebildschirm funktioniert auch, wenn noch keine Spielstände vorhanden sind.
+
 ## 0.5.0
 - Mehrere Einzelspieler-Spielstände mit automatischem und manuellem Speichern.
 - Ort, Figur, Auto und erkundete Kartenbereiche werden wiederhergestellt.

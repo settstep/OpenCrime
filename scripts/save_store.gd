@@ -78,14 +78,14 @@ static func read_slot(id: String) -> Dictionary:
 
 
 static func list_slots() -> Dictionary:
+	var slots: Array[Dictionary] = []
 	if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(directory)):
 		if FileAccess.file_exists(directory):
-			return {"error": ERR_CANT_OPEN, "slots": []}
-		return {"error": OK, "slots": []}
+			return {"error": ERR_CANT_OPEN, "slots": slots}
+		return {"error": OK, "slots": slots}
 	var dir := DirAccess.open(directory)
 	if dir == null:
-		return {"error": DirAccess.get_open_error(), "slots": []}
-	var slots: Array[Dictionary] = []
+		return {"error": DirAccess.get_open_error(), "slots": slots}
 	for filename in dir.get_files():
 		if not filename.ends_with(".json"):
 			continue
