@@ -64,15 +64,20 @@ func _process(_delta: float) -> void:
 	var local_id := multiplayer.get_unique_id()
 	if driver_id == local_id:
 		camera.global_position = car.global_position + Vector3(0, 20, 0)
+		game_map.update_position(car.global_position)
 	elif players.has(local_id):
 		var local_player: CharacterBody3D = players[local_id]
 		camera.global_position = local_player.global_position + Vector3(0, 20, 0)
+		game_map.update_position(local_player.global_position)
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if dedicated:
 		return
-	if _handle_menu_input(event) or menu_open or not connected or not map_ready:
+	if map_open or _handle_menu_input(event) or menu_open or not connected or not map_ready:
+		return
+	if event.is_action_pressed("show_map") and not event.is_echo():
+		_open_map()
 		return
 	if event.is_action_pressed("interact") and not event.is_echo():
 		if multiplayer.is_server():
@@ -112,7 +117,7 @@ func _is_network_game() -> bool:
 
 
 func _local_movement_input() -> Vector2:
-	if menu_open:
+	if menu_open or map_open:
 		return Vector2.ZERO
 	return Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 
@@ -204,6 +209,7 @@ func _receive_place(compressed: PackedByteArray) -> void:
 		_reject_place("Server-Ort konnte nicht aufgebaut werden.")
 		return
 	place_data = json.data
+	_configure_map(place_data)
 	map_ready = true
 	$Ground.show()
 	car.show()

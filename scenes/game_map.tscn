@@ -1,0 +1,62 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/game_map.gd" id="1_map"]
+
+[node name="GameMap" type="Control"]
+process_mode = 3
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_map")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.08, 0.09, 0.11, 0.96)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 12
+
+[node name="Layout" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="Margin/Layout"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Margin/Layout/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Karte"
+
+[node name="Close" type="Button" parent="Margin/Layout/Header"]
+layout_mode = 2
+text = "Schließen (M / Esc)"
+
+[node name="MapContainer" type="AspectRatioContainer" parent="Margin/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+ratio = 1.0
+
+[node name="Canvas" type="Control" parent="Margin/Layout/MapContainer"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Footer" type="Label" parent="Margin/Layout"]
+layout_mode = 2
+text = "Blau: eigene Position | Dunkel: noch nicht erkundet | © OpenStreetMap-Mitwirkende – https://www.openstreetmap.org/copyright"

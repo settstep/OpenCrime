@@ -42,6 +42,7 @@ static func populate(world: Node3D, place: Dictionary = {}) -> bool:
 
 	var map := Node3D.new()
 	map.name = "OSMMap"
+	map.set_meta("place", place)
 	world.add_child(map)
 	var road_material := StandardMaterial3D.new()
 	road_material.albedo_color = Color(0.27, 0.28, 0.30)

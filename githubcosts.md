@@ -12,3 +12,4 @@
 | 24.11.2026 | 09:40 | 15      | added size factor for osm import                            |
 | 24.11.2026 | 10:23 | 18      | player can select place when starting an new game           |
 | 24.11.2026 | 10:54 | 19      | improve OSM road widths, building heights and parking areas |
+| 24.11.2026 | 11:11 | 21      | add exploration map with fog of war                         |

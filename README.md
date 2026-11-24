@@ -21,6 +21,17 @@ Der Multiplayer-Prototyp synchronisiert Spieler und das gemeinsame Auto über
 einen Server. Der Server berechnet Bewegung und Kollisionen; das Auto kann nur
 von einem Spieler gleichzeitig gefahren werden.
 
+Mit **M** öffnet und schließt man die Spielkarte; **Escape** oder
+**Schließen** schließt sie ebenfalls. Die eigene Position ist blau markiert.
+Um die Figur beziehungsweise das gefahrene Auto wird die Umgebung nach und
+nach aufgedeckt; dunkle Bereiche sind noch nicht erkundet. Die Karte wird
+aus den bereits geladenen Ortsdaten gezeichnet und benötigt kein Internet.
+
+Im Einzelspieler pausiert das Spiel, während die Karte geöffnet ist. Im
+Multiplayer läuft der Server weiter und die eigene Steuerung ist gesperrt.
+Jeder Spieler erkundet seine Karte selbst. Der Fortschritt gilt nur für die
+aktuelle Spielsitzung und wird beim Verlassen zurückgesetzt.
+
 ## Kartenausschnitt
 
 Bei **Einzelspieler** und **Spiel hosten** erscheint eine Ortsauswahl. Ziehen
@@ -188,6 +199,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_map_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_features_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_scale_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/game_map_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_download_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/map_cache_test.gd

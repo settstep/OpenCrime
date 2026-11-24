@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.4.0
+- Spielkarte mit eigener Position und Erkundungsnebel, erreichbar über M.
+- Erkundung gilt je Spieler während der aktuellen Sitzung und benötigt keine Kartendownloads.
+
 ## 0.3.0
 - Straßenbreiten und Gebäudehöhen werden nach Möglichkeit aus OSM-Tags übernommen.
 - Separat erfasste Gehwege und oberirdische Parkplatzflächen werden dargestellt.

@@ -89,7 +89,7 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = 700.0
 offset_bottom = 50.0
-text = "WASD: Bewegen / Fahren   |   E: Einsteigen / Aussteigen"
+text = "WASD: Bewegen / Fahren   |   E: Einsteigen / Aussteigen   |   M: Karte"
 
 [node name="Status" type="Label" parent="HUD"]
 offset_left = 20.0
