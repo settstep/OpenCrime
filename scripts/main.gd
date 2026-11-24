@@ -6,6 +6,7 @@ const VehicleInteraction = preload("res://scripts/vehicle_interaction.gd")
 const GameMapScene = preload("res://scenes/game_map.tscn")
 const SaveStore = preload("res://scripts/save_store.gd")
 const Missions = preload("res://scripts/missions.gd")
+const FirstAid = preload("res://scripts/first_aid.gd")
 const MissionUI = preload("res://scenes/mission_ui.tscn")
 const ENTER_DISTANCE := 3.5
 const AUTOSAVE_INTERVAL := 30.0
@@ -21,6 +22,7 @@ const CAMERA_ZOOM_RESPONSE := 3.0
 @onready var status: Label = $HUD/Status
 @onready var health_label: Label = $HUD/Health/Label
 @onready var health_bar: ProgressBar = $HUD/Health/Bar
+@onready var first_aid_prompt: Label = $HUD/FirstAidPrompt
 
 var in_car := false
 var menu_open := false
@@ -39,6 +41,8 @@ var mission_ui: Control
 var mission_marker: MeshInstance3D
 var missions_open := false
 var mission_ready := false
+var first_aid := {}
+var first_aid_marker: Node3D
 
 
 func _ready() -> void:
@@ -67,6 +71,20 @@ func _ready() -> void:
 	mission_marker.mesh = marker_mesh
 	mission_marker.hide()
 	add_child(mission_marker)
+	first_aid_marker = Node3D.new()
+	first_aid_marker.name = "FirstAidMarker"
+	var aid_material := StandardMaterial3D.new()
+	aid_material.albedo_color = Color(0.1, 0.8, 0.25)
+	aid_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	for size in [Vector3(2.0, 0.2, 0.6), Vector3(0.6, 0.2, 2.0)]:
+		var part := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		mesh.size = size
+		mesh.material = aid_material
+		part.mesh = mesh
+		first_aid_marker.add_child(part)
+	first_aid_marker.hide()
+	add_child(first_aid_marker)
 	var map := get_node_or_null("OSMMap")
 	if map != null and map.has_meta("place"):
 		_configure_map(map.get_meta("place"))
@@ -82,10 +100,12 @@ func _ready() -> void:
 			if not mission_manager.add_player(1, restore_data.get("mission", {})):
 				mission_ready = false
 				mission_ui.show_error(mission_manager.error)
+		_setup_first_aid()
 
 
 func _process(delta: float) -> void:
 	_show_health(player.health)
+	_update_first_aid_prompt(player, in_car)
 	var target: CharacterBody3D = car if in_car else player
 	_update_camera(target, _horizontal_speed(car) if in_car else 0.0, delta)
 	game_map.update_position(target.global_position)
@@ -124,6 +144,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("show_missions") and not event.is_echo():
 		_open_missions()
 		return
+	if event.is_action_pressed("first_aid") and not event.is_echo():
+		_request_first_aid()
+		return
 	if event.is_action_pressed("show_map") and not event.is_echo():
 		_open_map()
 		return
@@ -145,6 +168,65 @@ func _is_network_game() -> bool:
 func _show_health(value: int) -> void:
 	health_label.text = "Lebensenergie: %d / %d" % [value, PlayerScript.MAX_HEALTH]
 	health_bar.value = value
+
+
+func _setup_first_aid() -> void:
+	if not mission_ready:
+		var message := "Erste Hilfe ist nicht verfügbar: Aufträge und Geld konnten nicht geladen werden."
+		push_warning(message)
+		_set_first_aid({"error": message})
+		return
+	_set_first_aid(FirstAid.setup(mission_manager.candidates, Vector2.ZERO))
+
+
+func _set_first_aid(state: Dictionary) -> void:
+	first_aid = state
+	if state.has("error"):
+		first_aid_marker.hide()
+		game_map.set_first_aid(Vector2.ZERO, false)
+		first_aid_prompt.text = state.error
+		return
+	var point: Vector2 = state.point
+	first_aid_marker.position = Vector3(point.x, 0.2, point.y)
+	first_aid_marker.show()
+	game_map.set_first_aid(point, true)
+	first_aid_prompt.text = ""
+
+
+func _update_first_aid_prompt(body: PlayerScript, in_vehicle: bool) -> void:
+	if first_aid.has("error"):
+		first_aid_prompt.text = first_aid.error
+	elif not first_aid.is_empty() and not in_vehicle and body.health > 0 and Vector2(body.global_position.x, body.global_position.z).distance_to(first_aid.point) <= FirstAid.INTERACTION_RADIUS:
+		first_aid_prompt.text = "F: Erste Hilfe (+%d Lebenspunkte, %d $)" % [first_aid.healing, first_aid.price]
+	else:
+		first_aid_prompt.text = ""
+
+
+func _request_first_aid() -> void:
+	status.text = _use_first_aid(1, player, in_car)
+
+
+func _use_first_aid(peer_id: int, body: PlayerScript, in_vehicle: bool) -> String:
+	if first_aid.is_empty() or first_aid.has("error"):
+		return "Erste Hilfe ist derzeit nicht verfügbar."
+	if body.health <= 0:
+		return "Erste Hilfe ist während der Wiederbelebung nicht verfügbar."
+	if in_vehicle:
+		return "Bitte für Erste Hilfe aus dem Fahrzeug aussteigen."
+	if Vector2(body.global_position.x, body.global_position.z).distance_to(first_aid.point) > FirstAid.INTERACTION_RADIUS:
+		return "Gehe näher an die Erste-Hilfe-Station heran."
+	if body.health >= PlayerScript.MAX_HEALTH:
+		return "Deine Lebensenergie ist bereits voll."
+	if not mission_ready or not mission_manager.players.has(peer_id):
+		return "Dein Geld ist derzeit nicht verfügbar."
+	var account: Dictionary = mission_manager.players[peer_id]
+	if account.money < first_aid.price:
+		return "Nicht genug Geld für Erste Hilfe (%d $)." % first_aid.price
+	var healed := mini(int(first_aid.healing), PlayerScript.MAX_HEALTH - body.health)
+	account.money = int(account.money) - int(first_aid.price)
+	body.health += healed
+	mission_manager.changed.emit(peer_id)
+	return "Erste Hilfe: +%d Lebenspunkte für %d $." % [healed, first_aid.price]
 
 
 func _on_car_impact(speed: float) -> void:

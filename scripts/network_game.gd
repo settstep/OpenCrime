@@ -40,6 +40,7 @@ func _ready() -> void:
 			place_data = PlaceStore.find_by_id("thalhofen")
 		connected = true
 		_setup_missions(place_data)
+		_setup_first_aid()
 		multiplayer.peer_connected.connect(_on_peer_connected)
 		multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 		if dedicated:
@@ -77,6 +78,7 @@ func _process(delta: float) -> void:
 		game_map.update_position(local_player.global_position)
 	if players.has(local_id):
 		_show_health(players[local_id].health)
+		_update_first_aid_prompt(players[local_id], driver_id == local_id)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -86,6 +88,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("show_missions") and not event.is_echo():
 		_open_missions()
+		return
+	if event.is_action_pressed("first_aid") and not event.is_echo():
+		_request_first_aid()
 		return
 	if event.is_action_pressed("show_map") and not event.is_echo():
 		_open_map()
@@ -135,6 +140,24 @@ func _is_network_game() -> bool:
 	return true
 
 
+func _request_first_aid() -> void:
+	if multiplayer.is_server():
+		_apply_first_aid(1)
+	else:
+		_request_first_aid_rpc.rpc_id(1)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_first_aid_rpc() -> void:
+	if multiplayer.is_server():
+		_apply_first_aid(multiplayer.get_remote_sender_id())
+
+
+func _apply_first_aid(peer_id: int) -> void:
+	if players.has(peer_id):
+		_notify(peer_id, _use_first_aid(peer_id, players[peer_id], driver_id == peer_id))
+
+
 func _on_car_impact(speed: float) -> void:
 	if not multiplayer.is_server() or not players.has(driver_id):
 		return
@@ -168,7 +191,7 @@ func _on_peer_connected(peer_id: int) -> void:
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 		return
 	_verify_map_scale.rpc_id(peer_id, float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING)))
-	_receive_place.rpc_id(peer_id, compressed)
+	_receive_place.rpc_id(peer_id, compressed, first_aid)
 	_add_server_player(peer_id)
 	print("Spieler verbunden: ", peer_id)
 
@@ -311,7 +334,7 @@ func _verify_map_scale(server_scale: float) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _receive_place(compressed: PackedByteArray) -> void:
+func _receive_place(compressed: PackedByteArray, aid_state: Dictionary) -> void:
 	if not connected:
 		return
 	if compressed.is_empty() or compressed.size() > MAX_COMPRESSED_BYTES:
@@ -322,11 +345,15 @@ func _receive_place(compressed: PackedByteArray) -> void:
 	if data.is_empty() or json.parse(data.get_string_from_utf8()) != OK or not json.data is Dictionary or not PlaceStore.is_valid(json.data):
 		_reject_place("Server hat ungültige Ortsdaten gesendet.")
 		return
+	if not FirstAid.valid_state(aid_state):
+		_reject_place("Server hat ungültige Erste-Hilfe-Daten gesendet.")
+		return
 	if not OSMMap.populate(self, json.data):
 		_reject_place("Server-Ort konnte nicht aufgebaut werden.")
 		return
 	place_data = json.data
 	_configure_map(place_data)
+	_set_first_aid(aid_state)
 	map_ready = true
 	$Ground.show()
 	car.show()

@@ -2,6 +2,7 @@ extends SceneTree
 
 const MenuScene = preload("res://scenes/menu.tscn")
 const NetworkGame = preload("res://scripts/network_game.gd")
+const FirstAid = preload("res://scripts/first_aid.gd")
 
 
 func _initialize() -> void:
@@ -19,6 +20,10 @@ func _wait_for(check: Callable, seconds: float = 15.0) -> bool:
 
 func _test() -> void:
 	var host := OS.get_cmdline_user_args().has("--host")
+	FirstAid.config_path = "user://first_aid_network_%d_%d.json" % [OS.get_process_id(), Time.get_ticks_usec()]
+	var config := FileAccess.open(FirstAid.config_path, FileAccess.WRITE)
+	config.store_string('{"price": 25, "healing": 50}' if host else '{"price": 99, "healing": 1}')
+	config.close()
 	var port := 17785
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--port="):
@@ -68,6 +73,26 @@ func _test() -> void:
 		if not await _wait_for(func(): return world.mission_manager.players[1].money == 50 and world.mission_manager.players[guest].money == 50):
 			_fail("The server did not split the reward.")
 			return
+		var point: Vector2 = world.first_aid.point
+		world.players[guest].health = 20
+		world.players[guest].global_position = Vector3(point.x + 10, 0.9, point.y)
+		world._apply_first_aid(guest)
+		if world.players[guest].health != 20 or world.mission_manager.players[guest].money != 50:
+			_fail("Server treated a guest outside the station.")
+			return
+		world.players[guest].global_position = Vector3(point.x, 0.9, point.y)
+		world.driver_id = guest
+		world._apply_first_aid(guest)
+		world.driver_id = 0
+		if world.players[guest].health != 20 or world.mission_manager.players[guest].money != 50:
+			_fail("Server treated a guest inside a vehicle.")
+			return
+		if not await _wait_for(func(): return world.players[guest].health == 70 and world.mission_manager.players[guest].money == 25):
+			_fail("Server did not apply the guest's first-aid transaction.")
+			return
+		if world.mission_manager.players[1].money != 50:
+			_fail("Guest treatment changed the host's money.")
+			return
 		await create_timer(1.0).timeout
 		print("Server shared mission and reward passed")
 	else:
@@ -100,7 +125,23 @@ func _test() -> void:
 		if not world.mission_ui.state.player.completed.has("first_delivery") or own_id == 1:
 			_fail("Client story completion was not synchronized.")
 			return
+		if world.first_aid.price != 25 or world.first_aid.healing != 50 or not world.first_aid_marker.visible or not world.game_map.has_first_aid:
+			_fail("The client did not receive the server's station and settings.")
+			return
+		if not await _wait_for(func(): return world.players[own_id].health == 20 and Vector2(world.players[own_id].global_position.x, world.players[own_id].global_position.z).distance_to(world.first_aid.point) < 2.5):
+			_fail("The guest did not reach the server's station.")
+			return
+		var key := InputEventKey.new()
+		key.physical_keycode = KEY_F
+		key.pressed = true
+		world._unhandled_input(key)
+		if not await _wait_for(func(): return world.players[own_id].health == 70 and world.mission_ui.state.player.money == 25):
+			_fail("The client did not receive the treated health and remaining money.")
+			return
 		print("Client invitation, progress and reward passed")
+	if DirAccess.remove_absolute(ProjectSettings.globalize_path(FirstAid.config_path)) != OK:
+		_fail("The isolated first-aid test settings could not be removed.")
+		return
 	quit(0)
 
 

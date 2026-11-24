@@ -21,3 +21,4 @@
 | 24.11.2026 | 15:38 | 32      | add SMS delivery missions and cooperative rewards           |
 | 24.11.2026 | 15:58 | 33      | add mission navigation and cooldown ideas                   |
 | 24.11.2026 | 16:52 | 34      | add player health and vehicle collision damage              |
+| 24.11.2026 | 21:22 | 36      | add configurable first aid station                          |

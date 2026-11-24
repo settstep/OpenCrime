@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.11.0
+- Markierte Erste-Hilfe-Teststation mit einstellbarem Preis und Heilwert.
+- Behandlungen verwenden das persönliche Auftragsgeld und werden im Multiplayer vom Server verwaltet.
+
 ## 0.10.0
 - Lebensenergie und Schaden bei starken Fahrzeugkollisionen.
 - Bei null Lebensenergie Wiederbelebung am Startpunkt mit 25 %; im Einzelspieler wird die Lebensenergie gespeichert.

@@ -23,7 +23,26 @@ frei wird. Das Auto bleibt am Unfallort und aktive Aufträge bleiben erhalten.
 Im Einzelspieler wird die Lebensenergie gespeichert; alte Spielstände starten
 mit voller Lebensenergie. Im Multiplayer berechnet der Server den Schaden und
 die Wiederbelebung; die Lebensenergie gilt wie die übrigen Fortschrittsdaten
-nur für die laufende Sitzung. Eine Heilungsmöglichkeit gibt es noch nicht.
+nur für die laufende Sitzung.
+
+Eine grüne Kreuzmarkierung in der Welt und auf der Karte zeigt die
+Erste-Hilfe-Teststation. In ihrer Nähe **zu Fuß F drücken**, um Lebensenergie
+gegen eigenes Geld aufzufüllen. Standardmäßig kostet die Behandlung 25 $ und
+heilt bis zu 50 Lebenspunkte, höchstens bis zum Maximum von 100. Bei voller
+Lebensenergie oder unzureichendem Geld wird nichts berechnet. Das Auto wird
+weiterhin unabhängig davon mit **E** bedient.
+
+Die Teststation ist kein echter OSM-Ort; sie wird automatisch auf einem
+geeigneten Weg nahe dem Start platziert. Preis und Heilwert stehen in
+`user://first_aid.json`, unter Windows üblicherweise
+`%APPDATA%\Godot\app_userdata\OpenCrime\first_aid.json`. Die Datei wird beim
+ersten Start aus `data/first_aid.json` angelegt und lässt sich danach mit einem
+Texteditor ändern. `price` muss eine ganze Zahl zwischen 1 und 1.000.000.000
+sein, `healing` eine ganze Zahl zwischen 1 und 100. Änderungen gelten beim
+nächsten Spielstart; im Multiplayer gelten die Einstellungen des Servers.
+Ungültige Einstellungen oder ein fehlender geeigneter Ort werden angezeigt
+und deaktivieren nur die Teststation. Geld und Gesundheit werden wie bisher
+im Einzelspieler-Spielstand gespeichert; im Multiplayer nur für die Sitzung.
 
 Mit **Escape** öffnet sich das Menü; mit Escape oder **Spiel fortsetzen**
 kehrt man zurück. Im Einzelspieler pausiert das Spiel, im Multiplayer läuft
@@ -273,6 +292,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 ```powershell
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/car_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/health_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/first_aid_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/pause_menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_map_test.gd
@@ -288,8 +308,9 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/connection_failure_test.gd
 ```
 
-Der Spielstandtest simuliert absichtlich Speicherfehler; entsprechende
-Fehlermeldungen in der Konsole sind dabei erwartet.
+Der Spielstandtest simuliert absichtlich Speicherfehler; der Erste-Hilfe-Test
+prüft ungültige Einstellungen. Entsprechende Fehlermeldungen in der Konsole
+sind dabei erwartet.
 
 Für den Netzwerktest drei Terminals im Projektordner öffnen und nacheinander
 die folgenden Befehle starten. Der Test verwendet UDP-Port 17777 und beendet
@@ -305,8 +326,8 @@ alle drei Instanzen selbstständig:
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/network_test.gd -- --role=observer
 ```
 
-Für den gemeinsamen Auftragstest zwei Terminals öffnen und zuerst den Host,
-dann den Client starten. Standardmäßig wird UDP-Port 17785 verwendet:
+Für den gemeinsamen Auftrags- und Erste-Hilfe-Test zwei Terminals öffnen und
+zuerst den Host, dann den Client starten. Standardmäßig wird UDP-Port 17785 verwendet:
 
 ```powershell
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/mission_network_test.gd -- --host

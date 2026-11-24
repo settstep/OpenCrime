@@ -20,3 +20,6 @@ Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenf
 - Optional den kürzesten Weg zum aktuellen Ziel anzeigen.
 - Wiederkehrende zufällige Aufträge mit einer je Missionstyp einstellbaren Pause zwischen minimaler und maximaler Anzahl von Spielstunden anbieten.
 - Immobilien kaufen und als Startplatz nutzen; bei Wiederbelebung dort 50 % Lebensenergie geben.
+- Lebensenergie durch Lebensmittel in Imbiss-Buden und Restaurants auffüllen; zunächst 25 Lebenspunkte pro Imbiss-Mahlzeit vorsehen.
+- Erste-Hilfe-Pakete im Inventar mitführen, in der Welt finden und in Apotheken kaufen.
+- Apotheken und gegebenenfalls Imbiss-Buden anhand von OpenStreetMap-Daten automatisch ermitteln.
