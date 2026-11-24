@@ -24,6 +24,34 @@ Der Multiplayer-Prototyp synchronisiert Spieler und das gemeinsame Auto über
 einen Server. Der Server berechnet Bewegung und Kollisionen; das Auto kann nur
 von einem Spieler gleichzeitig gefahren werden.
 
+## SMS-Aufträge
+
+Mit **J** öffnet man SMS und Aufträge. Eine SMS kann angenommen oder für später
+zurückgestellt werden. Nach einem einmaligen Einführungsauftrag folgen
+wiederkehrende Lieferungen; zurückgestellte Angebote bleiben auswählbar.
+Gelbe Markierungen zeigen das aktuelle Ziel in der Welt und auf der Spielkarte.
+Das Paket wird **zu Fuß** bei Annäherung automatisch aufgenommen und am Ziel
+abgegeben. Der Bildschirm zeigt den Fortschritt und das verdiente Geld.
+
+Im Multiplayer kann ein aktiver Auftrag an einen Mitspieler weitergeleitet
+werden. Nimmt dieser die Einladung an, teilen sich die Teilnehmer Fortschritt
+und Belohnung; eine Person kann abholen oder abgeben. Der Server verwaltet die
+Aufträge. Ein verbleibender Dollar bei einer ungeraden Aufteilung geht an den
+Teilnehmer mit der kleinsten Spieler-ID. Getrennte Spieler nehmen nicht mehr an der Belohnung teil. Geld und
+Auftragsfortschritt werden im Einzelspieler-Spielstand gespeichert; Multiplayer
+bleibt sitzungsbezogen. Ältere Spielstände erhalten beim Laden ihren ersten
+Auftrag. Die Definitionen liegen in `data/missions.json`; Orte werden anhand der
+geladenen OSM-Wege gewählt. Falls keine geeigneten Ziele gefunden werden, wird
+dies angezeigt und das übrige Spiel bleibt nutzbar.
+Die SMS nennt für beide Ziele den OSM-Wegnamen und den ungefähren Abstand vom
+Ursprung des Kartenausschnitts; das jeweils aktuelle Ziel ist markiert.
+Einladungen können nur angenommen werden, solange der gemeinsame Auftrag läuft.
+Jede Definition benötigt eine eindeutige `id`, den `type` (`story` oder
+`recurring`), `title`, `sms` und eine positive ganzzahlige `reward`. Aktuell
+verwenden alle Definitionen denselben Ablauf: Paket abholen und abgeben.
+IDs abgeschlossener Hauptaufträge bleiben im Spielstand gespeichert und sollten
+deshalb nicht nachträglich geändert werden.
+
 Mit **M** öffnet und schließt man die Spielkarte; **Escape** oder
 **Schließen** schließt sie ebenfalls. Die eigene Position ist blau markiert.
 Um die Figur beziehungsweise das gefahrene Auto wird die Umgebung nach und
@@ -239,6 +267,8 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_features_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_scale_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/game_map_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/missions_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/mission_game_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/save_game_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_download_test.gd
@@ -261,4 +291,14 @@ alle drei Instanzen selbstständig:
 ```
 ```powershell
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/network_test.gd -- --role=observer
+```
+
+Für den gemeinsamen Auftragstest zwei Terminals öffnen und zuerst den Host,
+dann den Client starten. Standardmäßig wird UDP-Port 17785 verwendet:
+
+```powershell
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/mission_network_test.gd -- --host
+```
+```powershell
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/mission_network_test.gd
 ```

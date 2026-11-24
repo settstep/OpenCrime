@@ -13,3 +13,6 @@ Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenf
 - Benachbarte Kartengebiete am Spielweltrand automatisch laden, bei Bedarf aus OSM.
 - Orte im Spiel bearbeiten und lokale Änderungen anhand von OSM-IDs auch nach einer Aktualisierung beibehalten.
 - In der Ortsauswahl Informationen wie Aufträge, Shops und kaufbare Gebäude anzeigen.
+- Spezielle Mehrspieleraufträge mit einer Mindestanzahl an Spielern.
+- Auftragsangebote abhängig von Zeit oder Ereignissen verfallen lassen.
+- Aufträge über markierte NPC-Auftraggeber oder klingelnde Telefonzellen anbieten.

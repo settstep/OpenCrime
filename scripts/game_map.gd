@@ -26,6 +26,8 @@ var features: Array[Dictionary] = []
 var explored := {}
 var player_position := Vector2.ZERO
 var has_position := false
+var mission_target := Vector2.ZERO
+var has_mission_target := false
 
 
 func _ready() -> void:
@@ -99,6 +101,13 @@ func update_position(position: Vector3) -> void:
 			var nearest := player_position.clamp(corner, corner + Vector2.ONE * cell)
 			if player_position.distance_squared_to(nearest) <= radius * radius:
 				explored[Vector2i(x, y)] = true
+	if visible:
+		drawing.queue_redraw()
+
+
+func set_mission_target(target: Vector2, enabled: bool) -> void:
+	mission_target = target
+	has_mission_target = enabled
 	if visible:
 		drawing.queue_redraw()
 
@@ -217,6 +226,10 @@ func _draw_map() -> void:
 				if visible_rect.intersects(cell_rect):
 					cell_rect.size += Vector2.ONE * 0.5
 					drawing.draw_rect(cell_rect, Color(0.04, 0.05, 0.07))
+	if has_mission_target:
+		var target := _map_point(mission_target, factor)
+		if visible_rect.has_point(target):
+			drawing.draw_circle(target, 8.0, Color(1.0, 0.85, 0.1))
 	if has_position:
 		var marker := _map_point(player_position, factor)
 		if Rect2(Vector2.ZERO, canvas.size).has_point(marker):

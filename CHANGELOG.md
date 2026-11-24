@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.9.0
+- SMS-Aufträge mit einmaligem Einstieg und wiederkehrenden Paketlieferungen.
+- Aufträge können angenommen, zurückgestellt und im Multiplayer weitergeleitet werden.
+- Gemeinsame Aufträge teilen die Belohnung; Einzelspieler-Spielstände speichern Fortschritt und Geld.
+
 ## 0.8.0
 - Die Kamera zoomt beim schnelleren Fahren sanft heraus und beim Anhalten wieder hinein.
 - Das Testauto fährt schneller.

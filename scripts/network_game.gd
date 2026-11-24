@@ -40,6 +40,7 @@ func _ready() -> void:
 		if place_data.is_empty():
 			place_data = PlaceStore.find_by_id("thalhofen")
 		connected = true
+		_setup_missions(place_data)
 		multiplayer.peer_connected.connect(_on_peer_connected)
 		multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 		if dedicated:
@@ -80,7 +81,10 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if dedicated:
 		return
-	if map_open or _handle_menu_input(event) or menu_open or not connected or not map_ready:
+	if map_open or missions_open or _handle_menu_input(event) or menu_open or not connected or not map_ready:
+		return
+	if event.is_action_pressed("show_missions") and not event.is_echo():
+		_open_missions()
 		return
 	if event.is_action_pressed("show_map") and not event.is_echo():
 		_open_map()
@@ -109,6 +113,9 @@ func _physics_process(delta: float) -> void:
 		for peer_id in pending_interactions:
 			_interact(peer_id)
 		pending_interactions.clear()
+		if mission_ready:
+			for peer_id in players:
+				mission_manager.visit(peer_id, players[peer_id].global_position, driver_id != peer_id)
 		snapshot_timer += delta
 		if snapshot_timer >= SNAPSHOT_INTERVAL:
 			snapshot_timer = 0.0
@@ -123,7 +130,7 @@ func _is_network_game() -> bool:
 
 
 func _local_movement_input() -> Vector2:
-	if menu_open or map_open:
+	if menu_open or map_open or missions_open:
 		return Vector2.ZERO
 	return Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 
@@ -139,13 +146,15 @@ func _on_peer_connected(peer_id: int) -> void:
 		push_error("Komprimierter Server-Ort ist für die Übertragung zu groß.")
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 		return
-	_add_server_player(peer_id)
 	_verify_map_scale.rpc_id(peer_id, float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING)))
 	_receive_place.rpc_id(peer_id, compressed)
+	_add_server_player(peer_id)
 	print("Spieler verbunden: ", peer_id)
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
+	if mission_ready:
+		mission_manager.remove_player(peer_id)
 	if driver_id == peer_id:
 		driver_id = 0
 		car.occupied = false
@@ -168,6 +177,86 @@ func _add_server_player(peer_id: int) -> void:
 	body.uses_local_input = false
 	body.position = Vector3(float(slot % 3 - 1) * 1.5, 0.9, 2.0 + float(slot / 3) * 1.5)
 	_set_input(peer_id, Vector2.ZERO)
+	if mission_ready:
+		var added := mission_manager.add_player(peer_id)
+		mission_manager._notify_all()
+		if not added:
+			_send_mission_error(peer_id, mission_manager.error)
+	else:
+		_send_mission_error(peer_id, mission_manager.error)
+
+
+func _on_mission_changed(peer_id: int) -> void:
+	if not mission_manager.players.has(peer_id):
+		return
+	var state: Dictionary = mission_manager.view_for(peer_id)
+	if peer_id == 1 and not dedicated:
+		_show_mission_state(state, peer_id)
+	else:
+		_receive_mission_state.rpc_id(peer_id, state)
+
+
+func _on_mission_notification(peer_id: int, text: String) -> void:
+	_send_mission_error(peer_id, text)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _receive_mission_state(state: Dictionary) -> void:
+	_show_mission_state(state, multiplayer.get_unique_id())
+
+
+func _send_mission_error(peer_id: int, text: String) -> void:
+	if peer_id == 1 and not dedicated:
+		_mission_result(text)
+	else:
+		_receive_mission_error.rpc_id(peer_id, text)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _receive_mission_error(text: String) -> void:
+	_mission_result(text)
+
+
+func _on_mission_accept(id: String) -> void:
+	_request_mission_action("accept", id, 0)
+
+
+func _on_mission_defer(id: String) -> void:
+	_request_mission_action("defer", id, 0)
+
+
+func _on_mission_invite(peer_id: int) -> void:
+	_request_mission_action("invite", "", peer_id)
+
+
+func _request_mission_action(action: String, id: String, other: int) -> void:
+	if multiplayer.is_server():
+		_apply_mission_action(1, action, id, other)
+	else:
+		_mission_action.rpc_id(1, action, id, other)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _mission_action(action: String, id: String, other: int) -> void:
+	if multiplayer.is_server():
+		_apply_mission_action(multiplayer.get_remote_sender_id(), action, id, other)
+
+
+func _apply_mission_action(peer_id: int, action: String, id: String, other: int) -> void:
+	if not mission_ready:
+		_send_mission_error(peer_id, "Aufträge sind nicht verfügbar.")
+		return
+	var result := ""
+	match action:
+		"accept":
+			result = mission_manager.accept(peer_id, id)
+		"defer":
+			result = mission_manager.defer_offer(peer_id, id)
+		"invite":
+			result = mission_manager.invite(peer_id, other)
+		_:
+			result = "Unbekannte Auftragsaktion."
+	_send_mission_error(peer_id, result)
 
 
 func _create_player(peer_id: int) -> PlayerScript:

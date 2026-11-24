@@ -1,6 +1,7 @@
 extends RefCounted
 
 const PlaceStore = preload("res://scripts/place_store.gd")
+const Missions = preload("res://scripts/missions.gd")
 const FORMAT_VERSION := 1
 const MAX_FILE_BYTES := 16 * 1024 * 1024
 const GRID_SIZE := 45 # Save format 1 uses the 45x45 exploration grid.
@@ -60,6 +61,8 @@ static func is_valid(data: Dictionary) -> bool:
 		for value in cell:
 			if not _number(value) or float(value) != floorf(float(value)) or float(value) < 0.0 or float(value) >= GRID_SIZE:
 				return false
+	if data.has("mission") and (not data.mission is Dictionary or not Missions.valid_save(data.mission)):
+		return false
 	return true
 
 

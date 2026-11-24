@@ -1,0 +1,18 @@
+{
+  "missions": [
+    {
+      "id": "first_delivery",
+      "type": "story",
+      "title": "Ein erster Auftrag",
+      "sms": "Unbekannte Nummer: Bring dieses Paket zum Ziel. Ein Freund von mir beobachtet, ob du zuverlässig bist.",
+      "reward": 100
+    },
+    {
+      "id": "courier_delivery",
+      "type": "recurring",
+      "title": "Kurierlieferung",
+      "sms": "Kurierdienst: Ein Paket wartet auf dich. Hole es ab und liefere es am Ziel ab.",
+      "reward": 80
+    }
+  ]
+}
