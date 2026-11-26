@@ -28,3 +28,4 @@
 | 26.11.2026 | 11:28 | 41      | synchronize streamed map blocks in multiplayer              |
 | 26.11.2026 | 12:23 | 42      | accept JSON-parsed save format versions                     |
 | 26.11.2026 | 12:43 | 42      | make map block streaming resilient                          |
+| 26.11.2026 | 14:47 | 43      | add portable UTM map block cache                            |

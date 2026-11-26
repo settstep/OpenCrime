@@ -4,10 +4,11 @@ signal point_selected(latitude: float, longitude: float)
 signal map_error(message: String)
 
 const TILE_SIZE := 256.0
-const CACHE_DIRECTORY := "user://tile_cache"
+const DataPaths = preload("res://scripts/data_paths.gd")
 const FALLBACK_CACHE_SECONDS := 604800
 const USER_AGENT := "OpenCrime/0.12 (+https://github.com/settstep/OpenCrime)"
 
+var CACHE_DIRECTORY := DataPaths.path("tile_cache")
 var center := Vector2(47.7748417, 10.6034933)
 var zoom := 15
 var places: Array[Dictionary] = []

@@ -1,10 +1,12 @@
 extends RefCounted
 
-const DIRECTORY := "user://places"
+const DataPaths = preload("res://scripts/data_paths.gd")
 const BUILTIN_PLACES := [
 	{"id": "thalhofen", "name": "Thalhofen – Waldmünchener Straße", "path": "res://data/thalhofen.json", "origin": [47.7748417, 10.6034933]},
 	{"id": "gendarmenmarkt", "name": "Berlin – Gendarmenmarkt", "path": "res://data/gendarmenmarkt.json", "origin": [52.5130, 13.3912]},
 ]
+
+static var DIRECTORY := DataPaths.path("places")
 
 
 static func read_file(path: String) -> Dictionary:

@@ -3,13 +3,14 @@ extends RefCounted
 const PlaceStore = preload("res://scripts/place_store.gd")
 const Missions = preload("res://scripts/missions.gd")
 const PlayerScript = preload("res://scripts/player.gd")
+const DataPaths = preload("res://scripts/data_paths.gd")
 const FORMAT_VERSION := 2
 const MAX_FILE_BYTES := 16 * 1024 * 1024
 const LEGACY_GRID_SIZE := 45
 const MAX_EXPLORED_CELLS := 250000
 const MAX_VEHICLES := 64
 
-static var directory := "user://saves"
+static var directory := DataPaths.path("saves")
 
 
 static func _valid_id(id: String) -> bool:

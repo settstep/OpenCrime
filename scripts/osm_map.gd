@@ -1,9 +1,9 @@
 extends RefCounted
 
 const PlaceStore = preload("res://scripts/place_store.gd")
+const MapBlockGrid = preload("res://scripts/map_block_grid.gd")
 const ORIGIN_LAT := 47.7748417
 const ORIGIN_LON := 10.6034933
-const METERS_PER_DEGREE := 111320.0
 const BUILDING_HEIGHT := 10.0
 const LEVEL_HEIGHT := 3.0
 const SCALE_SETTING := "opencrime/osm/scale"
@@ -41,9 +41,14 @@ static func populate(world: Node3D, place: Dictionary = {}) -> bool:
 	var ground_shape: CollisionShape3D = world.get_node("Ground/CollisionShape3D")
 	ground_mesh.mesh = ground_mesh.mesh.duplicate()
 	ground_shape.shape = ground_shape.shape.duplicate()
-	ground_mesh.mesh.size = Vector3(500 * map_scale, 1, 500 * map_scale)
-	ground_shape.shape.size = Vector3(500 * map_scale, 1, 500 * map_scale)
-	_add_map_boundary(world, 1500.0 * map_scale)
+	ground_mesh.mesh.size = Vector3(MapBlockGrid.BLOCK_SIZE * map_scale, 1, MapBlockGrid.BLOCK_SIZE * map_scale)
+	ground_shape.shape.size = Vector3(MapBlockGrid.BLOCK_SIZE * map_scale, 1, MapBlockGrid.BLOCK_SIZE * map_scale)
+	var base_block := MapBlockGrid.block_at_origin(place.origin)
+	var base_offset := MapBlockGrid.block_local_center(place.origin, base_block) * map_scale
+	ground_mesh.position = Vector3(base_offset.x, 0.0, base_offset.y)
+	ground_shape.position = ground_mesh.position
+	_add_map_boundary(world, 3.0 * MapBlockGrid.BLOCK_SIZE * map_scale)
+	world.get_node("MapBoundary").position = Vector3(base_offset.x, 0.0, base_offset.y)
 
 	var map := Node3D.new()
 	map.name = "OSMMap"
@@ -143,9 +148,11 @@ static func _add_map_boundary(world: Node3D, extent: float) -> void:
 
 
 static func _project(point: Array, origin: Array = [ORIGIN_LAT, ORIGIN_LON]) -> Vector2:
-	var x := (float(point[1]) - float(origin[1])) * METERS_PER_DEGREE * cos(deg_to_rad(float(origin[0])))
-	var z := (float(origin[0]) - float(point[0])) * METERS_PER_DEGREE
-	return Vector2(x, z)
+	var zone := MapBlockGrid.zone_for_origin(origin)
+	var northern_hemisphere := MapBlockGrid.is_northern_hemisphere(origin)
+	var projected_point := MapBlockGrid.project(point, zone, northern_hemisphere)
+	var projected_origin := MapBlockGrid.project(origin, zone, northern_hemisphere)
+	return Vector2(projected_point[0] - projected_origin[0], projected_origin[1] - projected_point[1])
 
 
 static func _add_road(map: Node3D, way: Dictionary, material: Material, map_scale: float, origin: Array, height: float, joints: Array[Transform3D]) -> void:

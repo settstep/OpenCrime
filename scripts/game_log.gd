@@ -1,10 +1,10 @@
 extends RefCounted
 
-const DEFAULT_PATH := "user://logs/opencrime.log"
+const DataPaths = preload("res://scripts/data_paths.gd")
 const ARCHIVE_SUFFIX := ".1"
 const MAX_FILE_BYTES := 1048576
 
-static var path := DEFAULT_PATH
+static var path := DataPaths.path("logs/opencrime.log")
 
 
 static func info(category: String, message: String) -> void:

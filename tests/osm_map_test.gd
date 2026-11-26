@@ -2,6 +2,7 @@ extends SceneTree
 
 const MainScene = preload("res://scenes/main.tscn")
 const OSMMap = preload("res://scripts/osm_map.gd")
+const Grid = preload("res://scripts/map_block_grid.gd")
 
 
 func _initialize() -> void:
@@ -53,23 +54,25 @@ func _test() -> void:
 	if player.position.z >= start.z - 1.0:
 		_fail("Player cannot move from the OSM map spawn.")
 		return
-	var half_extent := 750.0 * float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING))
+	var map_scale := float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING))
+	var half_extent := 1.5 * Grid.BLOCK_SIZE * map_scale
 	world.map_block_stream.set_process(false)
-	world.map_block_stream._update_boundary(Vector2i.ZERO)
+	var boundary_center: Vector2i = world.map_block_stream.base_block
+	var boundary_offset := Grid.block_local_center(world.map_block_stream.base_place.origin, boundary_center) * map_scale
 	player.uses_local_input = false
-	player.global_position = Vector3(half_extent - 8.0, 0.9, half_extent - 80.0)
+	player.global_position = Vector3(boundary_offset.x + half_extent - 8.0, 0.9, boundary_offset.y)
 	player.velocity = Vector3.ZERO
 	await _frames(3)
 	var player_edge_start: float = player.global_position.x
 	player.movement_input = Vector2.RIGHT
 	await _frames(120)
 	player.movement_input = Vector2.ZERO
-	if player.global_position.x >= half_extent or player.global_position.x <= player_edge_start + 5.0 or not player.is_on_floor():
+	if player.global_position.x >= boundary_offset.x + half_extent or player.global_position.x <= player_edge_start + 5.0 or not player.is_on_floor():
 		_fail("The map boundary did not keep the player safely inside.")
 		return
 	world.car.uses_local_input = false
 	world.car.occupied = true
-	world.car.global_position = Vector3(half_extent - 20.0, 0.5, -half_extent + 80.0)
+	world.car.global_position = Vector3(boundary_offset.x + half_extent - 20.0, 0.5, boundary_offset.y)
 	world.car.velocity = Vector3.ZERO
 	await _frames(3)
 	var car_edge_start: float = world.car.global_position.x
@@ -77,7 +80,7 @@ func _test() -> void:
 	await _frames(120)
 	world.car.movement_input = Vector2.ZERO
 	world.car.occupied = false
-	if world.car.global_position.x >= half_extent or world.car.global_position.x <= car_edge_start + 10.0 or not world.car.is_on_floor():
+	if world.car.global_position.x >= boundary_offset.x + half_extent or world.car.global_position.x <= car_edge_start + 10.0 or not world.car.is_on_floor():
 		_fail("The map boundary did not keep the vehicle safely inside.")
 		return
 	print("OSM map geometry, attribution, spawn and boundary collisions passed")

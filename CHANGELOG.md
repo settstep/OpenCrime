@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.16.0
+- Kartenblöcke sind jetzt 1.000 × 1.000 Meter groß und verwenden UTM-basierte, ortsunabhängige Block-IDs.
+- OSM-Blöcke, Spielstände, gespeicherte Orte, Kartenkacheln, Einstellungen und Logs liegen im portablen Ordner `OpenCrimeData`.
+- Bisherige Spielstände, Orte, Kartenkacheln, Erste-Hilfe-Einstellungen und Logs werden beim Start in den neuen Ordner kopiert; die alten Dateien bleiben als Sicherung erhalten.
+
 ## 0.15.2
 - Der Spielfeldrand wird erst verschoben, wenn der neue 3 × 3-Kartenbereich vollständig geladen ist.
 - Fehlgeschlagene OSM-Downloads werden mit exponentiellem Abstand bis maximal 30 Sekunden erneut versucht.

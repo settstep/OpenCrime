@@ -1,9 +1,10 @@
 extends RefCounted
 
+const DataPaths = preload("res://scripts/data_paths.gd")
 const DEFAULT_CONFIG := "res://data/first_aid.json"
 const INTERACTION_RADIUS := 2.5
 
-static var config_path := "user://first_aid.json"
+static var config_path := DataPaths.path("config/first_aid.json")
 
 
 static func setup(candidates: Array[Dictionary], start: Vector2) -> Dictionary:
@@ -21,6 +22,9 @@ static func setup(candidates: Array[Dictionary], start: Vector2) -> Dictionary:
 	if not config.has_all(["price", "healing"]) or not _integer_in_range(config.price, 1, 1000000000) or not _integer_in_range(config.healing, 1, 100):
 		return _error("Erste-Hilfe-Einstellungen benötigen einen Preis ab 1 und Heilung von 1 bis 100: " + source)
 	if source != path:
+		var directory_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+		if directory_error != OK:
+			return _error("Erste-Hilfe-Konfigurationsordner konnte nicht angelegt werden: " + path.get_base_dir())
 		file = FileAccess.open(path, FileAccess.WRITE)
 		if file == null:
 			return _error("Erste-Hilfe-Einstellungen konnten nicht angelegt werden: " + path)

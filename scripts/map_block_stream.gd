@@ -7,9 +7,10 @@ const Grid = preload("res://scripts/map_block_grid.gd")
 const OSMMap = preload("res://scripts/osm_map.gd")
 const PlaceStore = preload("res://scripts/place_store.gd")
 const GameLog = preload("res://scripts/game_log.gd")
+const DataPaths = preload("res://scripts/data_paths.gd")
 
-const CACHE_DIRECTORY := "user://map_blocks"
-const USER_AGENT := "OpenCrime/0.15.2 (+https://github.com/settstep/OpenCrime)"
+var CACHE_DIRECTORY := DataPaths.path("map_blocks")
+const USER_AGENT := "OpenCrime/0.16.0 (+https://github.com/settstep/OpenCrime)"
 const MAX_RESPONSE_BYTES := 8 * 1024 * 1024
 const MAX_CONCURRENT_DOWNLOADS := 2
 const RETRY_BASE_DELAY_MS := 2000
@@ -25,6 +26,7 @@ var pending_blocks: Array[Vector2i] = []
 var failed_blocks: Dictionary = {}
 var retry_attempts: Dictionary = {}
 var ground_blocks: Dictionary = {}
+var base_block := Vector2i.ZERO
 var boundary_center := Vector2i.ZERO
 var pending_boundary_center := Vector2i.ZERO
 var has_pending_boundary := false
@@ -39,18 +41,23 @@ func configure(target_world: Node3D, place: Dictionary, scale_factor: float) -> 
 	desired_blocks.clear()
 	loaded_blocks.clear()
 	ground_blocks.clear()
+	base_block = Grid.block_for_position(Vector2.ZERO, map_scale, base_place.origin)
+	boundary_center = base_block
 	var base_node := world.get_node_or_null("OSMMap")
 	if base_node != null:
-		loaded_blocks[Vector2i.ZERO] = {"node": base_node, "data": base_place}
-	desired_blocks[Vector2i.ZERO] = true
-	_add_ground_block(Vector2i.ZERO)
+		loaded_blocks[base_block] = {"node": base_node, "data": base_place}
+	desired_blocks[base_block] = true
+	_add_ground_block(base_block)
+	var boundary := world.get_node_or_null("MapBoundary")
+	if boundary != null:
+		var boundary_offset := Grid.block_local_center(base_place.origin, base_block) * map_scale
+		boundary.position = Vector3(boundary_offset.x, 0.0, boundary_offset.y)
 	if world.call("_is_network_game"):
-		var boundary := world.get_node_or_null("MapBoundary")
 		if boundary != null:
 			boundary.hide()
 			boundary.collision_layer = 0
 			boundary.collision_mask = 0
-	_load_block(Vector2i.ZERO)
+	_load_block(base_block)
 	set_process(true)
 
 
@@ -95,7 +102,7 @@ func _process(_delta: float) -> void:
 	for position in positions:
 		if not position is Vector3 or not position.is_finite():
 			continue
-		var center := Grid.block_for_position(Vector2(position.x, position.z), map_scale)
+		var center := Grid.block_for_position(Vector2(position.x, position.z), map_scale, base_place.origin)
 		center_positions.append(center)
 		for block in Grid.blocks_around(center):
 			next[block] = true
@@ -111,7 +118,7 @@ func _reconcile(next: Dictionary) -> void:
 		if not next.has(block):
 			var data: Dictionary = loaded_blocks[block]
 			var node: Node3D = data.node
-			if block == Vector2i.ZERO and is_instance_valid(node) and node.name == "OSMMap":
+			if block == base_block and is_instance_valid(node) and node.name == "OSMMap":
 				OSMMap.clear_block(node)
 				node.set_meta("place", base_place)
 			elif is_instance_valid(node):
@@ -131,8 +138,7 @@ func _reconcile(next: Dictionary) -> void:
 
 
 func _cache_path(block: Vector2i) -> String:
-	var place_key := str(base_place.id).sha256_text().substr(0, 16)
-	return CACHE_DIRECTORY.path_join("%s_%s.json" % [place_key, Grid.key(block)])
+	return CACHE_DIRECTORY.path_join(_block_id(block) + ".json")
 
 
 static func retry_delay_ms(attempt: int) -> int:
@@ -154,7 +160,7 @@ func _window_ready(center: Vector2i) -> bool:
 
 
 func _block_id(block: Vector2i) -> String:
-	return "block_" + str(base_place.id).sha256_text().substr(0, 12) + "_" + Grid.key(block)
+	return "block_" + Grid.tile_id(block, base_place.origin)
 
 
 func _load_block(block: Vector2i) -> void:
@@ -235,7 +241,7 @@ func _on_download_completed(result: int, code: int, _headers: PackedStringArray,
 	retry_attempts.erase(block)
 	GameLog.info("osm", "block downloaded block=%s ways=%d bytes=%d" % [Grid.key(block), place.ways.size(), body.size()])
 	if desired_blocks.has(block):
-		if block == Vector2i.ZERO:
+		if block == base_block:
 			_replace_block(block, place)
 		else:
 			_activate_block(block, place)
@@ -267,7 +273,7 @@ func _store_block(block: Vector2i, place: Dictionary) -> bool:
 func _start_queued_download() -> void:
 	while not pending_blocks.is_empty() and requests.size() < MAX_CONCURRENT_DOWNLOADS:
 		var block: Vector2i = pending_blocks.pop_front()
-		var is_loaded: bool = loaded_blocks.has(block) and block != Vector2i.ZERO
+		var is_loaded: bool = loaded_blocks.has(block) and block != base_block
 		if desired_blocks.has(block) and not is_loaded and not requests.has(block):
 			_start_download(block)
 
@@ -276,7 +282,7 @@ func _activate_block(block: Vector2i, place: Dictionary) -> void:
 	if not desired_blocks.has(block) or loaded_blocks.has(block):
 		return
 	var node: Node3D
-	if block == Vector2i.ZERO and world.get_node_or_null("OSMMap") != null:
+	if block == base_block and world.get_node_or_null("OSMMap") != null:
 		node = world.get_node("OSMMap")
 		if not OSMMap.replace_block(node, place, map_scale):
 			_report_error("Kartenblock %s konnte nicht aufgebaut werden." % Grid.key(block))
@@ -296,7 +302,7 @@ func _activate_block(block: Vector2i, place: Dictionary) -> void:
 
 
 func _replace_block(block: Vector2i, place: Dictionary) -> void:
-	if block == Vector2i.ZERO:
+	if block == base_block:
 		var base_node := world.get_node_or_null("OSMMap")
 		if base_node == null:
 			_activate_block(block, place)
@@ -306,6 +312,7 @@ func _replace_block(block: Vector2i, place: Dictionary) -> void:
 		if not OSMMap.replace_block(base_node, place, map_scale):
 			_report_error("Kartenblock %s konnte nicht aufgebaut werden." % Grid.key(block))
 			return
+		base_node.position = _to_world_position(OSMMap._project(place.origin, base_place.origin) * map_scale)
 		loaded_blocks[block] = {"node": base_node, "data": place}
 		GameLog.info("map", "block replaced block=%s ways=%d" % [Grid.key(block), place.ways.size()])
 		block_loaded.emit(block, place, base_place.origin)
@@ -325,7 +332,7 @@ func _to_world_position(offset: Vector2) -> Vector3:
 
 
 func _add_ground_block(block: Vector2i) -> void:
-	if block == Vector2i.ZERO or ground_blocks.has(block):
+	if block == base_block or ground_blocks.has(block):
 		return
 	var ground: StaticBody3D = world.get_node("Ground")
 	var mesh_instance := MeshInstance3D.new()
@@ -335,7 +342,8 @@ func _add_ground_block(block: Vector2i) -> void:
 	var base_mesh: MeshInstance3D = ground.get_node("MeshInstance3D")
 	mesh.material = base_mesh.mesh.material
 	mesh_instance.mesh = mesh
-	mesh_instance.position = Vector3(float(block.x) * Grid.BLOCK_SIZE * map_scale, 0.0, float(block.y) * Grid.BLOCK_SIZE * map_scale)
+	var block_offset := Grid.block_local_center(base_place.origin, block) * map_scale
+	mesh_instance.position = Vector3(block_offset.x, 0.0, block_offset.y)
 	ground.add_child(mesh_instance)
 	var collision := CollisionShape3D.new()
 	collision.name = "GroundCollision_%s" % Grid.key(block)
@@ -372,7 +380,8 @@ func _update_boundary(center: Vector2i) -> void:
 		return
 	boundary_center = center
 	has_pending_boundary = false
-	var offset := Vector3(float(center.x) * Grid.BLOCK_SIZE * map_scale, 0.0, float(center.y) * Grid.BLOCK_SIZE * map_scale)
+	var block_offset := Grid.block_local_center(base_place.origin, center) * map_scale
+	var offset := Vector3(block_offset.x, 0.0, block_offset.y)
 	var boundary := world.get_node_or_null("MapBoundary")
 	if boundary != null:
 		boundary.position = offset

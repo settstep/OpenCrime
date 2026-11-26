@@ -119,7 +119,13 @@ func _test() -> void:
 		if parking == null or pedestrian == null or map.has_node("Parking_10") or map.has_node("Parking_11"):
 			_fail("Area filtering or rendering is incorrect.")
 			return
-		if absf(parking.mesh.get_aabb().size.x - 11.132 * factor) > 0.01:
+		var parking_points := PackedVector2Array()
+		for coordinate in place.ways[7].geometry:
+			parking_points.append(OSMMap._project(coordinate, place.origin) * factor)
+		var parking_bounds := Rect2(parking_points[0], Vector2.ZERO)
+		for point in parking_points:
+			parking_bounds = parking_bounds.expand(point)
+		if absf(parking.mesh.get_aabb().size.x - parking_bounds.size.x) > 0.01:
 			_fail("Parking area does not scale with the map.")
 			return
 		var normals: PackedVector3Array = parking.mesh.surface_get_arrays(0)[Mesh.ARRAY_NORMAL]

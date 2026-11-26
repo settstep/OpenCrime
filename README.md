@@ -34,10 +34,9 @@ weiterhin unabhängig davon mit **E** bedient.
 
 Die Teststation ist kein echter OSM-Ort; sie wird automatisch auf einem
 geeigneten Weg nahe dem Start platziert. Preis und Heilwert stehen in
-`user://first_aid.json`, unter Windows üblicherweise
-`%APPDATA%\Godot\app_userdata\OpenCrime\first_aid.json`. Die Datei wird beim
-ersten Start aus `data/first_aid.json` angelegt und lässt sich danach mit einem
-Texteditor ändern. `price` muss eine ganze Zahl zwischen 1 und 1.000.000.000
+`OpenCrimeData/config/first_aid.json`. Die Datei wird beim ersten Start aus
+`data/first_aid.json` angelegt und lässt sich danach mit einem Texteditor
+ändern. `price` muss eine ganze Zahl zwischen 1 und 1.000.000.000
 sein, `healing` eine ganze Zahl zwischen 1 und 100. Änderungen gelten beim
 nächsten Spielstart; im Multiplayer gelten die Einstellungen des Servers.
 Ungültige Einstellungen oder ein fehlender geeigneter Ort werden angezeigt
@@ -137,8 +136,7 @@ Der eingestellte Kartenfaktor muss dem
 gespeicherten Wert entsprechen; bei einem Unterschied wird das Laden mit
 einer Meldung abgebrochen.
 
-Die Dateien liegen unter `user://saves`, unter Windows üblicherweise
-`%APPDATA%\Godot\app_userdata\OpenCrime\saves`. Bei einem Speicherfehler wird
+Die Dateien liegen unter `OpenCrimeData/saves`. Bei einem Speicherfehler wird
 eine Meldung angezeigt; das reguläre Verlassen des Einzelspiels wird dann
 verhindert, damit der Fehler behoben werden kann. Derselbe Spielstand sollte
 nicht gleichzeitig in mehreren Spielinstanzen geöffnet werden, da sonst die
@@ -158,10 +156,9 @@ Mitgeliefert werden Ausschnitte rund um die Waldmünchener Straße in Thalhofen
 bei Marktoberdorf und den Gendarmenmarkt in Berlin. Gespeicherte Orte werden
 ohne erneuten Download der OSM-Rohdaten gestartet; auch ein Klick innerhalb
 eines gespeicherten Ausschnitts wählt diesen aus. Neue Orte liegen unter
-`user://places`, unter Windows üblicherweise
-`%APPDATA%\Godot\app_userdata\OpenCrime\places`. Die Kartenansicht lädt sichtbare
-Kartenkacheln über das Internet und speichert sie zwischengespeichert unter
-`user://tile_cache`. Die Liste gespeicherter Orte funktioniert auch offline.
+`OpenCrimeData/places`. Die Kartenansicht lädt sichtbare Kartenkacheln über das
+Internet und speichert sie zwischengespeichert unter
+`OpenCrimeData/tile_cache`. Die Liste gespeicherter Orte funktioniert auch offline.
 Eine Textsuche ist noch nicht vorhanden.
 Ein späterer Bearbeitungsmodus mit lokalen Änderungen anhand von OSM-IDs ist
 geplant, aber noch nicht implementiert.
@@ -199,29 +196,40 @@ Testdatensatz enthält weiterhin nur eine reduzierte Auswahl von Tags und keine
 Parkplatzflächen. Früher gespeicherte Nutzerorte bleiben unverändert und können
 nicht automatisch um bisher fehlende Daten ergänzt werden.
 
-Die Spielwelt ist in Blöcke von 500 × 500 Metern aufgeteilt. Um jeden Spieler
-bleibt ein 3 × 3-Bereich aktiv; im Multiplayer wird die Vereinigung der
-Spielerbereiche geladen. Beim Wechsel in einen Nachbarblock werden nur neu
+Die Spielwelt ist in UTM-basierte Blöcke von 1.000 × 1.000 Metern aufgeteilt.
+Die Block-ID enthält UTM-Zone und Rasterposition und ist damit unabhängig vom
+gewählten Spielort. Um jeden Spieler bleibt ein 3 × 3-Bereich aktiv; im
+Multiplayer wird die Vereinigung der Spielerbereiche geladen. Beim Wechsel in
+einen Nachbarblock werden nur neu
 benötigte Blöcke ergänzt und nicht mehr benötigte Geometrie und Kollisionen
 entfernt. Fehlende Blöcke werden über die konfigurierte Overpass-API geladen
-und unter `user://map_blocks` zwischengespeichert. Bereits gecachte Blöcke
+und unter `OpenCrimeData/map_blocks` zwischengespeichert. Bereits gecachte Blöcke
 lassen sich offline verwenden. Für einen neuen Ort dient der geladene
 Kartenausschnitt zunächst als Startbereich, während der vollständige
-500-Meter-Block im Hintergrund geladen wird. Im Multiplayer lädt ausschließlich
+1.000-Meter-Block im Hintergrund geladen wird. Im Multiplayer lädt ausschließlich
 der Server fehlende Blöcke von Overpass und überträgt sie an die Clients.
 Bereits aktive Blöcke werden beim Beitritt ebenfalls übertragen. Clients
 speichern empfangene Blöcke im lokalen Cache und benötigen daher keinen eigenen
 Zugriff auf die Overpass-Quelle. Unter Windows befindet sich der Cache
-üblicherweise in `%APPDATA%\Godot\app_userdata\OpenCrime\map_blocks`.
-Die Dateinamen enthalten derzeit einen Hash der Orts-ID und die Blockindizes;
-sie sind nicht als geografische Koordinaten lesbar.
+üblicherweise im Unterordner `OpenCrimeData/map_blocks` neben der Programmdatei
+bzw. im Projektordner während der Entwicklung. Die Dateinamen enthalten UTM-Zone
+und Rasterindizes. UTM-Zonen sind derzeit nicht über ihre Zonengrenzen hinweg
+zu einem gemeinsamen Raster verbunden; dort können geografisch benachbarte
+Blöcke unterschiedliche Block-IDs haben.
+Der Ordner `OpenCrimeData` enthält außerdem Spielstände, gespeicherte Orte,
+Kartenkachel-Cache, Erste-Hilfe-Einstellungen und Logs. Ist der Spieleordner
+nicht beschreibbar, wird mit einer Meldung auf den Godot-Benutzerordner
+ausgewichen. Alte Spielstände, Orte, Kartenkacheln, Erste-Hilfe-Einstellungen
+und Logs werden beim ersten Start kopiert; die bisherigen Dateien bleiben als
+Sicherung erhalten. Der alte 500-Meter-OSM-Blockcache wird nicht wiederverwendet
+und bleibt am bisherigen Speicherort.
 Beim Wechsel des zentralen Blocks bleibt der Spielfeldrand zunächst an seiner
 bisherigen Position und rückt erst vor, wenn alle neun Blöcke des neuen
 3 × 3-Bereichs aktiv sind. Fehlgeschlagene Overpass-Anfragen werden nach 2, 4,
 8, 16 und anschließend höchstens alle 30 Sekunden erneut versucht.
 Ein Spielprotokoll mit Sitzungsbeginn, Blockdownloads, Cache-Treffern,
-Wiederholungsversuchen und Speicherfehlern liegt unter `user://logs/opencrime.log`
-(Windows: `%APPDATA%\Godot\app_userdata\OpenCrime\logs\opencrime.log`).
+Wiederholungsversuchen und Speicherfehlern liegt unter
+`OpenCrimeData/logs/opencrime.log`.
 Bei mehr als 1 MiB wird eine vorherige Logdatei als `opencrime.log.1` behalten.
 
 ### Kartenfaktor testen
@@ -258,7 +266,7 @@ wird weiterhin benötigt, um das Spiel auszuführen und Szenen zu bearbeiten.
 
 Die aktuelle Spielversion steht als `config/version` im Abschnitt
 `[application]` der `project.godot` und wird im Hauptmenü angezeigt.
-Ausgangspunkt ist **0.1.0**. Bei einer neuen Version wird dieser Wert manuell
+Die aktuelle Version ist **0.16.0**. Bei einer neuen Version wird dieser Wert manuell
 angepasst; er folgt dem Schema `MAJOR.MINOR.PATCH`, zum Beispiel `0.2.0` für
 eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
 allein prüft noch nicht die Multiplayer-Kompatibilität.
@@ -322,7 +330,7 @@ Der Port ist optional und standardmäßig 7777. Ohne weitere Angabe wird
 Thalhofen geladen. Mit `--place=gendarmenmarkt` lässt sich stattdessen Berlin
 wählen; für andere gespeicherte Orte kann die ID aus dem Dateinamen ohne
 `.json` verwendet werden, z. B. `--place=place_0123456789abcdef`. Diese Orte
-müssen auf dem Server in dessen `user://places` vorhanden sein. Ein unbekannter
+müssen auf dem Server in dessen `OpenCrimeData/places` vorhanden sein. Ein unbekannter
 Ort wird als Fehler gemeldet. Zum Beenden **Strg+C** drücken.
 Auch auf einem entfernten Rechner funktioniert der Server mit einer passenden
 Godot-Version und denselben Projektdateien.
@@ -355,6 +363,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_download_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/map_cache_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/map_block_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/data_paths_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/game_log_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/connection_failure_test.gd
 ```

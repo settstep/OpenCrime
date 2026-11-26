@@ -12,6 +12,7 @@ const NetworkGame = preload("res://scripts/network_game.gd")
 const OSMMap = preload("res://scripts/osm_map.gd")
 const PlaceStore = preload("res://scripts/place_store.gd")
 const SaveStore = preload("res://scripts/save_store.gd")
+const DataPaths = preload("res://scripts/data_paths.gd")
 const MAX_CLIENTS := 8
 const DEFAULT_PORT := 7777
 
@@ -25,6 +26,9 @@ var can_save := false
 
 
 func _ready() -> void:
+	var migration_error := DataPaths.migrate_legacy_data()
+	if migration_error != OK:
+		message.text = "Lokale Spieldaten konnten nicht vollständig in den Spieleordner kopiert werden."
 	$Panel/Options/Version.text = "Version " + ProjectSettings.get_setting("application/config/version")
 	if in_game:
 		$Backdrop.show()

@@ -2,6 +2,7 @@ extends SceneTree
 
 const MainScene = preload("res://scenes/main.tscn")
 const OSMMap = preload("res://scripts/osm_map.gd")
+const MapBlockGrid = preload("res://scripts/map_block_grid.gd")
 
 
 func _initialize() -> void:
@@ -79,7 +80,9 @@ func _test() -> void:
 		return
 	world.in_car = false
 	map.update_position(Vector3(510 * map.map_scale, 0, -260 * map.map_scale))
-	if map.window_center != Vector2(500, -500) * map.map_scale or not map.explored.has(Vector2i(51, -26)) or not map.explored.has(initial_cells[0]):
+	var distant_block := MapBlockGrid.block_for_position(Vector2(510, -260), map.map_scale, map.place_origin)
+	var expected_window_center: Vector2 = MapBlockGrid.block_local_center(map.place_origin, distant_block) * map.map_scale
+	if map.window_center != expected_window_center or not map.explored.has(Vector2i(51, -26)) or not map.explored.has(initial_cells[0]):
 		_fail("The map window or exploration did not follow a distant block.")
 		return
 	map.update_position(Vector3(-100, 0, -100))
@@ -90,7 +93,7 @@ func _test() -> void:
 	if map.canvas.size.x <= 0.0 or not is_equal_approx(map.canvas.size.x, map.canvas.size.y) or not map.canvas.clip_contents or map.drawing.get_parent() != map.canvas:
 		_fail("The map canvas does not preserve its square proportions.")
 		return
-	var center: Vector2 = map._map_point(Vector2.ZERO, map.canvas.size.x / (map.WORLD_SIZE * map.map_scale))
+	var center: Vector2 = map._map_point(map.view_center, map._map_factor())
 	if center.distance_to(map.canvas.size / 2.0) > 0.01:
 		_fail("World coordinates are not aligned with the map.")
 		return
@@ -118,7 +121,7 @@ func _test() -> void:
 	if map.dragging:
 		_fail("Releasing the mouse outside the map did not stop dragging.")
 		return
-	var cell_corner: Vector2 = Vector2(-map.WORLD_SIZE, -map.WORLD_SIZE) * map.map_scale / 2.0
+	var cell_corner: Vector2 = Vector2(-75, -75) * map.CELL_SIZE * map.map_scale
 	var cell_rect: Rect2 = map._cell_rect(-75, -75, map._map_factor())
 	if cell_rect.position.distance_to(map._map_point(cell_corner, map._map_factor())) > 0.01 or not is_equal_approx(cell_rect.size.x, map.CELL_SIZE * map.map_scale * map._map_factor()) or map.explored != explored_before:
 		_fail("Zooming or dragging misaligned or changed the exploration grid.")

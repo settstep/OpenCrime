@@ -25,3 +25,4 @@ mono_crash.*.json
 # *.pck
 
 export/windows/opencrime.pck
+/OpenCrimeData/

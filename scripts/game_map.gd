@@ -4,7 +4,7 @@ signal close_requested
 
 const OSMMap = preload("res://scripts/osm_map.gd")
 const MapBlockGrid = preload("res://scripts/map_block_grid.gd")
-const WORLD_SIZE := 1500.0
+const WORLD_SIZE := 3.0 * MapBlockGrid.BLOCK_SIZE
 const CELL_SIZE := 10.0
 const REVEAL_RADIUS := 30.0
 const GRID_SIZE := 150
@@ -20,6 +20,7 @@ const ZOOM_STEP := 1.25
 
 var configured := false
 var map_scale := 1.0
+var place_origin: Array = []
 var zoom := 1.0
 var view_center := Vector2.ZERO
 var window_center := Vector2.ZERO
@@ -49,6 +50,7 @@ func _ready() -> void:
 func configure(place: Dictionary, scale_factor: float) -> void:
 	configured = true
 	map_scale = scale_factor
+	place_origin = place.origin
 	zoom = MIN_ZOOM
 	view_center = Vector2.ZERO
 	dragging = false
@@ -57,7 +59,7 @@ func configure(place: Dictionary, scale_factor: float) -> void:
 	has_position = false
 	title.text = "Karte – " + place.name
 	window_center = Vector2.ZERO
-	_append_place(place, place.origin, Vector2i.ZERO)
+	_append_place(place, place.origin, MapBlockGrid.block_at_origin(place.origin))
 	drawing.queue_redraw()
 
 
@@ -118,8 +120,8 @@ func update_position(position: Vector3) -> void:
 		return
 	player_position = Vector2(position.x, position.z)
 	has_position = true
-	var block := MapBlockGrid.block_for_position(player_position, map_scale)
-	var new_center := Vector2(block) * MapBlockGrid.BLOCK_SIZE * map_scale
+	var block := MapBlockGrid.block_for_position(player_position, map_scale, place_origin)
+	var new_center := MapBlockGrid.block_local_center(place_origin, block) * map_scale
 	if window_center != new_center:
 		window_center = new_center
 		if not dragging:

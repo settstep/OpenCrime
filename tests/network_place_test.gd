@@ -49,7 +49,7 @@ func _test() -> void:
 				_fail("The host's map did not follow its player.")
 				return
 			await create_timer(0.5).timeout
-			var block := Vector2i(1, 0)
+			var block: Vector2i = world.map_block_stream.base_block + Vector2i.RIGHT
 			var origin := Grid.block_origin(world.place_data.origin, block)
 			var block_data := PlaceStore.from_overpass_block(
 				{"elements": []},
@@ -83,7 +83,7 @@ func _test() -> void:
 			if not map.configured or not map.title.text.contains("Gendarmenmarkt") or not map.has_position or map.explored.has(Vector2i(cell, cell)):
 				_fail("Client map used the wrong place or another player's exploration.")
 				return
-			var block := Vector2i(1, 0)
+			var block := Grid.block_at_origin(world.place_data.origin) + Vector2i.RIGHT
 			var block_deadline := Time.get_ticks_msec() + 10000
 			while Time.get_ticks_msec() < block_deadline and not world.map_block_stream.loaded_blocks.has(block):
 				await process_frame
