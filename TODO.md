@@ -19,7 +19,7 @@ Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenf
 - Einen Karten-Editiermodus im Hauptmenü anbieten: Karte ohne Schaden begehen und befahren, OSM-Knoten als Kugeln und Pfade als Linien anzeigen und Knoten verschieben können.
 - Manuelle Kartenänderungen im OSM-Format speichern und bei erneuten OSM-Downloads anhand der OSM-IDs automatisch anwenden; auch neue Objekte, Gebäude und Routen (z. B. Schilder, Hydranten, Parkplätze und Bürgersteige) anlegen können.
 - Begehbare Gebäude und Innenräume umsetzen; der Editiermodus soll die dafür nötigen Gebäudeformen und Öffnungen unterstützen.
-- Ortsauswahl auf 1-km-UTM-Blöcke ausrichten: beim Klick in einen gecachten Block direkt dort starten, den Block aus dem Cache verwenden und keinen neuen gespeicherten Ort anlegen; die gespeicherte Ortsliste erst nach Prüfung ihrer übrigen Verwendungen (z. B. mitgelieferte Offline-Orte und Serverstart) ablösen.
+- Gespeicherte Ortsliste in der Ortsauswahl durch rasterbasierte Auswahl ersetzen; mitgelieferte Offline-Orte und Serverstart-Kompatibilität dabei bewahren.
 - Für den ausgewählten Kartenblock verfügbare Inhalte anzeigen (Aufträge, Erste-Hilfe-/Essensorte, Apotheken, Geschäfte und kaufbare Immobilien) und passende Symbole auf der Karte darstellen.
 - Windows-x64-Builds als GitHub Release anbieten (Godot-Export mit EXE und PCK, Versionshinweisen und kurzer Testanleitung).
 - Spezielle Mehrspieleraufträge mit einer Mindestanzahl an Spielern.

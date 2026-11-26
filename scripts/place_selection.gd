@@ -5,7 +5,7 @@ signal cancelled
 
 const PlaceStore = preload("res://scripts/place_store.gd")
 const Grid = preload("res://scripts/map_block_grid.gd")
-const USER_AGENT := "OpenCrime/0.19.0 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.20.0 (+https://github.com/settstep/OpenCrime)"
 const PLACE_EXTENT_METERS := 165.0
 const MAX_RESPONSE_BYTES := 8 * 1024 * 1024
 
@@ -53,6 +53,7 @@ func _select_saved(index: int) -> void:
 	selected_longitude = float(selected_place.origin[1])
 	name_field.text = selected_place.name
 	name_field.editable = false
+	name_field.placeholder_text = "Name des Ortes"
 	info.text = "Gespeicherter Ort – vorhandene Startdaten werden genutzt; fehlende 1-km-Blöcke lädt das Spiel nach dem Start."
 	start_button.text = "Ort starten"
 	map.select_place(selected_place)
@@ -61,17 +62,30 @@ func _select_saved(index: int) -> void:
 func _on_map_selected(latitude: float, longitude: float) -> void:
 	selected_latitude = latitude
 	selected_longitude = longitude
+	var origin := [latitude, longitude]
+	var cached_block := PlaceStore.read_block_cache(Grid.block_at_origin(origin), origin)
+	if not cached_block.is_empty():
+		selected_place = {}
+		list.deselect_all()
+		name_field.clear()
+		name_field.editable = false
+		name_field.placeholder_text = "Für einen Cache-Start wird kein Ort gespeichert."
+		info.text = "Gecachter 1 × 1 km-UTM-Block. Start nahe dem angeklickten Punkt; es wird kein neuer Ort gespeichert."
+		start_button.text = "Hier starten"
+		return
 	selected_place = PlaceStore.find_containing(places, latitude, longitude)
 	if not selected_place.is_empty():
 		var index := places.find(selected_place)
 		list.select(index)
 		name_field.text = selected_place.name
 		name_field.editable = false
+		name_field.placeholder_text = "Name des Ortes"
 		info.text = "Gespeicherter Ausschnitt: %s. Vorhandene Startdaten werden genutzt; fehlende 1-km-Blöcke lädt das Spiel nach dem Start." % selected_place.name
 		start_button.text = "Ort starten"
 	else:
 		list.deselect_all()
 		name_field.editable = true
+		name_field.placeholder_text = "Name des Ortes"
 		name_field.text = "Ort %.5f, %.5f" % [latitude, longitude]
 		info.text = "Neuer 1 × 1 km-UTM-Block; wird aus dem Cache geladen oder vor Spielstart heruntergeladen."
 		start_button.text = "Ort laden und starten"
@@ -84,10 +98,6 @@ func _on_map_error(message: String) -> void:
 func _on_start_pressed() -> void:
 	if not selected_place.is_empty():
 		place_chosen.emit(selected_place)
-		return
-	var name := name_field.text.strip_edges()
-	if name.is_empty():
-		info.text = "Bitte einen Namen für den Ort eingeben."
 		return
 	if absf(selected_latitude) > 80.0 or absf(selected_longitude) > 180.0:
 		info.text = "Dieser Ort liegt außerhalb des unterstützten Bereichs."
@@ -112,11 +122,16 @@ func _on_start_pressed() -> void:
 		return
 	var cached_block := PlaceStore.read_block_cache(pending_block, selected_origin)
 	if not cached_block.is_empty():
-		var cached_place := PlaceStore.from_cached_block(cached_block, selected_latitude, selected_longitude, pending_place_bounds, name)
+		var start_name := "Startpunkt %.5f, %.5f" % [selected_latitude, selected_longitude]
+		var cached_place := PlaceStore.from_cached_block(cached_block, selected_latitude, selected_longitude, pending_place_bounds, start_name)
 		if cached_place.is_empty():
 			info.text = "Im gespeicherten 1-km-Block wurde kein sicherer Startpunkt nahe einer Straße gefunden."
 			return
-		_finish_place(cached_place)
+		_finish_place(cached_place, false)
+		return
+	var name := name_field.text.strip_edges()
+	if name.is_empty():
+		info.text = "Bitte einen Namen für den Ort eingeben."
 		return
 	var bbox := "%.7f,%.7f,%.7f,%.7f" % pending_bounds
 	var query := '[out:json][timeout:60];(way["highway"](%s);way["building"](%s);way["amenity"="parking"](%s););out body geom;' % [bbox, bbox, bbox]
@@ -165,14 +180,15 @@ func _on_download_completed(result: int, code: int, _headers: PackedStringArray,
 	_finish_place(place)
 
 
-func _finish_place(place: Dictionary) -> void:
+func _finish_place(place: Dictionary, persist: bool = true) -> void:
 	if Grid.block_at_origin(place.origin) != pending_block:
 		info.text = "Der sichere Startpunkt liegt in einem anderen 1-km-Block. Bitte einen Punkt weiter innerhalb des Blocks wählen."
 		return
-	var error := PlaceStore.save_place(place)
-	if error != OK:
-		info.text = "Ort konnte nicht gespeichert werden (Fehler %d)." % error
-		return
+	if persist:
+		var error := PlaceStore.save_place(place)
+		if error != OK:
+			info.text = "Ort konnte nicht gespeichert werden (Fehler %d)." % error
+			return
 	place_chosen.emit(place)
 
 

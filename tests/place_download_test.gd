@@ -137,12 +137,28 @@ func _test() -> void:
 	var cached_chosen := []
 	cached_selection.place_chosen.connect(func(place: Dictionary): cached_chosen.append(place))
 	cached_selection._on_map_selected(latitude, longitude)
+	if not cached_selection.info.text.contains("Gecachter") or cached_selection.name_field.editable:
+		_fail("A cached block did not select the direct, unnamed start mode.")
+		return
 	cached_selection._on_start_pressed()
 	if cached_chosen.size() != 1 or cached_selection.request.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
 		_fail("A cached UTM block did not allow starting without an HTTP request.")
 		return
+	var cached_place_path: String = PlaceStore.DIRECTORY.path_join(cached_chosen[0].id + ".json")
+	if FileAccess.file_exists(cached_place_path):
+		_fail("Starting from a cached block created a saved place.")
+		return
+	var chosen_origin: Array = cached_chosen[0].origin
+	var longitude_scale := 111320.0 * cos(deg_to_rad(latitude))
+	var spawn_distance := Vector2(
+		(float(chosen_origin[1]) - longitude) * longitude_scale,
+		(latitude - float(chosen_origin[0])) * 111320.0
+	).length()
+	if spawn_distance > 100.0:
+		_fail("The cached-block start was not near the clicked coordinates.")
+		return
 	_cleanup(cached_selection)
-	print("Full UTM block download, prestart cache, safe spawn and offline cache reuse passed")
+	print("Full UTM block download, safe spawn, and direct offline cache start passed")
 	quit(0)
 
 

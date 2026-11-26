@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.20.0
+- Ein Klick in einen gecachten 1-km-UTM-Block startet nahe der angeklickten Position, ohne dafür einen neuen gespeicherten Ort anzulegen.
+
 ## 0.19.0
 - Die Weltkarte markiert gecachte 1-km-UTM-Kartenblöcke mit transparent grünen Flächen.
 

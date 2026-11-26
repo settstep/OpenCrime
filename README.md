@@ -145,21 +145,21 @@ letzte Speicherung gewinnt. Multiplayer-Spielstände sind noch nicht vorhanden.
 ## Kartenausschnitt
 
 Bei **Einzelspieler** und **Spiel hosten** erscheint eine Ortsauswahl. Ziehen
-und zoomen Sie die OpenStreetMap-Karte und klicken Sie auf einen Ort, oder
-wählen Sie einen gespeicherten Ausschnitt aus der Liste. Für einen neuen Ort
-geben Sie einen Namen ein und wählen **Ort laden und starten**. Dafür werden
-der vollständige 1 × 1 km große UTM-Block mit Straßen, Gebäuden und
-Parkplatzflächen über die Overpass API geladen, bevor das Spiel startet.
-Existiert der Block bereits im lokalen Cache, kann er auch ohne erneuten
-Download verwendet werden. Der sichere Startpunkt wird nahe dem angeklickten
-Punkt auf einer Straße bestimmt. Die übrigen acht Blöcke des anfänglichen
-3 × 3-Bereichs werden nach Spielstart gestreamt.
+und zoomen Sie die OpenStreetMap-Karte und klicken Sie auf einen Startpunkt,
+oder wählen Sie einen gespeicherten Ausschnitt aus der Liste. Liegt der Klick
+in einem gecachten 1 × 1 km großen UTM-Block, wird der sichere Startpunkt nahe
+dem Klick aus dem Cache bestimmt; dafür wird kein neuer Ort gespeichert.
+Andernfalls geben Sie einen Namen ein und wählen **Ort laden und starten**.
+Der vollständige Block mit Straßen, Gebäuden und Parkplatzflächen wird dafür
+über die Overpass API geladen und zwischengespeichert, bevor das Spiel startet.
+Der sichere Startpunkt wird nahe dem angeklickten Punkt auf einer Straße
+bestimmt. Die übrigen acht Blöcke des anfänglichen 3 × 3-Bereichs werden nach
+Spielstart gestreamt.
 
 Mitgeliefert werden Ausschnitte rund um die Waldmünchener Straße in Thalhofen
 bei Marktoberdorf und den Gendarmenmarkt in Berlin. Gespeicherte Orte starten
 mit ihren vorhandenen Daten; ihr vollständiger 1-km-Block wird bei Bedarf nach
-Spielstart geladen. Auch ein Klick innerhalb eines gespeicherten Ausschnitts
-wählt diesen aus. Neue Orte liegen unter
+Spielstart geladen. Diese gespeicherten Orte liegen unter
 `OpenCrimeData/places`. Die Kartenansicht lädt sichtbare Kartenkacheln über das
 Internet und speichert sie zwischengespeichert unter
 `OpenCrimeData/tile_cache`. Die Liste gespeicherter Orte funktioniert auch offline.
@@ -274,7 +274,7 @@ wird weiterhin benötigt, um das Spiel auszuführen und Szenen zu bearbeiten.
 
 Die aktuelle Spielversion steht als `config/version` im Abschnitt
 `[application]` der `project.godot` und wird im Hauptmenü angezeigt.
-Die aktuelle Version ist **0.19.0**. Bei einer neuen Version wird dieser Wert manuell
+Die aktuelle Version ist **0.20.0**. Bei einer neuen Version wird dieser Wert manuell
 angepasst; er folgt dem Schema `MAJOR.MINOR.PATCH`, zum Beispiel `0.2.0` für
 eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
 allein prüft noch nicht die Multiplayer-Kompatibilität.
