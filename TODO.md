@@ -10,8 +10,15 @@ Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenf
 - Uhrzeit und Tag-Nacht-Wechsel.
 - Fahrzeugbezogene Einstellungen für Geschwindigkeit und weitere Fahrzeugparameter.
 - Alternative Fahrzeugsteuerung: relativ zur Fahrzeugrichtung beschleunigen, bremsen und lenken; optional eine mitdrehende Welt beziehungsweise Kamera prüfen.
-- Benachbarte Kartengebiete am Spielweltrand automatisch laden, bei Bedarf aus OSM.
-- Orte im Spiel bearbeiten und lokale Änderungen anhand von OSM-IDs auch nach einer Aktualisierung beibehalten.
+- Erste-Hilfe-Paket in der Welt langsam rotieren und/oder auf und ab schweben lassen, damit es besser auffällt.
+- Den automatischen Aufnahmeradius des Erste-Hilfe-Pakets so verkleinern, dass der Spieler es deutlich berühren muss.
+- Den Rand des aktuell geladenen Kartenbereichs blockieren, damit Spieler und Fahrzeuge nicht aus der Karte fahren können.
+- Im Hauptmenü eine Möglichkeit anbieten, den Spieler an einen sicheren Punkt innerhalb der Karte zurückzusetzen.
+- Offene Höhendaten importieren und auf das Gelände der Spielkarte anwenden.
+- Die Spielwelt in feste OSM-Kartenblöcke (zunächst etwa 500 × 500 m) aufteilen. Einen 3 × 3-Verbund als Spielfeld laden; beim Verlassen des mittleren Blocks den Mittelpunkt verschieben, nur die neu benötigten Blöcke laden und entfernte Blöcke aus dem Speicher entfernen. Fehlende Blöcke bei Bedarf während des Spiels aus OSM laden.
+- Einen Karten-Editiermodus im Hauptmenü anbieten: Karte ohne Schaden begehen und befahren, OSM-Knoten als Kugeln und Pfade als Linien anzeigen und Knoten verschieben können.
+- Manuelle Kartenänderungen im OSM-Format speichern und bei erneuten OSM-Downloads anhand der OSM-IDs automatisch anwenden; auch neue Objekte, Gebäude und Routen (z. B. Schilder, Hydranten, Parkplätze und Bürgersteige) anlegen können.
+- Begehbare Gebäude und Innenräume umsetzen; der Editiermodus soll die dafür nötigen Gebäudeformen und Öffnungen unterstützen.
 - In der Ortsauswahl Informationen wie Aufträge, Shops und kaufbare Gebäude anzeigen.
 - Spezielle Mehrspieleraufträge mit einer Mindestanzahl an Spielern.
 - Auftragsangebote abhängig von Zeit oder Ereignissen verfallen lassen.
