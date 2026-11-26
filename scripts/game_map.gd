@@ -222,6 +222,16 @@ func _cell_rect(x: int, y: int, factor: float) -> Rect2:
 	return Rect2(_map_point(corner, factor), Vector2.ONE * cell * factor)
 
 
+func _is_position_explored(position: Vector2) -> bool:
+	var cell_size := CELL_SIZE * map_scale
+	var cell := Vector2i(floori(position.x / cell_size), floori(position.y / cell_size))
+	return explored.has(cell)
+
+
+func _marker_is_visible(position: Vector2, factor: float, visible_rect: Rect2) -> bool:
+	return _is_position_explored(position) and visible_rect.has_point(_map_point(position, factor))
+
+
 func _draw_outside(bounds: Rect2) -> void:
 	var left := clampf(bounds.position.x, 0.0, canvas.size.x)
 	var top := clampf(bounds.position.y, 0.0, canvas.size.y)
@@ -287,26 +297,23 @@ func _draw_map() -> void:
 				if visible_rect.intersects(cell_rect):
 					cell_rect.size += Vector2.ONE * 0.5
 					drawing.draw_rect(cell_rect, Color(0.04, 0.05, 0.07))
-	if has_mission_target:
+	if has_mission_target and _marker_is_visible(mission_target, factor, visible_rect):
 		var target := _map_point(mission_target, factor)
-		if visible_rect.has_point(target):
-			drawing.draw_circle(target, 8.0, Color(1.0, 0.85, 0.1))
-	if has_first_aid:
+		drawing.draw_circle(target, 8.0, Color(1.0, 0.85, 0.1))
+	if has_first_aid and _marker_is_visible(first_aid_position, factor, visible_rect):
 		var point := _map_point(first_aid_position, factor)
-		if visible_rect.has_point(point):
-			drawing.draw_circle(point, 8.0, Color(0.1, 0.65, 0.25))
-			drawing.draw_line(point + Vector2(-4, 0), point + Vector2(4, 0), Color.WHITE, 2.0)
-			drawing.draw_line(point + Vector2(0, -4), point + Vector2(0, 4), Color.WHITE, 2.0)
+		drawing.draw_circle(point, 8.0, Color(0.1, 0.65, 0.25))
+		drawing.draw_line(point + Vector2(-4, 0), point + Vector2(4, 0), Color.WHITE, 2.0)
+		drawing.draw_line(point + Vector2(0, -4), point + Vector2(0, 4), Color.WHITE, 2.0)
 	for position in car_positions:
-		var point := _map_point(position, factor)
-		if visible_rect.has_point(point):
+		if _marker_is_visible(position, factor, visible_rect):
+			var point := _map_point(position, factor)
 			drawing.draw_circle(point, 5.0, Color(1.0, 0.45, 0.1))
-	if has_medkit:
+	if has_medkit and _marker_is_visible(medkit_position, factor, visible_rect):
 		var point := _map_point(medkit_position, factor)
-		if visible_rect.has_point(point):
-			drawing.draw_rect(Rect2(point - Vector2(6, 6), Vector2(12, 12)), Color(1.0, 0.8, 0.1))
-			drawing.draw_line(point + Vector2(-3, 0), point + Vector2(3, 0), Color.WHITE, 2.0)
-			drawing.draw_line(point + Vector2(0, -3), point + Vector2(0, 3), Color.WHITE, 2.0)
+		drawing.draw_rect(Rect2(point - Vector2(6, 6), Vector2(12, 12)), Color(1.0, 0.8, 0.1))
+		drawing.draw_line(point + Vector2(-3, 0), point + Vector2(3, 0), Color.WHITE, 2.0)
+		drawing.draw_line(point + Vector2(0, -3), point + Vector2(0, 3), Color.WHITE, 2.0)
 	if has_position:
 		var marker := _map_point(player_position, factor)
 		if Rect2(Vector2.ZERO, canvas.size).has_point(marker):

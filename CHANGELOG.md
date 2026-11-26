@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.18.2
+- Objektmarker auf der Spielkarte werden erst angezeigt, wenn das zugehörige Kartenfeld aufgedeckt wurde; der Spieler-Marker bleibt sichtbar.
+
 ## 0.18.1
 - Die Missionsübersicht und der Hinweis darunter überlagern die Lebensenergie-Anzeige nicht mehr.
 
