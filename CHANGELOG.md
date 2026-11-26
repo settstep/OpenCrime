@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.14.0
+- Unsichtbare Kollisionsbegrenzungen halten Spielfigur und Fahrzeuge im Kartenbereich.
+- Das Pausemenü kann Spielfigur oder gefahrenes Fahrzeug sicher auf der Karte zurücksetzen.
+
 ## 0.13.0
 - Inventar für bis zu fünf Erste-Hilfe-Pakete; ein Paket kann in der Welt aufgenommen und mit H benutzt werden.
 - Pakete heilen bis zu 50 Lebenspunkte, werden im Einzelspieler gespeichert und im Multiplayer serverautoritativ synchronisiert.

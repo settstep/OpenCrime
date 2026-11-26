@@ -32,8 +32,15 @@ func _test() -> void:
 		_fail("Escape did not open the paused menu.")
 		return
 	var menu: Control = world.get_node("PauseMenu/Menu")
-	if not menu.get_node("Panel/Options/Resume").visible or not menu.get_node("Panel/Options/Quit").visible:
+	if not menu.get_node("Panel/Options/Resume").visible or not menu.get_node("Panel/Options/ResetToMap").visible or not menu.get_node("Panel/Options/Quit").visible:
 		_fail("Pause menu options are missing.")
+		return
+	var health: int = player.health
+	player.global_position = Vector3(100, 50, 100)
+	menu.get_node("Panel/Options/ResetToMap").pressed.emit()
+	await process_frame
+	if player.global_position.distance_to(player.spawn_position) > 1.0 or player.health != health:
+		_fail("The on-foot reset did not return the player safely without changing health.")
 		return
 	var start := player.position
 	Input.action_press("move_forward")
@@ -54,6 +61,19 @@ func _test() -> void:
 	Input.action_release("move_forward")
 	if player.position.z >= start.z - 1.0:
 		_fail("The player did not resume moving.")
+		return
+	world._enter_car()
+	world.active_car.global_position = Vector3(100, 50, 100)
+	await _escape()
+	menu = world.get_node("PauseMenu/Menu")
+	menu.get_node("Panel/Options/ResetToMap").pressed.emit()
+	if not world.in_car or world.active_car.global_position.distance_to(Vector3(0, 0.5, -5)) > 2.0:
+		_fail("The vehicle reset did not return the driven car to its map spawn: %s (%s)" % [world.active_car.global_position, world.status.text])
+		return
+	menu.get_node("Panel/Options/Resume").pressed.emit()
+	await process_frame
+	if paused or world.menu_open:
+		_fail("Resume after resetting the vehicle did not close the pause menu.")
 		return
 	await _escape()
 	await _escape()

@@ -154,6 +154,44 @@ func _is_network_game() -> bool:
 	return true
 
 
+func _reset_to_map() -> void:
+	if not connected or not map_ready:
+		status.text = "Zurücksetzen ist noch nicht verfügbar."
+	elif multiplayer.is_server():
+		_apply_reset_to_map(1)
+	else:
+		_request_reset_to_map_rpc.rpc_id(1)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_reset_to_map_rpc() -> void:
+	if multiplayer.is_server():
+		_apply_reset_to_map(multiplayer.get_remote_sender_id())
+
+
+func _apply_reset_to_map(peer_id: int) -> void:
+	if not players.has(peer_id):
+		return
+	var body: PlayerScript = players[peer_id]
+	var vehicle := _driven_car(peer_id)
+	if vehicle != null:
+		var center := body.spawn_position + Vector3(0, -0.4, -5)
+		var placement := _find_safe_map_position(vehicle, center, 0.5, vehicle.collision_mask)
+		if placement.is_empty():
+			_notify(peer_id, "Kein freier Platz zum Zurücksetzen des Fahrzeugs gefunden.")
+			return
+		vehicle.global_position = placement.position
+		vehicle.global_rotation.y = 0.0
+		vehicle.velocity = Vector3.ZERO
+		vehicle.movement_input = Vector2.ZERO
+		_notify(peer_id, "Fahrzeug auf die Karte zurückgesetzt.")
+		return
+	if not _reset_player_to_map(body):
+		_notify(peer_id, "Kein sicherer Platz auf der Karte zum Zurücksetzen gefunden.")
+		return
+	_notify(peer_id, "Spieler auf die Karte zurückgesetzt.")
+
+
 func _request_first_aid() -> void:
 	if multiplayer.is_server():
 		_apply_first_aid(1)

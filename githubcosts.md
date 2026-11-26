@@ -24,3 +24,4 @@
 | 24.11.2026 | 21:22 | 36      | add configurable first aid station                          |
 | 24.11.2026 | 23:20 | 39      | support multiple playable vehicles                          |
 | 26.11.2026 |  9:46 | 40      | add collectible medkits and player inventory                |
+| 26.11.2026 | 10:53 | 40      | add map boundaries and safe reset                           |

@@ -50,6 +50,11 @@ visible = false
 layout_mode = 2
 text = "Spiel fortsetzen"
 
+[node name="ResetToMap" type="Button" parent="Panel/Options"]
+visible = false
+layout_mode = 2
+text = "Auf die Karte zurücksetzen"
+
 [node name="SinglePlayer" type="Button" parent="Panel/Options"]
 layout_mode = 2
 text = "Einzelspieler"
@@ -136,6 +141,7 @@ layout_mode = 2
 text = "Zurück"
 
 [connection signal="pressed" from="Panel/Options/Resume" to="." method="_on_resume_pressed"]
+[connection signal="pressed" from="Panel/Options/ResetToMap" to="." method="_on_reset_to_map_pressed"]
 [connection signal="pressed" from="Panel/Options/SinglePlayer" to="." method="_on_single_pressed"]
 [connection signal="pressed" from="Panel/Options/LoadGame" to="." method="_on_load_pressed"]
 [connection signal="pressed" from="Panel/Options/SaveGame" to="." method="_on_save_pressed"]

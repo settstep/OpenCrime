@@ -56,7 +56,11 @@ Mit **Escape** öffnet sich das Menü; mit Escape oder **Spiel fortsetzen**
 kehrt man zurück. Im Einzelspieler pausiert das Spiel, im Multiplayer läuft
 der Server weiter und nur die eigene Steuerung wird gesperrt. **Zum Hauptmenü**
 verlässt das laufende Spiel; beim Host werden dabei die Clients getrennt.
-Mit **Spiel beenden** wird das Programm geschlossen.
+Mit **Auf die Karte zurücksetzen** wird die Spielfigur oder das gerade
+gefahrene Fahrzeug an einen sicheren Startpunkt innerhalb der Karte versetzt.
+Unsichtbare Kollisionsgrenzen verhindern, dass Spielfigur oder Fahrzeuge den
+geladenen Kartenausschnitt verlassen. Mit **Spiel beenden** wird das Programm
+geschlossen.
 
 Pro Ort werden bis zu drei Testautos platziert; wenn nicht genügend geeignete
 Stellen gefunden werden, erscheint ein Hinweis. Auf der Spielkarte sind die

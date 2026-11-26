@@ -26,7 +26,7 @@ static func populate(world: Node3D, place: Dictionary = {}) -> bool:
 		push_error("OSM-Kartendaten sind ungültig.")
 		return false
 
-	for node_name in ["Road", "Building1", "Building2"]:
+	for node_name in ["Road", "Building1", "Building2", "MapBoundary"]:
 		var old_node := world.get_node_or_null(node_name)
 		if old_node != null:
 			old_node.free()
@@ -43,6 +43,7 @@ static func populate(world: Node3D, place: Dictionary = {}) -> bool:
 	ground_shape.shape = ground_shape.shape.duplicate()
 	ground_mesh.mesh.size = Vector3(450 * map_scale, 1, 450 * map_scale)
 	ground_shape.shape.size = Vector3(450 * map_scale, 1, 450 * map_scale)
+	_add_map_boundary(world, 450.0 * map_scale)
 
 	var map := Node3D.new()
 	map.name = "OSMMap"
@@ -88,6 +89,28 @@ static func populate(world: Node3D, place: Dictionary = {}) -> bool:
 	credit.text = "© OpenStreetMap-Mitwirkende | https://www.openstreetmap.org/copyright"
 	world.get_node("HUD").add_child(credit)
 	return true
+
+
+static func _add_map_boundary(world: Node3D, extent: float) -> void:
+	var boundary := StaticBody3D.new()
+	boundary.name = "MapBoundary"
+	var thickness := 2.0
+	var height := 8.0
+	var half_extent := extent / 2.0
+	var wall_specs := [
+		[Vector3(thickness, height, extent + thickness), Vector3(half_extent - thickness / 2.0, height / 2.0, 0)],
+		[Vector3(thickness, height, extent + thickness), Vector3(-half_extent + thickness / 2.0, height / 2.0, 0)],
+		[Vector3(extent + thickness, height, thickness), Vector3(0, height / 2.0, half_extent - thickness / 2.0)],
+		[Vector3(extent + thickness, height, thickness), Vector3(0, height / 2.0, -half_extent + thickness / 2.0)],
+	]
+	for spec in wall_specs:
+		var collision := CollisionShape3D.new()
+		var shape := BoxShape3D.new()
+		shape.size = spec[0]
+		collision.shape = shape
+		collision.position = spec[1]
+		boundary.add_child(collision)
+	world.add_child(boundary)
 
 
 static func _project(point: Array, origin: Array = [ORIGIN_LAT, ORIGIN_LON]) -> Vector2:

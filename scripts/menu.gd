@@ -1,6 +1,7 @@
 extends Control
 
 signal resume_requested
+signal reset_to_map_requested
 signal return_to_menu_requested
 signal save_requested
 signal save_as_requested
@@ -28,6 +29,7 @@ func _ready() -> void:
 	if in_game:
 		$Backdrop.show()
 		$Panel/Options/Resume.show()
+		$Panel/Options/ResetToMap.show()
 		$Panel/Options/ReturnToMenu.show()
 		$Panel/Options/SaveGame.visible = can_save
 		$Panel/Options/SaveGameAs.visible = can_save
@@ -69,6 +71,10 @@ func _input(event: InputEvent) -> void:
 
 func _on_resume_pressed() -> void:
 	resume_requested.emit()
+
+
+func _on_reset_to_map_pressed() -> void:
+	reset_to_map_requested.emit()
 
 
 func _on_return_to_menu_pressed() -> void:

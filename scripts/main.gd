@@ -384,35 +384,77 @@ func _damage_player(body: PlayerScript, impact_speed: float) -> bool:
 
 
 func _try_respawn(body: PlayerScript) -> bool:
+	var placement := _find_safe_map_position(body, body.spawn_position, 0.95, player_collision_mask)
+	if placement.is_empty():
+		return false
+	body.global_position = placement.position
+	body.velocity = Vector3.ZERO
+	body.movement_input = Vector2.ZERO
+	body.collision_layer = player_collision_layer
+	body.collision_mask = player_collision_mask
+	body.show()
+	body.set_physics_process(true)
+	body.health = PlayerScript.RESPAWN_HEALTH
+	return true
+
+
+func _find_safe_map_position(body: CharacterBody3D, center: Vector3, vertical_offset: float, collision_mask: int) -> Dictionary:
 	var shape: CollisionShape3D = body.get_node("CollisionShape3D")
 	var space := get_world_3d().direct_space_state
 	for radius in range(0, 13, 2):
 		var count := 1 if radius == 0 else 8
 		for index in count:
 			var angle := TAU * float(index) / float(count)
-			var origin := body.spawn_position + Vector3(cos(angle) * radius, 2.0, sin(angle) * radius)
-			var ray := PhysicsRayQueryParameters3D.create(origin, origin + Vector3.DOWN * 5.0, player_collision_mask, [body.get_rid()])
+			var origin := center + Vector3(cos(angle) * radius, 2.0, sin(angle) * radius)
+			var ray := PhysicsRayQueryParameters3D.create(origin, origin + Vector3.DOWN * 5.0, collision_mask, [body.get_rid()])
 			var floor_hit := space.intersect_ray(ray)
 			if floor_hit.is_empty() or floor_hit.collider != $Ground:
 				continue
-			var position: Vector3 = floor_hit.position + Vector3.UP * 0.95
+			var position: Vector3 = floor_hit.position + Vector3.UP * vertical_offset
 			var query := PhysicsShapeQueryParameters3D.new()
 			query.shape = shape.shape
 			query.transform = Transform3D(Basis.IDENTITY, position)
-			query.collision_mask = player_collision_mask
-			query.exclude = [body.get_rid()]
+			query.collision_mask = collision_mask
+			query.exclude = [body.get_rid(), $Ground.get_rid()]
 			if not space.intersect_shape(query, 1).is_empty():
 				continue
-			body.global_position = position
-			body.velocity = Vector3.ZERO
-			body.movement_input = Vector2.ZERO
-			body.collision_layer = player_collision_layer
-			body.collision_mask = player_collision_mask
-			body.show()
-			body.set_physics_process(true)
-			body.health = PlayerScript.RESPAWN_HEALTH
-			return true
-	return false
+			return {"position": position}
+	return {}
+
+
+func _reset_player_to_map(body: PlayerScript) -> bool:
+	if body.health <= 0:
+		return _try_respawn(body)
+	var placement := _find_safe_map_position(body, body.spawn_position, 0.95, player_collision_mask)
+	if placement.is_empty():
+		return false
+	body.global_position = placement.position
+	body.velocity = Vector3.ZERO
+	body.movement_input = Vector2.ZERO
+	body.collision_layer = player_collision_layer
+	body.collision_mask = player_collision_mask
+	body.show()
+	body.set_physics_process(true)
+	return true
+
+
+func _reset_to_map() -> void:
+	if in_car:
+		var center := player.spawn_position + Vector3(0, -0.4, -5)
+		var placement := _find_safe_map_position(active_car, center, 0.5, active_car.collision_mask)
+		if placement.is_empty():
+			status.text = "Kein freier Platz zum Zurücksetzen des Fahrzeugs gefunden."
+			return
+		active_car.global_position = placement.position
+		active_car.global_rotation.y = 0.0
+		active_car.velocity = Vector3.ZERO
+		active_car.movement_input = Vector2.ZERO
+		status.text = "Fahrzeug auf die Karte zurückgesetzt."
+		return
+	if not _reset_player_to_map(player):
+		status.text = "Kein sicherer Platz auf der Karte zum Zurücksetzen gefunden."
+		return
+	status.text = "Spieler auf die Karte zurückgesetzt."
 
 
 func _configure_map(place: Dictionary) -> void:
@@ -575,6 +617,7 @@ func _open_pause_menu() -> void:
 	menu.in_game = true
 	menu.can_save = not _is_network_game() and not save_id.is_empty()
 	menu.resume_requested.connect(_resume_game)
+	menu.reset_to_map_requested.connect(_reset_to_map)
 	menu.return_to_menu_requested.connect(_return_to_main_menu)
 	menu.save_requested.connect(_on_save_requested)
 	menu.save_as_requested.connect(_on_save_as_requested)

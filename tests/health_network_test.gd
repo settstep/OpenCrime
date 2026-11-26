@@ -49,6 +49,12 @@ func _test() -> void:
 			if peer_id != 1:
 				guest = peer_id
 		var guest_body: PlayerScript = world.players[guest]
+		guest_body.global_position = Vector3(100, 50, 100)
+		world._send_snapshot()
+		if not await _wait_for(func(): return guest_body.global_position.distance_to(guest_body.spawn_position) < 1.0):
+			_fail("The server did not return the guest to the map after the client's request.")
+			return
+		await create_timer(0.5).timeout
 		guest_body.global_position = Vector3(500, 0.9, 500)
 		world._set_medkit_state({"point": Vector2(500, 500), "available": true, "healing": PlayerScript.MEDKIT_HEALING})
 		if not world._try_pickup_medkit(guest_body, true):
@@ -89,6 +95,13 @@ func _test() -> void:
 		print("Server-authoritative damage and respawn passed")
 	else:
 		var own_id := root.multiplayer.get_unique_id()
+		if not await _wait_for(func(): return world.players.has(own_id) and world.players[own_id].global_position.distance_to(Vector3(100, 50, 100)) < 1.0):
+			_fail("The client did not receive the test position before resetting.")
+			return
+		world._reset_to_map()
+		if not await _wait_for(func(): return world.players[own_id].global_position.x < 10.0 and world.players[own_id].global_position.z < 10.0 and world.players[own_id].global_position.y > 0.5 and world.players[own_id].global_position.y < 2.0):
+			_fail("The client request did not reset the player to the map.")
+			return
 		if not await _wait_for(func(): return world.players.has(own_id) and world.players[own_id].medkits == 1 and world.players[own_id].health == 60 and not world.game_map.has_medkit):
 			_fail("The client did not receive the pickup and inventory state.")
 			return
