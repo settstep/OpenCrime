@@ -5,13 +5,17 @@ signal map_error(message: String)
 
 const TILE_SIZE := 256.0
 const DataPaths = preload("res://scripts/data_paths.gd")
+const PlaceStore = preload("res://scripts/place_store.gd")
+const MapBlockGrid = preload("res://scripts/map_block_grid.gd")
 const FALLBACK_CACHE_SECONDS := 604800
-const USER_AGENT := "OpenCrime/0.18.3 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.19.0 (+https://github.com/settstep/OpenCrime)"
 
 var CACHE_DIRECTORY := DataPaths.path("tile_cache")
+var BLOCK_CACHE_DIRECTORY := PlaceStore.BLOCK_CACHE_DIRECTORY
 var center := Vector2(47.7748417, 10.6034933)
 var zoom := 15
 var places: Array[Dictionary] = []
+var cached_blocks: Array[PackedVector2Array] = []
 var selected := center
 var textures := {}
 var pending: Array[Vector3i] = []
@@ -37,6 +41,7 @@ func _ready() -> void:
 
 func set_places(value: Array[Dictionary]) -> void:
 	places = value
+	_load_cached_blocks()
 	queue_redraw()
 
 
@@ -57,6 +62,72 @@ func _coordinates(pixel: Vector2) -> Vector2:
 	var longitude := pixel.x / size_pixels * 360.0 - 180.0
 	var latitude := rad_to_deg(atan(sinh(PI * (1.0 - 2.0 * pixel.y / size_pixels))))
 	return Vector2(clampf(latitude, -85.0, 85.0), clampf(longitude, -180.0, 180.0))
+
+
+func _load_cached_blocks() -> void:
+	cached_blocks.clear()
+	var global_cache_path := ProjectSettings.globalize_path(BLOCK_CACHE_DIRECTORY)
+	if not DirAccess.dir_exists_absolute(global_cache_path):
+		return
+	var directory := DirAccess.open(BLOCK_CACHE_DIRECTORY)
+	if directory == null:
+		var message := "Kartenblock-Cache konnte nicht gelesen werden (Fehler %d): %s" % [DirAccess.get_open_error(), BLOCK_CACHE_DIRECTORY]
+		push_warning(message)
+		map_error.emit(message)
+		return
+	var filenames := directory.get_files()
+	filenames.sort()
+	for filename in filenames:
+		var corners := _cached_block_corners(filename)
+		if corners.size() == 4:
+			cached_blocks.append(corners)
+
+
+func _cached_block_corners(filename: String) -> PackedVector2Array:
+	if not filename.begins_with("block_utm") or not filename.ends_with(".json"):
+		return PackedVector2Array()
+	var indices := filename.trim_suffix(".json").trim_prefix("block_utm").split("_", false)
+	if indices.size() != 3:
+		return PackedVector2Array()
+	for index in indices:
+		if not index.is_valid_int():
+			return PackedVector2Array()
+	var zone := int(indices[0])
+	var easting_index := int(indices[1])
+	var northing_index := int(indices[2])
+	if zone < 1 or zone > 60 or easting_index < 0 or easting_index > 1000:
+		return PackedVector2Array()
+	var false_northing_blocks := int(MapBlockGrid.UTM_FALSE_NORTHING / MapBlockGrid.BLOCK_SIZE)
+	var northern_hemisphere := northing_index >= 0
+	if northing_index == 0:
+		var cache_file := FileAccess.open(BLOCK_CACHE_DIRECTORY.path_join(filename), FileAccess.READ)
+		if cache_file == null:
+			return PackedVector2Array()
+		var json := JSON.new()
+		var parse_error := json.parse(cache_file.get_as_text())
+		cache_file.close()
+		if parse_error != OK or not json.data is Dictionary or json.data.get("id", "") != filename.trim_suffix(".json") or not json.data.get("origin", []) is Array:
+			return PackedVector2Array()
+		var origin: Array = json.data.origin
+		if origin.size() != 2 or MapBlockGrid.zone_for_origin(origin) != zone:
+			return PackedVector2Array()
+		northern_hemisphere = MapBlockGrid.is_northern_hemisphere(origin)
+	var actual_northing_index := northing_index
+	if not northern_hemisphere:
+		actual_northing_index += false_northing_blocks
+	if actual_northing_index < 0 or actual_northing_index > false_northing_blocks:
+		return PackedVector2Array()
+	var west := float(easting_index) * MapBlockGrid.BLOCK_SIZE
+	var east := west + MapBlockGrid.BLOCK_SIZE
+	var south := float(actual_northing_index) * MapBlockGrid.BLOCK_SIZE
+	var north := south + MapBlockGrid.BLOCK_SIZE
+	var corners := PackedVector2Array()
+	for projected in [[west, south], [east, south], [east, north], [west, north]]:
+		var coordinate := MapBlockGrid.unproject(projected, zone, northern_hemisphere)
+		if coordinate.size() != 2:
+			return PackedVector2Array()
+		corners.append(Vector2(float(coordinate[0]), float(coordinate[1])))
+	return corners
 
 
 func _refresh() -> void:
@@ -234,6 +305,7 @@ func _draw() -> void:
 		var position := Vector2(int(parts[1]), int(parts[2])) * TILE_SIZE - top_left
 		if Rect2(position, Vector2(TILE_SIZE, TILE_SIZE)).intersects(Rect2(Vector2.ZERO, size)):
 			draw_texture(textures[key], position)
+	_draw_cached_blocks(top_left)
 	for place in places:
 		var position := _world_pixels(float(place.origin[0]), float(place.origin[1])) - top_left
 		if Rect2(Vector2.ZERO, size).has_point(position):
@@ -241,6 +313,39 @@ func _draw() -> void:
 	var marker := _world_pixels(selected.x, selected.y) - top_left
 	if Rect2(Vector2.ZERO, size).has_point(marker):
 		draw_circle(marker, 5.0, Color(0.95, 0.18, 0.12))
+
+
+func _draw_cached_blocks(top_left: Vector2) -> void:
+	var view_rect := Rect2(Vector2.ZERO, size)
+	for block in cached_blocks:
+		var points := _cached_block_screen_points(block, top_left)
+		if points.size() != 4:
+			continue
+		var minimum := points[0]
+		var maximum := points[0]
+		for point in points:
+			minimum = minimum.min(point)
+			maximum = maximum.max(point)
+		if not view_rect.intersects(Rect2(minimum, maximum - minimum)):
+			continue
+		draw_colored_polygon(points, Color(0.1, 0.8, 0.25, 0.22))
+		var outline := points.duplicate()
+		outline.append(points[0])
+		draw_polyline(outline, Color(0.15, 0.95, 0.35, 0.8), 1.5, true)
+
+
+func _cached_block_screen_points(block: PackedVector2Array, top_left: Vector2) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	var world_width := TILE_SIZE * pow(2.0, zoom)
+	var center_pixel := _world_pixels(center.x, center.y)
+	for coordinate in block:
+		var pixel := _world_pixels(coordinate.x, coordinate.y)
+		if pixel.x - center_pixel.x > world_width / 2.0:
+			pixel.x -= world_width
+		elif pixel.x - center_pixel.x < -world_width / 2.0:
+			pixel.x += world_width
+		points.append(pixel - top_left)
+	return points
 
 
 func _gui_input(event: InputEvent) -> void:

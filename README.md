@@ -202,14 +202,14 @@ nicht automatisch um bisher fehlende Daten ergänzt werden.
 
 Die Spielwelt ist in UTM-basierte Blöcke von 1.000 × 1.000 Metern aufgeteilt.
 Die Block-ID enthält UTM-Zone und Rasterposition und ist damit unabhängig vom
-gewählten Spielort. Um jeden Spieler bleibt ein 3 × 3-Bereich aktiv; im
-Multiplayer wird die Vereinigung der Spielerbereiche geladen. Beim Wechsel in
-einen Nachbarblock werden nur neu
-benötigte Blöcke ergänzt und nicht mehr benötigte Geometrie und Kollisionen
-entfernt. Fehlende Blöcke werden über die konfigurierte Overpass-API geladen
-und unter `OpenCrimeData/map_blocks` zwischengespeichert. Bereits gecachte Blöcke
-lassen sich offline verwenden. Bei einem neuen Ort wird der vollständige
-UTM-Block vor Spielstart geladen oder aus dem Cache verwendet. Bereits
+gewählten Spielort. Bereits heruntergeladene Blöcke erscheinen als transparente
+grüne Flächen auf der Weltkarte. Um jeden Spieler bleibt ein 3 × 3-Bereich aktiv;
+im Multiplayer wird die Vereinigung der Spielerbereiche geladen. Beim Wechsel in
+einen Nachbarblock werden nur neu benötigte Blöcke ergänzt und nicht mehr benötigte
+Geometrie und Kollisionen entfernt. Fehlende Blöcke werden über die konfigurierte
+Overpass-API geladen und unter `OpenCrimeData/map_blocks` zwischengespeichert.
+Bereits gecachte Blöcke lassen sich offline verwenden. Bei einem neuen Ort wird
+der vollständige UTM-Block vor Spielstart geladen oder aus dem Cache verwendet. Bereits
 gespeicherte ältere Orte bleiben erhalten; ihr zentraler 1-km-Block wird bei
 Bedarf im Hintergrund geladen. Im Multiplayer lädt ausschließlich der Server
 fehlende Blöcke von Overpass und überträgt sie an die Clients.
@@ -274,7 +274,7 @@ wird weiterhin benötigt, um das Spiel auszuführen und Szenen zu bearbeiten.
 
 Die aktuelle Spielversion steht als `config/version` im Abschnitt
 `[application]` der `project.godot` und wird im Hauptmenü angezeigt.
-Die aktuelle Version ist **0.18.3**. Bei einer neuen Version wird dieser Wert manuell
+Die aktuelle Version ist **0.19.0**. Bei einer neuen Version wird dieser Wert manuell
 angepasst; er folgt dem Schema `MAJOR.MINOR.PATCH`, zum Beispiel `0.2.0` für
 eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
 allein prüft noch nicht die Multiplayer-Kompatibilität.
@@ -371,6 +371,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_download_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/map_cache_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/map_block_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/map_block_overlay_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/data_paths_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/game_log_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/connection_failure_test.gd

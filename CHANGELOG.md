@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.19.0
+- Die Weltkarte markiert gecachte 1-km-UTM-Kartenblöcke mit transparent grünen Flächen.
+
 ## 0.18.3
 - Aktive Auftragsmarker bleiben auch in noch nicht aufgedeckten Kartenbereichen sichtbar.
 

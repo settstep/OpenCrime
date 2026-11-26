@@ -5,7 +5,7 @@ signal cancelled
 
 const PlaceStore = preload("res://scripts/place_store.gd")
 const Grid = preload("res://scripts/map_block_grid.gd")
-const USER_AGENT := "OpenCrime/0.18.3 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.19.0 (+https://github.com/settstep/OpenCrime)"
 const PLACE_EXTENT_METERS := 165.0
 const MAX_RESPONSE_BYTES := 8 * 1024 * 1024
 
@@ -35,9 +35,9 @@ func _ready() -> void:
 			list.add_item(place.name)
 		list.select(0)
 		_select_saved(0)
-	map.set_places(places)
 	map.point_selected.connect(_on_map_selected)
 	map.map_error.connect(_on_map_error)
+	map.set_places(places)
 	request = HTTPRequest.new()
 	request.timeout = 90.0
 	request.body_size_limit = MAX_RESPONSE_BYTES

@@ -34,3 +34,4 @@
 | 26.11.2026 | 18:42 | 44      | prevent mission HUD from overlapping health display         |
 | 26.11.2026 | 19:46 | 45      | hide map markers in unexplored areas                        |
 | 26.11.2026 | 19:48 | 45      | keep mission markers visible in unexplored areas            |
+| 26.11.2026 | 19:56 | 45      | show cached map blocks on world map                         |
