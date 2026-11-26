@@ -5,6 +5,7 @@ const OSMMap = preload("res://scripts/osm_map.gd")
 
 
 func _initialize() -> void:
+	ProjectSettings.set_setting("opencrime/osm/download_blocks", false)
 	call_deferred("_test")
 
 
@@ -77,6 +78,11 @@ func _test() -> void:
 		_fail("The map did not follow the occupied car.")
 		return
 	world.in_car = false
+	map.update_position(Vector3(510 * map.map_scale, 0, -260 * map.map_scale))
+	if map.window_center != Vector2(500, -500) * map.map_scale or not map.explored.has(Vector2i(51, -26)) or not map.explored.has(initial_cells[0]):
+		_fail("The map window or exploration did not follow a distant block.")
+		return
+	map.update_position(Vector3(-100, 0, -100))
 	await _key("show_map")
 	if not world.map_open or not map.visible or not paused:
 		_fail("M did not open the map and pause single-player.")
@@ -113,7 +119,7 @@ func _test() -> void:
 		_fail("Releasing the mouse outside the map did not stop dragging.")
 		return
 	var cell_corner: Vector2 = Vector2(-map.WORLD_SIZE, -map.WORLD_SIZE) * map.map_scale / 2.0
-	var cell_rect: Rect2 = map._cell_rect(0, 0, map._map_factor())
+	var cell_rect: Rect2 = map._cell_rect(-75, -75, map._map_factor())
 	if cell_rect.position.distance_to(map._map_point(cell_corner, map._map_factor())) > 0.01 or not is_equal_approx(cell_rect.size.x, map.CELL_SIZE * map.map_scale * map._map_factor()) or map.explored != explored_before:
 		_fail("Zooming or dragging misaligned or changed the exploration grid.")
 		return

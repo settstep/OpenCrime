@@ -164,6 +164,40 @@ static func from_overpass(response: Dictionary, latitude: float, longitude: floa
 	return place if is_valid(place) and not ways.is_empty() else {}
 
 
+static func from_overpass_block(response: Dictionary, origin: Array, bounds: Array, block_id: String) -> Dictionary:
+	if response.has("remark") or not response.has("elements") or not response.elements is Array or origin.size() != 2 or bounds.size() != 4 or block_id.is_empty():
+		return {}
+	if response.has("osm3s") and not response.osm3s is Dictionary:
+		return {}
+	var ways: Array = []
+	for element in response.elements:
+		if not element is Dictionary or element.get("type") != "way" or not element.has_all(["id", "tags", "geometry"]) or not element.tags is Dictionary or not element.geometry is Array:
+			return {}
+		var geometry: Array = []
+		for point in element.geometry:
+			if not point is Dictionary or not point.has_all(["lat", "lon"]):
+				return {}
+			if (typeof(point.lat) != TYPE_INT and typeof(point.lat) != TYPE_FLOAT) or (typeof(point.lon) != TYPE_INT and typeof(point.lon) != TYPE_FLOAT):
+				return {}
+			if not is_finite(float(point.lat)) or not is_finite(float(point.lon)) or absf(float(point.lat)) > 90.0 or absf(float(point.lon)) > 180.0:
+				return {}
+			geometry.append([point.lat, point.lon])
+		var way := {"id": element.id, "tags": element.tags, "geometry": geometry}
+		if element.has("nodes"):
+			way["nodes"] = element.nodes
+		ways.append(way)
+	var place := {
+		"id": block_id,
+		"name": "Kartenblock " + block_id,
+		"origin": origin,
+		"bounds": bounds,
+		"ways": ways,
+		"source": ProjectSettings.get_setting("opencrime/osm/overpass_url"),
+		"osm_timestamp": response.get("osm3s", {}).get("timestamp_osm_base", ""),
+	}
+	return place if is_valid(place) else {}
+
+
 static func save_place(place: Dictionary) -> Error:
 	if not is_valid(place) or not place.id.begins_with("place_") or place.id.length() != 22 or not place.id.substr(6).is_valid_hex_number(false):
 		return ERR_INVALID_DATA

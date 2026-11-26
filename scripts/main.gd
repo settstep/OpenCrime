@@ -8,6 +8,7 @@ const GameMapScene = preload("res://scenes/game_map.tscn")
 const SaveStore = preload("res://scripts/save_store.gd")
 const Missions = preload("res://scripts/missions.gd")
 const FirstAid = preload("res://scripts/first_aid.gd")
+const MapBlockStream = preload("res://scripts/map_block_stream.gd")
 const MissionUI = preload("res://scenes/mission_ui.tscn")
 const ENTER_DISTANCE := 3.5
 const MEDKIT_PICKUP_RADIUS := 2.5
@@ -53,6 +54,7 @@ var first_aid := {}
 var first_aid_marker: Node3D
 var medkit_state := {}
 var medkit_marker: Node3D
+var map_block_stream: Node
 
 
 func _ready() -> void:
@@ -459,6 +461,34 @@ func _reset_to_map() -> void:
 
 func _configure_map(place: Dictionary) -> void:
 	game_map.configure(place, float(ProjectSettings.get_setting("opencrime/osm/scale")))
+	if map_block_stream != null and is_instance_valid(map_block_stream):
+		map_block_stream.queue_free()
+	map_block_stream = MapBlockStream.new()
+	map_block_stream.name = "MapBlockStream"
+	add_child(map_block_stream)
+	map_block_stream.block_loaded.connect(_on_map_block_loaded)
+	map_block_stream.block_unloaded.connect(_on_map_block_unloaded)
+	map_block_stream.configure(self, place, float(ProjectSettings.get_setting("opencrime/osm/scale")))
+
+
+func _on_map_block_loaded(block: Vector2i, place: Dictionary, world_origin: Array) -> void:
+	game_map.add_block(place, world_origin, block)
+
+
+func _on_map_block_unloaded(block: Vector2i) -> void:
+	game_map.remove_block(block)
+
+
+func _map_block_watch_positions() -> Array:
+	var target: Node3D = active_car if in_car and is_instance_valid(active_car) else player
+	var positions: Array = [target.global_position, player.spawn_position]
+	for vehicle in cars:
+		if is_instance_valid(vehicle):
+			positions.append(vehicle.global_position)
+	for marker in [mission_marker, first_aid_marker, medkit_marker]:
+		if is_instance_valid(marker) and marker.visible:
+			positions.append(marker.global_position)
+	return positions
 
 
 func _create_car(position: Vector3, angle: float = 0.0) -> CarScript:
@@ -678,8 +708,7 @@ func _quit_game() -> void:
 
 
 func save_game() -> bool:
-	var map := get_node_or_null("OSMMap")
-	if save_id.is_empty() or map == null or not map.has_meta("place"):
+	if save_id.is_empty() or not has_meta("place"):
 		_save_error("Spielstand konnte nicht erstellt werden: Ortsdaten fehlen.")
 		return false
 	var target: CharacterBody3D = active_car if in_car else player
@@ -693,7 +722,7 @@ func save_game() -> bool:
 		"id": save_id,
 		"created_at": save_created_at,
 		"saved_at": Time.get_datetime_string_from_system(),
-		"place": map.get_meta("place"),
+		"place": get_meta("place"),
 		"scale": game_map.map_scale,
 		"player_position": [player.global_position.x, player.global_position.y, player.global_position.z],
 		"car_position": [car.global_position.x, car.global_position.y, car.global_position.z],

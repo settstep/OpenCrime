@@ -5,6 +5,7 @@ const OSMMap = preload("res://scripts/osm_map.gd")
 
 
 func _initialize() -> void:
+	ProjectSettings.set_setting("opencrime/osm/download_blocks", false)
 	call_deferred("_test")
 
 
@@ -52,7 +53,9 @@ func _test() -> void:
 	if player.position.z >= start.z - 1.0:
 		_fail("Player cannot move from the OSM map spawn.")
 		return
-	var half_extent := 225.0 * float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING))
+	var half_extent := 750.0 * float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING))
+	world.map_block_stream.set_process(false)
+	world.map_block_stream._update_boundary(Vector2i.ZERO)
 	player.uses_local_input = false
 	player.global_position = Vector3(half_extent - 8.0, 0.9, half_extent - 80.0)
 	player.velocity = Vector3.ZERO

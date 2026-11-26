@@ -34,6 +34,8 @@ func _ready() -> void:
 	players_container.name = "Players"
 	add_child(players_container)
 	car.uses_local_input = false
+	if multiplayer.is_server() and map_block_stream != null:
+		map_block_stream.block_loaded.connect(_broadcast_map_block)
 
 	if multiplayer.is_server():
 		if place_data.is_empty():
@@ -154,6 +156,25 @@ func _is_network_game() -> bool:
 	return true
 
 
+func _map_block_watch_positions() -> Array:
+	var positions: Array = []
+	for peer_id in players:
+		var vehicle := _driven_car(peer_id)
+		if vehicle != null:
+			positions.append(vehicle.global_position)
+		elif is_instance_valid(players[peer_id]):
+			positions.append(players[peer_id].global_position)
+		if multiplayer.is_server() and is_instance_valid(players[peer_id]):
+			positions.append(players[peer_id].spawn_position)
+	for vehicle in cars:
+		if is_instance_valid(vehicle):
+			positions.append(vehicle.global_position)
+	for marker in [mission_marker, first_aid_marker, medkit_marker]:
+		if is_instance_valid(marker) and marker.visible:
+			positions.append(marker.global_position)
+	return positions
+
+
 func _reset_to_map() -> void:
 	if not connected or not map_ready:
 		status.text = "Zurücksetzen ist noch nicht verfügbar."
@@ -263,9 +284,35 @@ func _on_peer_connected(peer_id: int) -> void:
 	_verify_map_scale.rpc_id(peer_id, float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING)))
 	_receive_place.rpc_id(peer_id, compressed, first_aid, medkit_state)
 	_add_server_player(peer_id)
+	_send_loaded_map_blocks(peer_id)
 	if car_spawn_incomplete:
 		_notify(peer_id, CAR_SPAWN_WARNING)
 	print("Spieler verbunden: ", peer_id)
+
+
+func _send_loaded_map_blocks(peer_id: int) -> void:
+	if map_block_stream == null:
+		return
+	var blocks: Array = map_block_stream.call("loaded_blocks_for_transfer")
+	for entry in blocks:
+		_send_map_block(peer_id, entry.block, entry.place)
+
+
+func _broadcast_map_block(block: Vector2i, place: Dictionary, _world_origin: Array) -> void:
+	for peer_id in multiplayer.get_peers():
+		_send_map_block(peer_id, block, place)
+
+
+func _send_map_block(peer_id: int, block: Vector2i, place: Dictionary) -> void:
+	var raw := JSON.stringify(place).to_utf8_buffer()
+	if raw.size() > MAX_PLACE_BYTES:
+		_notify(peer_id, "Kartenblock %s ist für die Übertragung zu groß." % [block])
+		return
+	var compressed := raw.compress(FileAccess.COMPRESSION_GZIP)
+	if compressed.size() > MAX_COMPRESSED_BYTES:
+		_notify(peer_id, "Kartenblock %s ist komprimiert für die Übertragung zu groß." % [block])
+		return
+	_receive_map_block.rpc_id(peer_id, block, compressed)
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
@@ -435,6 +482,27 @@ func _receive_place(compressed: PackedByteArray, aid_state: Dictionary, kit_stat
 	$Ground.show()
 	car.show()
 	status.text = "Mit dem Server verbunden: " + place_data.name
+
+
+@rpc("authority", "call_remote", "reliable")
+func _receive_map_block(block: Vector2i, compressed: PackedByteArray) -> void:
+	if multiplayer.is_server() or not connected or not map_ready:
+		return
+	if compressed.is_empty() or compressed.size() > MAX_COMPRESSED_BYTES:
+		_report_map_block_error("Server-Kartenblock ist zu groß oder leer.")
+		return
+	var data := compressed.decompress_dynamic(MAX_PLACE_BYTES, FileAccess.COMPRESSION_GZIP)
+	var json := JSON.new()
+	if data.is_empty() or json.parse(data.get_string_from_utf8()) != OK or not json.data is Dictionary or not PlaceStore.is_valid(json.data):
+		_report_map_block_error("Server hat ungültige Daten für einen Kartenblock gesendet.")
+		return
+	if map_block_stream == null or not map_block_stream.call("accept_remote_block", block, json.data):
+		_report_map_block_error("Server-Kartenblock passt nicht zum aktiven Kartenausschnitt.")
+
+
+func _report_map_block_error(message: String) -> void:
+	push_error(message)
+	status.text = message
 
 
 func _reject_place(message: String) -> void:

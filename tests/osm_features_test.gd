@@ -6,6 +6,7 @@ const PlaceStore = preload("res://scripts/place_store.gd")
 
 
 func _initialize() -> void:
+	ProjectSettings.set_setting("opencrime/osm/download_blocks", false)
 	call_deferred("_test")
 
 

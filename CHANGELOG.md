@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.15.0
+- Die Spielwelt streamt OSM-Daten in feste 500 × 500-Meter-Blöcke und hält für jeden Spieler ein 3 × 3-Fenster aktiv.
+- Neu benötigte Blöcke werden über Overpass geladen, lokal zwischengespeichert und nach Verlassen des aktiven Bereichs aus dem Speicher entfernt.
+- Im Multiplayer lädt der Server neue Blöcke und synchronisiert sie mit Clients; Clients speichern die empfangenen Daten lokal.
+- Die Spielkarte und der gespeicherte Erkundungsfortschritt funktionieren auch außerhalb des ursprünglichen Kartenausschnitts.
+
 ## 0.14.0
 - Unsichtbare Kollisionsbegrenzungen halten Spielfigur und Fahrzeuge im Kartenbereich.
 - Das Pausemenü kann Spielfigur oder gefahrenes Fahrzeug sicher auf der Karte zurücksetzen.

@@ -6,6 +6,7 @@ const FirstAid = preload("res://scripts/first_aid.gd")
 
 
 func _initialize() -> void:
+	ProjectSettings.set_setting("opencrime/osm/download_blocks", false)
 	call_deferred("_test")
 
 

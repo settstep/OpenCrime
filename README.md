@@ -100,7 +100,9 @@ Mit **M** öffnet und schließt man die Spielkarte; **Escape** oder
 **Schließen** schließt sie ebenfalls. Die eigene Position ist blau markiert.
 Um die Figur beziehungsweise das gefahrene Auto wird die Umgebung nach und
 nach aufgedeckt; dunkle Bereiche sind noch nicht erkundet. Die Karte wird
-aus den bereits geladenen Ortsdaten gezeichnet und benötigt kein Internet.
+aus den bereits geladenen Kartendaten gezeichnet. Bereits gecachte Bereiche
+funktionieren offline; nur für noch fehlende Kartenblöcke ist eine
+Internetverbindung nötig.
 Mit dem **Mausrad** zoomt man auf die Mausposition; mit gedrückter **linker
 Maustaste** verschiebt man die Ansicht. **Zur Position** zentriert sie wieder
 auf die eigene Figur beziehungsweise das gefahrene Auto, ohne den Zoom zu ändern.
@@ -127,8 +129,11 @@ und nach einer Bestätigung gelöscht werden. Gespeichert werden der Ort samt
 seinen konkreten Kartendaten, der Kartenfaktor, die Positionen von Figur und
 Autos, ihre Ausrichtung, das belegte Auto sowie die erkundeten Bereiche.
 Alte Spielstände mit nur einem Auto bleiben ladbar und erhalten, soweit
-geeignete Plätze verfügbar sind, zusätzliche Testautos.
-Zum Laden ist kein OSM-Download nötig. Der eingestellte Kartenfaktor muss dem
+geeignete Plätze verfügbar sind, zusätzliche Testautos. Ältere Spielstände
+mit der bisherigen Erkundungskarte werden beim Laden automatisch migriert.
+Der eingebettete Startausschnitt kann ohne Ortsauswahl geladen werden; noch
+nicht gecachte Nachbarblöcke werden danach im Hintergrund heruntergeladen.
+Der eingestellte Kartenfaktor muss dem
 gespeicherten Wert entsprechen; bei einem Unterschied wird das Laden mit
 einer Meldung abgebrochen.
 
@@ -193,6 +198,20 @@ und Tags der Gebäude-, Straßen- und Parkplatzwege. Der ältere Berliner
 Testdatensatz enthält weiterhin nur eine reduzierte Auswahl von Tags und keine
 Parkplatzflächen. Früher gespeicherte Nutzerorte bleiben unverändert und können
 nicht automatisch um bisher fehlende Daten ergänzt werden.
+
+Die Spielwelt ist in Blöcke von 500 × 500 Metern aufgeteilt. Um jeden Spieler
+bleibt ein 3 × 3-Bereich aktiv; im Multiplayer wird die Vereinigung der
+Spielerbereiche geladen. Beim Wechsel in einen Nachbarblock werden nur neu
+benötigte Blöcke ergänzt und nicht mehr benötigte Geometrie und Kollisionen
+entfernt. Fehlende Blöcke werden über die konfigurierte Overpass-API geladen
+und unter `user://map_blocks` zwischengespeichert. Bereits gecachte Blöcke
+lassen sich offline verwenden. Für einen neuen Ort dient der geladene
+Kartenausschnitt zunächst als Startbereich, während der vollständige
+500-Meter-Block im Hintergrund geladen wird. Im Multiplayer lädt ausschließlich
+der Server fehlende Blöcke von Overpass und überträgt sie an die Clients.
+Bereits aktive Blöcke werden beim Beitritt ebenfalls übertragen. Clients
+speichern empfangene Blöcke im lokalen Cache und benötigen daher keinen eigenen
+Zugriff auf die Overpass-Quelle.
 
 ### Kartenfaktor testen
 
@@ -267,9 +286,10 @@ dieselbe Projektversion verwenden; Netzwerkadresse und Firewall siehe unten.
 Der Standardport ist **7777/UDP**. Ein Host kann bis zu acht weitere Spieler
 aufnehmen. Bei Verbindungsverlust muss das Spiel derzeit neu gestartet werden.
 Alle Beteiligten benötigen dieselbe Projektversion.
-Der Server überträgt den ausgewählten Kartenausschnitt an die Clients; diese
-benötigen dafür weder einen eigenen OSM-Download noch denselben gespeicherten
-Ort.
+Der Server überträgt den ausgewählten Startausschnitt an die Clients und lädt
+weitere benötigte Blöcke über die konfigurierte Overpass-API. Aktive Blöcke
+werden an alle Clients übertragen und dort lokal zwischengespeichert; Clients
+benötigen daher keinen eigenen Zugriff auf Overpass.
 
 Für einen zweiten lokalen Spielstart kann man beispielsweise ein neues
 PowerShell-Terminal öffnen und den folgenden Befehl ausführen (Pfade anpassen):
@@ -323,6 +343,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_download_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/map_cache_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/map_block_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/connection_failure_test.gd
 ```
 

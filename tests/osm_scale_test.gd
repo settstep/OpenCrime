@@ -5,6 +5,7 @@ const OSMMap = preload("res://scripts/osm_map.gd")
 
 
 func _initialize() -> void:
+	ProjectSettings.set_setting("opencrime/osm/download_blocks", false)
 	call_deferred("_test")
 
 

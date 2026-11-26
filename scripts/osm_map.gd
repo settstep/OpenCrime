@@ -41,14 +41,55 @@ static func populate(world: Node3D, place: Dictionary = {}) -> bool:
 	var ground_shape: CollisionShape3D = world.get_node("Ground/CollisionShape3D")
 	ground_mesh.mesh = ground_mesh.mesh.duplicate()
 	ground_shape.shape = ground_shape.shape.duplicate()
-	ground_mesh.mesh.size = Vector3(450 * map_scale, 1, 450 * map_scale)
-	ground_shape.shape.size = Vector3(450 * map_scale, 1, 450 * map_scale)
-	_add_map_boundary(world, 450.0 * map_scale)
+	ground_mesh.mesh.size = Vector3(500 * map_scale, 1, 500 * map_scale)
+	ground_shape.shape.size = Vector3(500 * map_scale, 1, 500 * map_scale)
+	_add_map_boundary(world, 1500.0 * map_scale)
 
 	var map := Node3D.new()
 	map.name = "OSMMap"
 	map.set_meta("place", place)
+	world.set_meta("place", place)
 	world.add_child(map)
+	_populate_geometry(map, place, map_scale)
+
+	var credit := Label.new()
+	credit.name = "OSMCredit"
+	credit.anchor_top = 1.0
+	credit.anchor_bottom = 1.0
+	credit.offset_left = 20.0
+	credit.offset_top = -30.0
+	credit.offset_right = 650.0
+	credit.offset_bottom = -5.0
+	credit.text = "© OpenStreetMap-Mitwirkende | https://www.openstreetmap.org/copyright"
+	world.get_node("HUD").add_child(credit)
+	return true
+
+
+static func create_block(place: Dictionary, map_scale: float) -> Node3D:
+	if not PlaceStore.is_valid(place) or not is_finite(map_scale) or map_scale <= 0.0:
+		return null
+	var map := Node3D.new()
+	map.name = "Block"
+	_populate_geometry(map, place, map_scale)
+	return map
+
+
+static func replace_block(map: Node3D, place: Dictionary, map_scale: float) -> bool:
+	if map == null or not PlaceStore.is_valid(place) or not is_finite(map_scale) or map_scale <= 0.0:
+		return false
+	for child in map.get_children():
+		child.free()
+	map.set_meta("place", place)
+	_populate_geometry(map, place, map_scale)
+	return true
+
+
+static func clear_block(map: Node3D) -> void:
+	for child in map.get_children():
+		child.free()
+
+
+static func _populate_geometry(map: Node3D, place: Dictionary, map_scale: float) -> void:
 	var road_material := StandardMaterial3D.new()
 	road_material.albedo_color = Color(0.27, 0.28, 0.30)
 	var building_material := StandardMaterial3D.new()
@@ -77,18 +118,6 @@ static func populate(world: Node3D, place: Dictionary = {}) -> bool:
 
 	_add_joints(map, "RoadJoints", road_joints, road_material)
 	_add_joints(map, "PathJoints", path_joints, pedestrian_material)
-
-	var credit := Label.new()
-	credit.name = "OSMCredit"
-	credit.anchor_top = 1.0
-	credit.anchor_bottom = 1.0
-	credit.offset_left = 20.0
-	credit.offset_top = -30.0
-	credit.offset_right = 650.0
-	credit.offset_bottom = -5.0
-	credit.text = "© OpenStreetMap-Mitwirkende | https://www.openstreetmap.org/copyright"
-	world.get_node("HUD").add_child(credit)
-	return true
 
 
 static func _add_map_boundary(world: Node3D, extent: float) -> void:

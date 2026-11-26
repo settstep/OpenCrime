@@ -6,6 +6,7 @@ const PlayerScript = preload("res://scripts/player.gd")
 
 
 func _initialize() -> void:
+	ProjectSettings.set_setting("opencrime/osm/download_blocks", false)
 	call_deferred("_test")
 
 

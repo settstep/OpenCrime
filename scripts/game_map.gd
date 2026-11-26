@@ -3,10 +3,11 @@ extends Control
 signal close_requested
 
 const OSMMap = preload("res://scripts/osm_map.gd")
-const WORLD_SIZE := 450.0
+const MapBlockGrid = preload("res://scripts/map_block_grid.gd")
+const WORLD_SIZE := 1500.0
 const CELL_SIZE := 10.0
 const REVEAL_RADIUS := 30.0
-const GRID_SIZE := 45
+const GRID_SIZE := 150
 const MIN_ZOOM := 1.0
 const MAX_ZOOM := 8.0
 const ZOOM_STEP := 1.25
@@ -21,6 +22,7 @@ var configured := false
 var map_scale := 1.0
 var zoom := 1.0
 var view_center := Vector2.ZERO
+var window_center := Vector2.ZERO
 var dragging := false
 var features: Array[Dictionary] = []
 var explored := {}
@@ -54,6 +56,30 @@ func configure(place: Dictionary, scale_factor: float) -> void:
 	explored.clear()
 	has_position = false
 	title.text = "Karte – " + place.name
+	window_center = Vector2.ZERO
+	_append_place(place, place.origin, Vector2i.ZERO)
+	drawing.queue_redraw()
+
+
+func add_block(place: Dictionary, world_origin: Array, block: Vector2i) -> void:
+	_append_place(place, world_origin, block)
+	if visible:
+		drawing.queue_redraw()
+
+
+func remove_block(block: Vector2i) -> void:
+	var key := MapBlockGrid.key(block)
+	var retained: Array[Dictionary] = []
+	for feature in features:
+		if feature.block != key:
+			retained.append(feature)
+	features = retained
+	if visible:
+		drawing.queue_redraw()
+
+
+func _append_place(place: Dictionary, world_origin: Array, block: Vector2i) -> void:
+	var key := MapBlockGrid.key(block)
 	for way in place.ways:
 		var tags: Dictionary = way.tags
 		var kind := ""
@@ -69,7 +95,7 @@ func configure(place: Dictionary, scale_factor: float) -> void:
 			continue
 		var points := PackedVector2Array()
 		for coordinate in way.geometry:
-			var point := OSMMap._project(coordinate, place.origin) * map_scale
+			var point := OSMMap._project(coordinate, world_origin) * map_scale
 			if points.is_empty() or point.distance_to(points[points.size() - 1]) > 0.01 * map_scale:
 				points.append(point)
 		if kind in ["building", "parking", "pedestrian_area"]:
@@ -82,10 +108,9 @@ func configure(place: Dictionary, scale_factor: float) -> void:
 			var triangles := Geometry2D.triangulate_polygon(points)
 			if triangles.is_empty():
 				continue
-			features.append({"kind": kind, "points": points, "triangles": triangles})
+			features.append({"kind": kind, "points": points, "triangles": triangles, "block": key})
 		elif points.size() >= 2:
-			features.append({"kind": kind, "points": points, "width": OSMMap._road_width(tags) * map_scale})
-	drawing.queue_redraw()
+			features.append({"kind": kind, "points": points, "width": OSMMap._road_width(tags) * map_scale, "block": key})
 
 
 func update_position(position: Vector3) -> void:
@@ -93,16 +118,21 @@ func update_position(position: Vector3) -> void:
 		return
 	player_position = Vector2(position.x, position.z)
 	has_position = true
-	var half := WORLD_SIZE * map_scale / 2.0
+	var block := MapBlockGrid.block_for_position(player_position, map_scale)
+	var new_center := Vector2(block) * MapBlockGrid.BLOCK_SIZE * map_scale
+	if window_center != new_center:
+		window_center = new_center
+		if not dragging:
+			view_center = window_center
 	var cell := CELL_SIZE * map_scale
 	var radius := REVEAL_RADIUS * map_scale
-	var first_x := maxi(0, floori((player_position.x - radius + half) / cell))
-	var last_x := mini(GRID_SIZE - 1, floori((player_position.x + radius + half) / cell))
-	var first_y := maxi(0, floori((player_position.y - radius + half) / cell))
-	var last_y := mini(GRID_SIZE - 1, floori((player_position.y + radius + half) / cell))
+	var first_x := floori((player_position.x - radius) / cell)
+	var last_x := floori((player_position.x + radius) / cell)
+	var first_y := floori((player_position.y - radius) / cell)
+	var last_y := floori((player_position.y + radius) / cell)
 	for x in range(first_x, last_x + 1):
 		for y in range(first_y, last_y + 1):
-			var corner := Vector2(x, y) * cell - Vector2.ONE * half
+			var corner := Vector2(x, y) * cell
 			var nearest := player_position.clamp(corner, corner + Vector2.ONE * cell)
 			if player_position.distance_squared_to(nearest) <= radius * radius:
 				explored[Vector2i(x, y)] = true
@@ -185,9 +215,8 @@ func _map_point(point: Vector2, factor: float) -> Vector2:
 
 
 func _cell_rect(x: int, y: int, factor: float) -> Rect2:
-	var half := WORLD_SIZE * map_scale / 2.0
 	var cell := CELL_SIZE * map_scale
-	var corner := Vector2(x, y) * cell - Vector2.ONE * half
+	var corner := Vector2(x, y) * cell
 	return Rect2(_map_point(corner, factor), Vector2.ONE * cell * factor)
 
 
@@ -211,7 +240,7 @@ func _draw_map() -> void:
 		return
 	var factor := _map_factor()
 	var half := WORLD_SIZE * map_scale / 2.0
-	var bounds := Rect2(_map_point(Vector2(-half, -half), factor), Vector2.ONE * WORLD_SIZE * map_scale * factor)
+	var bounds := Rect2(_map_point(window_center - Vector2.ONE * half, factor), Vector2.ONE * WORLD_SIZE * map_scale * factor)
 	drawing.draw_rect(Rect2(Vector2.ZERO, canvas.size), Color(0.08, 0.09, 0.11))
 	drawing.draw_rect(bounds, Color(0.35, 0.52, 0.31))
 	for kind in ["parking", "pedestrian_area", "pedestrian", "road", "building"]:
@@ -244,8 +273,13 @@ func _draw_map() -> void:
 					drawing.draw_circle(point, width / 2.0, color)
 	_draw_outside(bounds)
 	var visible_rect := Rect2(Vector2.ZERO, canvas.size)
-	for x in range(GRID_SIZE):
-		for y in range(GRID_SIZE):
+	var cell := CELL_SIZE * map_scale
+	var first_x := floori((window_center.x - half) / cell)
+	var last_x := floori((window_center.x + half) / cell)
+	var first_y := floori((window_center.y - half) / cell)
+	var last_y := floori((window_center.y + half) / cell)
+	for x in range(first_x, last_x + 1):
+		for y in range(first_y, last_y + 1):
 			if not explored.has(Vector2i(x, y)):
 				var cell_rect := _cell_rect(x, y, factor)
 				if visible_rect.intersects(cell_rect):

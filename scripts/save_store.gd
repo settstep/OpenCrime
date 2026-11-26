@@ -3,9 +3,10 @@ extends RefCounted
 const PlaceStore = preload("res://scripts/place_store.gd")
 const Missions = preload("res://scripts/missions.gd")
 const PlayerScript = preload("res://scripts/player.gd")
-const FORMAT_VERSION := 1
+const FORMAT_VERSION := 2
 const MAX_FILE_BYTES := 16 * 1024 * 1024
-const GRID_SIZE := 45 # Save format 1 uses the 45x45 exploration grid.
+const LEGACY_GRID_SIZE := 45
+const MAX_EXPLORED_CELLS := 250000
 const MAX_VEHICLES := 64
 
 static var directory := "user://saves"
@@ -45,7 +46,7 @@ static func _vector(value: Variant) -> bool:
 static func is_valid(data: Dictionary) -> bool:
 	if not data.has_all(["format", "id", "created_at", "saved_at", "place", "scale", "player_position", "car_position", "car_rotation", "in_car", "explored"]):
 		return false
-	if data.format != FORMAT_VERSION or not data.id is String or not _valid_id(data.id):
+	if data.format not in [1, FORMAT_VERSION] or not data.id is String or not _valid_id(data.id):
 		return false
 	if not data.created_at is String or data.created_at.is_empty() or not data.saved_at is String or data.saved_at.is_empty():
 		return false
@@ -79,13 +80,17 @@ static func is_valid(data: Dictionary) -> bool:
 		var active := int(data.active_vehicle)
 		if (data.in_car and (active < 0 or active >= data.vehicles.size())) or (not data.in_car and active != -1):
 			return false
-	if not data.explored is Array or data.explored.size() > GRID_SIZE * GRID_SIZE:
+	if not data.explored is Array or data.explored.size() > MAX_EXPLORED_CELLS or (data.format == 1 and data.explored.size() > LEGACY_GRID_SIZE * LEGACY_GRID_SIZE):
 		return false
 	for cell in data.explored:
 		if not cell is Array or cell.size() != 2:
 			return false
 		for value in cell:
-			if not _number(value) or float(value) != floorf(float(value)) or float(value) < 0.0 or float(value) >= GRID_SIZE:
+			if not _number(value) or float(value) != floorf(float(value)):
+				return false
+			if data.format == 1 and (float(value) < 0.0 or float(value) >= LEGACY_GRID_SIZE):
+				return false
+			if data.format == FORMAT_VERSION and absf(float(value)) > 100000.0:
 				return false
 	if data.has("mission") and (not data.mission is Dictionary or not Missions.valid_save(data.mission)):
 		return false
@@ -101,9 +106,26 @@ static func read_slot(id: String) -> Dictionary:
 	if file.get_length() > MAX_FILE_BYTES:
 		return {"error": ERR_INVALID_DATA}
 	var json := JSON.new()
-	if json.parse(file.get_as_text()) != OK or not json.data is Dictionary or not is_valid(json.data) or json.data.id != id:
+	if json.parse(file.get_as_text()) != OK or not json.data is Dictionary:
 		return {"error": ERR_INVALID_DATA}
-	return {"error": OK, "data": json.data}
+	var data: Dictionary = json.data
+	if data.get("format") == 1:
+		if not is_valid(data):
+			return {"error": ERR_INVALID_DATA}
+		data = _migrate_format_one(data)
+	if not is_valid(data) or data.id != id:
+		return {"error": ERR_INVALID_DATA}
+	return {"error": OK, "data": data}
+
+
+static func _migrate_format_one(data: Dictionary) -> Dictionary:
+	var migrated := data.duplicate(true)
+	migrated.format = FORMAT_VERSION
+	var explored: Array = []
+	for cell in data.explored:
+		explored.append([int(cell[0]) - 23, int(cell[1]) - 23])
+	migrated.explored = explored
+	return migrated
 
 
 static func list_slots() -> Dictionary:
@@ -131,7 +153,7 @@ static func list_slots() -> Dictionary:
 
 
 static func write_slot(data: Dictionary) -> Error:
-	if not is_valid(data):
+	if not is_valid(data) or data.format != FORMAT_VERSION:
 		return ERR_INVALID_DATA
 	var json := JSON.stringify(data)
 	if json.to_utf8_buffer().size() > MAX_FILE_BYTES:

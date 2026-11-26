@@ -8,6 +8,7 @@ const MainScene = preload("res://scenes/main.tscn")
 
 
 func _initialize() -> void:
+	ProjectSettings.set_setting("opencrime/osm/download_blocks", false)
 	call_deferred("_test")
 
 

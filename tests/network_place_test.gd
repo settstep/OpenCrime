@@ -2,9 +2,12 @@ extends SceneTree
 
 const MenuScene = preload("res://scenes/menu.tscn")
 const NetworkGame = preload("res://scripts/network_game.gd")
+const Grid = preload("res://scripts/map_block_grid.gd")
+const PlaceStore = preload("res://scripts/place_store.gd")
 
 
 func _initialize() -> void:
+	ProjectSettings.set_setting("opencrime/osm/download_blocks", false)
 	call_deferred("_test")
 
 
@@ -37,10 +40,34 @@ func _test() -> void:
 	while Time.get_ticks_msec() < deadline:
 		if host and world.players.size() == 2:
 			world.players[1].position = Vector3(100, 0.9, 100)
+			for peer_id in world.players:
+				if peer_id != 1:
+					world.players[peer_id].position = Vector3(300, 0.9, 0)
 			await process_frame
 			await process_frame
 			if world.game_map.player_position.distance_to(Vector2(100, 100)) > 1.0:
 				_fail("The host's map did not follow its player.")
+				return
+			await create_timer(0.5).timeout
+			var block := Vector2i(1, 0)
+			var origin := Grid.block_origin(world.place_data.origin, block)
+			var block_data := PlaceStore.from_overpass_block(
+				{"elements": []},
+				origin,
+				Grid.block_bounds(world.place_data.origin, block),
+				world.map_block_stream.call("_block_id", block)
+			)
+			if block_data.is_empty():
+				_fail("Could not create a valid test map block.")
+				return
+			world.map_block_stream.set_process(false)
+			world.map_block_stream.desired_blocks[block] = true
+			if not world.map_block_stream.call("_store_block", block, block_data):
+				_fail("Could not cache the test map block on the server.")
+				return
+			world.map_block_stream.call("_activate_block", block, block_data)
+			if not world.map_block_stream.loaded_blocks.has(block):
+				_fail("The server could not activate the test map block.")
 				return
 			await create_timer(2.0).timeout
 			print("Host selected Berlin")
@@ -55,6 +82,13 @@ func _test() -> void:
 			var cell := floori((100.0 + map.WORLD_SIZE * map.map_scale / 2.0) / (map.CELL_SIZE * map.map_scale))
 			if not map.configured or not map.title.text.contains("Gendarmenmarkt") or not map.has_position or map.explored.has(Vector2i(cell, cell)):
 				_fail("Client map used the wrong place or another player's exploration.")
+				return
+			var block := Vector2i(1, 0)
+			var block_deadline := Time.get_ticks_msec() + 10000
+			while Time.get_ticks_msec() < block_deadline and not world.map_block_stream.loaded_blocks.has(block):
+				await process_frame
+			if not world.map_block_stream.loaded_blocks.has(block) or world.map_block_stream.loaded_blocks[block].data.id != world.map_block_stream.call("_block_id", block):
+				_fail("Client did not receive and validate the server's map block.")
 				return
 			var open := InputEventAction.new()
 			open.action = "show_map"

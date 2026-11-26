@@ -6,6 +6,7 @@ const OSMMap = preload("res://scripts/osm_map.gd")
 
 
 func _initialize() -> void:
+	ProjectSettings.set_setting("opencrime/osm/download_blocks", false)
 	call_deferred("_test")
 
 
@@ -46,6 +47,13 @@ func _test() -> void:
 	legacy.erase("health")
 	if not SaveStore.is_valid(legacy):
 		_fail("Old saves without health should remain valid.")
+		return
+	var old_map: Dictionary = saved.data.duplicate(true)
+	old_map.format = 1
+	old_map.explored = [[0, 22], [22, 22], [44, 44]]
+	var migrated_map := SaveStore._migrate_format_one(old_map)
+	if migrated_map.format != SaveStore.FORMAT_VERSION or migrated_map.explored != [[-23, -1], [-1, -1], [21, 21]] or not SaveStore.is_valid(migrated_map):
+		_fail("Legacy 45x45 exploration was not migrated to world coordinates.")
 		return
 	var bad_health: Dictionary = saved.data.duplicate(true)
 	for value in [-1, 101, 2.5, 0]:
