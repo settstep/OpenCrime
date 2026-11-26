@@ -215,6 +215,14 @@ Zugriff auf die Overpass-Quelle. Unter Windows befindet sich der Cache
 üblicherweise in `%APPDATA%\Godot\app_userdata\OpenCrime\map_blocks`.
 Die Dateinamen enthalten derzeit einen Hash der Orts-ID und die Blockindizes;
 sie sind nicht als geografische Koordinaten lesbar.
+Beim Wechsel des zentralen Blocks bleibt der Spielfeldrand zunächst an seiner
+bisherigen Position und rückt erst vor, wenn alle neun Blöcke des neuen
+3 × 3-Bereichs aktiv sind. Fehlgeschlagene Overpass-Anfragen werden nach 2, 4,
+8, 16 und anschließend höchstens alle 30 Sekunden erneut versucht.
+Ein Spielprotokoll mit Sitzungsbeginn, Blockdownloads, Cache-Treffern,
+Wiederholungsversuchen und Speicherfehlern liegt unter `user://logs/opencrime.log`
+(Windows: `%APPDATA%\Godot\app_userdata\OpenCrime\logs\opencrime.log`).
+Bei mehr als 1 MiB wird eine vorherige Logdatei als `opencrime.log.1` behalten.
 
 ### Kartenfaktor testen
 
@@ -347,6 +355,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/place_download_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/map_cache_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/map_block_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/game_log_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/connection_failure_test.gd
 ```
 

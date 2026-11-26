@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.15.2
+- Der Spielfeldrand wird erst verschoben, wenn der neue 3 × 3-Kartenbereich vollständig geladen ist.
+- Fehlgeschlagene OSM-Downloads werden mit exponentiellem Abstand bis maximal 30 Sekunden erneut versucht.
+- Ein rotierendes Spielprotokoll erfasst Sitzungsstarts, Kartenblock-Ladevorgänge, Wiederholungen und Speicherfehler.
+
 ## 0.15.1
 - Behoben: Spielstände mit numerisch als Dezimalwert geparster Formatversion wurden fälschlich als ungültig erkannt.
 

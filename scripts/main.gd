@@ -9,6 +9,7 @@ const SaveStore = preload("res://scripts/save_store.gd")
 const Missions = preload("res://scripts/missions.gd")
 const FirstAid = preload("res://scripts/first_aid.gd")
 const MapBlockStream = preload("res://scripts/map_block_stream.gd")
+const GameLog = preload("res://scripts/game_log.gd")
 const MissionUI = preload("res://scenes/mission_ui.tscn")
 const ENTER_DISTANCE := 3.5
 const MEDKIT_PICKUP_RADIUS := 2.5
@@ -58,6 +59,7 @@ var map_block_stream: Node
 
 
 func _ready() -> void:
+	GameLog.info("game", "session started version=%s" % ProjectSettings.get_setting("application/config/version"))
 	player_collision_layer = player.collision_layer
 	player_collision_mask = player.collision_mask
 	player.spawn_position = player.global_position
@@ -178,6 +180,7 @@ func _notification(what: int) -> void:
 func _exit_tree() -> void:
 	if not save_id.is_empty() and not _is_network_game():
 		get_tree().set_auto_accept_quit(true)
+	GameLog.info("game", "session scene exited")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -754,6 +757,7 @@ func save_game() -> bool:
 
 func _save_error(message: String) -> void:
 	push_error(message)
+	GameLog.error("save", message)
 	status.text = message
 	var menu := get_node_or_null("PauseMenu/Menu")
 	if menu != null:

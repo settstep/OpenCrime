@@ -3,6 +3,7 @@ extends SceneTree
 const Grid = preload("res://scripts/map_block_grid.gd")
 const OSMMap = preload("res://scripts/osm_map.gd")
 const PlaceStore = preload("res://scripts/place_store.gd")
+const MapBlockStream = preload("res://scripts/map_block_stream.gd")
 
 
 func _initialize() -> void:
@@ -47,6 +48,51 @@ func _test() -> void:
 	if not PlaceStore.is_valid(data) or data.ways.size() != 1:
 		_fail("Valid block OSM data was rejected.")
 		return
+	var stream := MapBlockStream.new()
+	stream.base_place = {"id": "window_ready_test"}
+	for active_block in Grid.blocks_around(Vector2i.ZERO):
+		stream.loaded_blocks[active_block] = {"data": {"id": stream.call("_block_id", active_block)}}
+	if not stream._window_ready(Vector2i.ZERO):
+		_fail("A complete loaded 3x3 area was not considered ready.")
+		return
+	stream.loaded_blocks[Vector2i.ZERO].data.id = "fallback_place"
+	if stream._window_ready(Vector2i.ZERO):
+		_fail("The small starting-place fallback incorrectly released the boundary.")
+		return
+	stream.loaded_blocks[Vector2i.ZERO].data.id = stream.call("_block_id", Vector2i.ZERO)
+	stream.loaded_blocks.erase(Vector2i(1, 1))
+	if stream._window_ready(Vector2i.ZERO):
+		_fail("An incomplete 3x3 area was considered ready.")
+		return
+	if MapBlockStream.retry_delay_ms(1) != 2000 or MapBlockStream.retry_delay_ms(2) != 4000 or MapBlockStream.retry_delay_ms(5) != 30000 or MapBlockStream.retry_delay_ms(10) != 30000:
+		_fail("Block retry delays are not exponentially increasing and capped.")
+		return
+	var world := Node3D.new()
+	var boundary := Node3D.new()
+	boundary.name = "MapBoundary"
+	world.add_child(boundary)
+	var hud := Node.new()
+	hud.name = "HUD"
+	var status := Label.new()
+	status.name = "Status"
+	hud.add_child(status)
+	world.add_child(hud)
+	stream.world = world
+	stream.loaded_blocks.clear()
+	for active_block in Grid.blocks_around(Vector2i.ZERO):
+		stream.loaded_blocks[active_block] = {"data": {"id": stream.call("_block_id", active_block)}}
+	stream._update_boundary(Vector2i(1, 0))
+	if stream.boundary_center != Vector2i.ZERO or boundary.position != Vector3.ZERO or not status.text.contains("Lade Kartenbereich"):
+		_fail("The boundary moved before the next 3x3 area was ready.")
+		return
+	for active_block in Grid.blocks_around(Vector2i(1, 0)):
+		stream.loaded_blocks[active_block] = {"data": {"id": stream.call("_block_id", active_block)}}
+	stream._update_boundary(Vector2i(1, 0))
+	if stream.boundary_center != Vector2i(1, 0) or boundary.position.x != Grid.BLOCK_SIZE or not status.text.is_empty():
+		_fail("The boundary did not advance after all nine blocks became ready.")
+		return
+	stream.free()
+	world.free()
 	print("Map block indexing, 3x3 transitions, geographic bounds and OSM validation passed")
 	quit(0)
 

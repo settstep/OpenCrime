@@ -5,7 +5,7 @@ beobachteten Effekt; die Ursache ist noch nicht in jedem Fall geklärt.
 
 | ID | Priorität | Status | Beobachtung |
 | --- | --- | --- | --- |
-| BUG-001 | Hoch | Offen | Beim Wechsel in einen neuen Kartenblock verschwindet der Spielfeldrand, bevor die OSM-Daten fertig geladen sind. Straßen und Gebäude erscheinen dadurch verspätet; bis die benötigten Blöcke aktiv sind, soll der Rand den Spieler im bereits geladenen Bereich halten. |
-| BUG-002 | Mittel | Offen | OSM-Blockdownloads schlagen gelegentlich mit `HTTP 502` fehl, z. B. „OSM-Download für Kartenblock `0_-2` fehlgeschlagen (HTTP 502, Fehler 0)“. Der Block bleibt dann zunächst ohne heruntergeladene Elemente; Wiederholungsversuche und der sichtbare Status müssen geprüft werden. |
-| BUG-003 | Kritisch | Offen | Jeder Spielstand wird beim Laden als ungültig abgewiesen („Ungültiger Spielstand …, Fehler 30“), auch Spielstände, die mit der aktuellen Version gespeichert wurden. Die Ursache ist noch nicht eingegrenzt. |
+| BUG-001 | Hoch | Behoben (0.15.2) | Beim Wechsel in einen neuen Kartenblock verschwand der Spielfeldrand, bevor die OSM-Daten fertig geladen waren. Der Rand wird nun erst verschoben, wenn alle neun Blöcke des neuen 3 × 3-Bereichs vollständig aktiv sind. |
+| BUG-002 | Mittel | Behandelt (0.15.2) | OSM-Blockdownloads schlagen gelegentlich mit `HTTP 502` fehl, z. B. „OSM-Download für Kartenblock `0_-2` fehlgeschlagen (HTTP 502, Fehler 0)“. Fehlgeschlagene Blöcke werden mit exponentiellem, auf 30 Sekunden begrenztem Abstand erneut angefragt; Status und Versuche werden protokolliert. |
+| BUG-003 | Kritisch | Behoben (0.15.1) | Spielstände mit numerisch als Dezimalwert geparster Formatversion wurden fälschlich als ungültig erkannt. |
 | BUG-004 | Niedrig | Offen | Der Kartenblock-Cache ist schwer auffindbar und seine Dateinamen sind nicht geografisch lesbar. Auf Windows liegt `user://map_blocks` üblicherweise unter `%APPDATA%\Godot\app_userdata\OpenCrime\map_blocks`; aktuell enthalten die Namen einen Orts-Hash und Blockindizes statt Koordinaten. Lesbare geografische Koordinaten in den Cache-Dateinamen wären leichter zuzuordnen. |

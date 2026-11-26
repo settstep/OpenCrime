@@ -6,12 +6,14 @@ signal block_unloaded(block: Vector2i)
 const Grid = preload("res://scripts/map_block_grid.gd")
 const OSMMap = preload("res://scripts/osm_map.gd")
 const PlaceStore = preload("res://scripts/place_store.gd")
+const GameLog = preload("res://scripts/game_log.gd")
 
 const CACHE_DIRECTORY := "user://map_blocks"
-const USER_AGENT := "OpenCrime/0.15 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.15.2 (+https://github.com/settstep/OpenCrime)"
 const MAX_RESPONSE_BYTES := 8 * 1024 * 1024
 const MAX_CONCURRENT_DOWNLOADS := 2
-const RETRY_DELAY_MS := 30000
+const RETRY_BASE_DELAY_MS := 2000
+const RETRY_MAX_DELAY_MS := 30000
 
 var world: Node3D
 var base_place: Dictionary = {}
@@ -21,14 +23,19 @@ var loaded_blocks: Dictionary = {}
 var requests: Dictionary = {}
 var pending_blocks: Array[Vector2i] = []
 var failed_blocks: Dictionary = {}
+var retry_attempts: Dictionary = {}
 var ground_blocks: Dictionary = {}
 var boundary_center := Vector2i.ZERO
+var pending_boundary_center := Vector2i.ZERO
+var has_pending_boundary := false
+var stream_status_message := ""
 
 
 func configure(target_world: Node3D, place: Dictionary, scale_factor: float) -> void:
 	world = target_world
 	base_place = place
 	map_scale = scale_factor
+	GameLog.info("map", "stream started place=%s scale=%s" % [place.get("id", "unknown"), scale_factor])
 	desired_blocks.clear()
 	loaded_blocks.clear()
 	ground_blocks.clear()
@@ -61,8 +68,10 @@ func accept_remote_block(block: Vector2i, place: Dictionary) -> bool:
 	if not _store_block(block, place):
 		return false
 	failed_blocks.erase(block)
+	retry_attempts.erase(block)
 	if desired_blocks.has(block):
 		_replace_block(block, place)
+	GameLog.info("osm", "remote block accepted block=%s ways=%d" % [Grid.key(block), place.ways.size()])
 	return true
 
 
@@ -108,6 +117,7 @@ func _reconcile(next: Dictionary) -> void:
 			elif is_instance_valid(node):
 				node.queue_free()
 			loaded_blocks.erase(block)
+			GameLog.info("map", "block unloaded block=%s" % Grid.key(block))
 			block_unloaded.emit(block)
 	for block in ground_blocks.keys():
 		if not next.has(block):
@@ -123,6 +133,24 @@ func _reconcile(next: Dictionary) -> void:
 func _cache_path(block: Vector2i) -> String:
 	var place_key := str(base_place.id).sha256_text().substr(0, 16)
 	return CACHE_DIRECTORY.path_join("%s_%s.json" % [place_key, Grid.key(block)])
+
+
+static func retry_delay_ms(attempt: int) -> int:
+	var delay := RETRY_BASE_DELAY_MS
+	var doublings := mini(maxi(attempt - 1, 0), 4)
+	for _index in range(doublings):
+		delay = mini(delay * 2, RETRY_MAX_DELAY_MS)
+	return delay
+
+
+func _window_ready(center: Vector2i) -> bool:
+	for block in Grid.blocks_around(center):
+		if not loaded_blocks.has(block):
+			return false
+		var place: Dictionary = loaded_blocks[block].data
+		if place.get("id", "") != _block_id(block):
+			return false
+	return true
 
 
 func _block_id(block: Vector2i) -> String:
@@ -146,8 +174,12 @@ func _load_block(block: Vector2i) -> void:
 		var json := JSON.new()
 		if json.parse(file.get_as_text()) == OK and json.data is Dictionary and PlaceStore.is_valid(json.data) and json.data.id == _block_id(block):
 			_replace_block(block, json.data)
+			failed_blocks.erase(block)
+			retry_attempts.erase(block)
+			GameLog.info("osm", "cache loaded block=%s path=%s" % [Grid.key(block), path])
 			return
 		push_warning("Ungültiger Kartenblock-Cache wird erneut geladen: " + path)
+		GameLog.warning("osm", "invalid cache block=%s path=%s" % [Grid.key(block), path])
 	if world.call("_is_network_game") and not world.multiplayer.is_server():
 		return
 	if requests.size() >= MAX_CONCURRENT_DOWNLOADS:
@@ -164,6 +196,7 @@ func _start_download(block: Vector2i) -> void:
 	var bbox := "%.7f,%.7f,%.7f,%.7f" % bounds
 	var query := '[out:json][timeout:60];(way["highway"](%s);way["building"](%s);way["amenity"="parking"](%s););out body geom;' % [bbox, bbox, bbox]
 	var endpoint: String = ProjectSettings.get_setting("opencrime/osm/overpass_url")
+	GameLog.info("osm", "request started block=%s bounds=%s" % [Grid.key(block), str(bounds)])
 	var request := HTTPRequest.new()
 	request.timeout = 90.0
 	request.body_size_limit = MAX_RESPONSE_BYTES
@@ -198,11 +231,16 @@ func _on_download_completed(result: int, code: int, _headers: PackedStringArray,
 	if not _store_block(block, place):
 		_start_queued_download()
 		return
+	failed_blocks.erase(block)
+	retry_attempts.erase(block)
+	GameLog.info("osm", "block downloaded block=%s ways=%d bytes=%d" % [Grid.key(block), place.ways.size(), body.size()])
 	if desired_blocks.has(block):
 		if block == Vector2i.ZERO:
 			_replace_block(block, place)
 		else:
 			_activate_block(block, place)
+	if _window_ready(boundary_center):
+		_clear_stream_status()
 	_start_queued_download()
 
 
@@ -253,6 +291,7 @@ func _activate_block(block: Vector2i, place: Dictionary) -> void:
 	node.position = _to_world_position(projected)
 	world.add_child(node)
 	loaded_blocks[block] = {"node": node, "data": place}
+	GameLog.info("map", "block activated block=%s ways=%d" % [Grid.key(block), place.ways.size()])
 	block_loaded.emit(block, place, base_place.origin)
 
 
@@ -268,6 +307,7 @@ func _replace_block(block: Vector2i, place: Dictionary) -> void:
 			_report_error("Kartenblock %s konnte nicht aufgebaut werden." % Grid.key(block))
 			return
 		loaded_blocks[block] = {"node": base_node, "data": place}
+		GameLog.info("map", "block replaced block=%s ways=%d" % [Grid.key(block), place.ways.size()])
 		block_loaded.emit(block, place, base_place.origin)
 		return
 	if loaded_blocks.has(block):
@@ -318,20 +358,54 @@ func _remove_ground_block(block: Vector2i) -> void:
 
 func _update_boundary(center: Vector2i) -> void:
 	if center == boundary_center:
+		if has_pending_boundary:
+			has_pending_boundary = false
+			if stream_status_message.begins_with("Lade Kartenbereich"):
+				_clear_stream_status()
+		return
+	if not _window_ready(center):
+		if not has_pending_boundary or pending_boundary_center != center:
+			pending_boundary_center = center
+			has_pending_boundary = true
+			_set_stream_status("Lade Kartenbereich %s; der bisherige Spielfeldrand bleibt aktiv." % Grid.key(center))
+			GameLog.info("map", "boundary shift waiting center=%s" % Grid.key(center))
 		return
 	boundary_center = center
+	has_pending_boundary = false
 	var offset := Vector3(float(center.x) * Grid.BLOCK_SIZE * map_scale, 0.0, float(center.y) * Grid.BLOCK_SIZE * map_scale)
 	var boundary := world.get_node_or_null("MapBoundary")
 	if boundary != null:
 		boundary.position = offset
+	GameLog.info("map", "boundary moved center=%s" % Grid.key(center))
+	_clear_stream_status()
 
 
 func _report_error(message: String) -> void:
 	push_warning(message)
+	GameLog.error("osm", message)
+	_set_stream_status(message)
+
+
+func _set_stream_status(message: String) -> void:
+	stream_status_message = message
 	if world != null and world.has_node("HUD/Status"):
 		world.get_node("HUD/Status").text = message
 
 
+func _clear_stream_status() -> void:
+	if stream_status_message.is_empty():
+		return
+	if world != null and world.has_node("HUD/Status"):
+		var status: Label = world.get_node("HUD/Status")
+		if status.text == stream_status_message:
+			status.text = ""
+	stream_status_message = ""
+
+
 func _fail_block(block: Vector2i, message: String) -> void:
-	failed_blocks[block] = Time.get_ticks_msec() + RETRY_DELAY_MS
-	_report_error(message)
+	var attempt := int(retry_attempts.get(block, 0)) + 1
+	retry_attempts[block] = attempt
+	var delay := retry_delay_ms(attempt)
+	failed_blocks[block] = Time.get_ticks_msec() + delay
+	var retry_message := "%s Automatischer Versuch %d in %d Sekunden." % [message, attempt, ceili(float(delay) / 1000.0)]
+	_report_error(retry_message)
