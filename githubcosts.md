@@ -26,3 +26,4 @@
 | 26.11.2026 |  9:46 | 40      | add collectible medkits and player inventory                |
 | 26.11.2026 | 10:53 | 40      | add map boundaries and safe reset                           |
 | 26.11.2026 | 11:28 | 41      | synchronize streamed map blocks in multiplayer              |
+| 26.11.2026 | 12:23 | 42      | accept JSON-parsed save format versions                     |

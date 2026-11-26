@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.15.1
+- Behoben: Spielstände mit numerisch als Dezimalwert geparster Formatversion wurden fälschlich als ungültig erkannt.
+
 ## 0.15.0
 - Die Spielwelt streamt OSM-Daten in feste 500 × 500-Meter-Blöcke und hält für jeden Spieler ein 3 × 3-Fenster aktiv.
 - Neu benötigte Blöcke werden über Overpass geladen, lokal zwischengespeichert und nach Verlassen des aktiven Bereichs aus dem Speicher entfernt.

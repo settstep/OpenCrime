@@ -23,12 +23,14 @@ func _test() -> void:
 	await process_frame
 	var world = current_scene
 	var first_id: String = world.save_id
-	if first_id.is_empty() or SaveStore.read_slot(first_id).error != OK:
-		_fail("Starting a game did not create its own save.")
+	var initial_result := SaveStore.read_slot(first_id)
+	if first_id.is_empty() or initial_result.error != OK:
+		_fail("A newly written save could not be read (error %d)." % initial_result.error)
 		return
 	var snapshot: Dictionary = world.get_node("OSMMap").get_meta("place").duplicate(true)
 	snapshot.id = "only_in_save"
 	world.get_node("OSMMap").set_meta("place", snapshot)
+	world.set_meta("place", snapshot)
 	world.player.global_position = Vector3(1, 0.9, 0)
 	world.car.global_position = Vector3(0, 0.5, -5)
 	world.car.global_rotation.y = 0.75
@@ -40,6 +42,10 @@ func _test() -> void:
 	if saved.error != OK or not saved.data.in_car or absf(float(saved.data.car_rotation) - 0.75) > 0.001 or saved.data.explored.size() < 50:
 		_fail("Autosave lost the car state or exploration.")
 		return
+	var json_roundtrip: Variant = JSON.parse_string(JSON.stringify(saved.data))
+	if not json_roundtrip is Dictionary or not SaveStore.is_valid(json_roundtrip):
+		_fail("A JSON-parsed current save was rejected.")
+		return
 	if saved.data.health != 63:
 		_fail("Autosave lost the player's health.")
 		return
@@ -49,11 +55,26 @@ func _test() -> void:
 		_fail("Old saves without health should remain valid.")
 		return
 	var old_map: Dictionary = saved.data.duplicate(true)
-	old_map.format = 1
+	old_map.format = 1.0
 	old_map.explored = [[0, 22], [22, 22], [44, 44]]
+	if not SaveStore.is_valid(old_map):
+		_fail("A JSON-parsed legacy save was rejected.")
+		return
 	var migrated_map := SaveStore._migrate_format_one(old_map)
 	if migrated_map.format != SaveStore.FORMAT_VERSION or migrated_map.explored != [[-23, -1], [-1, -1], [21, 21]] or not SaveStore.is_valid(migrated_map):
 		_fail("Legacy 45x45 exploration was not migrated to world coordinates.")
+		return
+	var legacy_id := SaveStore.new_id()
+	old_map.id = legacy_id
+	var legacy_file := FileAccess.open(SaveStore._path(legacy_id), FileAccess.WRITE)
+	legacy_file.store_string(JSON.stringify(old_map))
+	legacy_file.close()
+	var migrated_slot := SaveStore.read_slot(legacy_id)
+	if migrated_slot.error != OK or migrated_slot.data.format != SaveStore.FORMAT_VERSION or migrated_slot.data.explored != [[-23, -1], [-1, -1], [21, 21]]:
+		_fail("A serialized legacy save was not migrated when loaded.")
+		return
+	if SaveStore.delete_slot(legacy_id) != OK:
+		_fail("The serialized legacy test save could not be removed.")
 		return
 	var bad_health: Dictionary = saved.data.duplicate(true)
 	for value in [-1, 101, 2.5, 0]:

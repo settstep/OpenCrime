@@ -34,6 +34,10 @@ static func _number(value: Variant) -> bool:
 	return (typeof(value) == TYPE_INT or typeof(value) == TYPE_FLOAT) and is_finite(float(value))
 
 
+static func _integer(value: Variant) -> bool:
+	return _number(value) and float(value) == floorf(float(value))
+
+
 static func _vector(value: Variant) -> bool:
 	if not value is Array or value.size() != 3:
 		return false
@@ -46,7 +50,10 @@ static func _vector(value: Variant) -> bool:
 static func is_valid(data: Dictionary) -> bool:
 	if not data.has_all(["format", "id", "created_at", "saved_at", "place", "scale", "player_position", "car_position", "car_rotation", "in_car", "explored"]):
 		return false
-	if data.format not in [1, FORMAT_VERSION] or not data.id is String or not _valid_id(data.id):
+	if not _integer(data.format):
+		return false
+	var format := int(data.format)
+	if format not in [1, FORMAT_VERSION] or not data.id is String or not _valid_id(data.id):
 		return false
 	if not data.created_at is String or data.created_at.is_empty() or not data.saved_at is String or data.saved_at.is_empty():
 		return false
@@ -80,7 +87,7 @@ static func is_valid(data: Dictionary) -> bool:
 		var active := int(data.active_vehicle)
 		if (data.in_car and (active < 0 or active >= data.vehicles.size())) or (not data.in_car and active != -1):
 			return false
-	if not data.explored is Array or data.explored.size() > MAX_EXPLORED_CELLS or (data.format == 1 and data.explored.size() > LEGACY_GRID_SIZE * LEGACY_GRID_SIZE):
+	if not data.explored is Array or data.explored.size() > MAX_EXPLORED_CELLS or (format == 1 and data.explored.size() > LEGACY_GRID_SIZE * LEGACY_GRID_SIZE):
 		return false
 	for cell in data.explored:
 		if not cell is Array or cell.size() != 2:
@@ -88,9 +95,9 @@ static func is_valid(data: Dictionary) -> bool:
 		for value in cell:
 			if not _number(value) or float(value) != floorf(float(value)):
 				return false
-			if data.format == 1 and (float(value) < 0.0 or float(value) >= LEGACY_GRID_SIZE):
+			if format == 1 and (float(value) < 0.0 or float(value) >= LEGACY_GRID_SIZE):
 				return false
-			if data.format == FORMAT_VERSION and absf(float(value)) > 100000.0:
+			if format == FORMAT_VERSION and absf(float(value)) > 100000.0:
 				return false
 	if data.has("mission") and (not data.mission is Dictionary or not Missions.valid_save(data.mission)):
 		return false
@@ -109,7 +116,7 @@ static func read_slot(id: String) -> Dictionary:
 	if json.parse(file.get_as_text()) != OK or not json.data is Dictionary:
 		return {"error": ERR_INVALID_DATA}
 	var data: Dictionary = json.data
-	if data.get("format") == 1:
+	if _integer(data.get("format")) and int(data.format) == 1:
 		if not is_valid(data):
 			return {"error": ERR_INVALID_DATA}
 		data = _migrate_format_one(data)
@@ -153,7 +160,7 @@ static func list_slots() -> Dictionary:
 
 
 static func write_slot(data: Dictionary) -> Error:
-	if not is_valid(data) or data.format != FORMAT_VERSION:
+	if not is_valid(data) or int(data.format) != FORMAT_VERSION:
 		return ERR_INVALID_DATA
 	var json := JSON.stringify(data)
 	if json.to_utf8_buffer().size() > MAX_FILE_BYTES:
