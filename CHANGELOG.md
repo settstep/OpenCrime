@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.18.0
+- OSM-Blockdownloads werden einzeln und mit mindestens einer Sekunde Abstand gestartet.
+- Bei HTTP 429/503 werden Anfragen global pausiert; `Retry-After` wird als Sekundenangabe oder HTTP-Datum berücksichtigt.
+- Fehlgeschlagene Downloads werden mit exponentiellem Abstand bis maximal 120 Sekunden erneut versucht; bei HTTP 429 ohne `Retry-After` gilt eine Pause von mindestens 60 Sekunden.
+
 ## 0.17.0
 - Neue Orte laden und speichern vor Spielstart den vollständigen 1.000 × 1.000-Meter-UTM-Block.
 - Bereits gecachte UTM-Blöcke können direkt zur Ortsauswahl verwendet werden; die übrigen Nachbarblöcke werden nach Spielstart gestreamt.

@@ -95,8 +95,29 @@ func _test() -> void:
 	if stream._window_ready(block):
 		_fail("An incomplete 3x3 area was considered ready.")
 		return
-	if MapBlockStream.retry_delay_ms(1) != 2000 or MapBlockStream.retry_delay_ms(2) != 4000 or MapBlockStream.retry_delay_ms(5) != 30000 or MapBlockStream.retry_delay_ms(10) != 30000:
+	if MapBlockStream.retry_delay_ms(1) != 2000 or MapBlockStream.retry_delay_ms(2) != 4000 or MapBlockStream.retry_delay_ms(5) != 32000 or MapBlockStream.retry_delay_ms(6) != 64000 or MapBlockStream.retry_delay_ms(10) != 120000:
 		_fail("Block retry delays are not exponentially increasing and capped.")
+		return
+	if MapBlockStream.retry_after_delay_ms(PackedStringArray(["retry-after: 30"]), 0.0) != 30000:
+		_fail("A numeric Retry-After header was not parsed.")
+		return
+	if MapBlockStream.retry_after_delay_ms(PackedStringArray(["Retry-After: Thu, 01 Jan 1970 00:01:00 GMT"]), 0.0) != 60000:
+		_fail("An HTTP-date Retry-After header was not parsed.")
+		return
+	if MapBlockStream.retry_after_delay_ms(PackedStringArray(["Retry-After: not-a-date"]), 0.0) != -1:
+		_fail("An invalid Retry-After header was accepted.")
+		return
+	if MapBlockStream.retry_after_delay_ms(PackedStringArray(["Retry-After: Mon, 31 Feb 1970 00:01:00 GMT"]), 0.0) != -1:
+		_fail("An invalid HTTP-date Retry-After header was accepted.")
+		return
+	if MapBlockStream.retry_delay_for_response(1, 429, PackedStringArray(), 0.0) != 60000:
+		_fail("A rate-limited response did not receive the fallback cooldown.")
+		return
+	if MapBlockStream.retry_delay_for_response(2, 429, PackedStringArray(["Retry-After: 90"]), 0.0) != 90000:
+		_fail("A rate-limited response did not honor Retry-After.")
+		return
+	if MapBlockStream.retry_delay_for_response(4, 429, PackedStringArray(["Retry-After: 3"]), 0.0) != 16000:
+		_fail("A short Retry-After value bypassed the exponential rate-limit backoff.")
 		return
 
 	var world := Node3D.new()

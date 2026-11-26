@@ -230,8 +230,11 @@ Sicherung erhalten. Der alte 500-Meter-OSM-Blockcache wird nicht wiederverwendet
 und bleibt am bisherigen Speicherort.
 Beim Wechsel des zentralen Blocks bleibt der Spielfeldrand zunächst an seiner
 bisherigen Position und rückt erst vor, wenn alle neun Blöcke des neuen
-3 × 3-Bereichs aktiv sind. Fehlgeschlagene Overpass-Anfragen werden nach 2, 4,
-8, 16 und anschließend höchstens alle 30 Sekunden erneut versucht.
+3 × 3-Bereichs aktiv sind. OSM-Blockdownloads werden einzeln und mit mindestens
+einer Sekunde Abstand gestartet. Fehlgeschlagene Anfragen werden mit
+exponentiellem Abstand bis maximal 120 Sekunden erneut versucht. HTTP 429/503
+pausiert weitere Downloads; ein `Retry-After`-Header wird berücksichtigt,
+andernfalls wartet ein HTTP-429 mindestens 60 Sekunden.
 Ein Spielprotokoll mit Sitzungsbeginn, Blockdownloads, Cache-Treffern,
 Wiederholungsversuchen und Speicherfehlern liegt unter
 `OpenCrimeData/logs/opencrime.log`.
@@ -271,7 +274,7 @@ wird weiterhin benötigt, um das Spiel auszuführen und Szenen zu bearbeiten.
 
 Die aktuelle Spielversion steht als `config/version` im Abschnitt
 `[application]` der `project.godot` und wird im Hauptmenü angezeigt.
-Die aktuelle Version ist **0.17.0**. Bei einer neuen Version wird dieser Wert manuell
+Die aktuelle Version ist **0.18.0**. Bei einer neuen Version wird dieser Wert manuell
 angepasst; er folgt dem Schema `MAJOR.MINOR.PATCH`, zum Beispiel `0.2.0` für
 eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
 allein prüft noch nicht die Multiplayer-Kompatibilität.

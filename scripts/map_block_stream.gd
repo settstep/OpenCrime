@@ -9,11 +9,19 @@ const PlaceStore = preload("res://scripts/place_store.gd")
 const GameLog = preload("res://scripts/game_log.gd")
 
 var CACHE_DIRECTORY := PlaceStore.BLOCK_CACHE_DIRECTORY
-const USER_AGENT := "OpenCrime/0.17.0 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.18.0 (+https://github.com/settstep/OpenCrime)"
 const MAX_RESPONSE_BYTES := 8 * 1024 * 1024
-const MAX_CONCURRENT_DOWNLOADS := 2
+const MAX_CONCURRENT_DOWNLOADS := 1
+const MIN_REQUEST_INTERVAL_MS := 1000
 const RETRY_BASE_DELAY_MS := 2000
-const RETRY_MAX_DELAY_MS := 30000
+const RETRY_MAX_DELAY_MS := 120000
+const RATE_LIMIT_FALLBACK_DELAY_MS := 60000
+const MAX_RETRY_AFTER_DELAY_MS := 86400000
+const MONTH_NUMBERS := {
+	"jan": 1, "feb": 2, "mar": 3, "apr": 4,
+	"may": 5, "jun": 6, "jul": 7, "aug": 8,
+	"sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
 
 var world: Node3D
 var base_place: Dictionary = {}
@@ -25,6 +33,7 @@ var pending_blocks: Array[Vector2i] = []
 var failed_blocks: Dictionary = {}
 var retry_attempts: Dictionary = {}
 var ground_blocks: Dictionary = {}
+var next_request_allowed_at_ms := 0
 var base_block := Vector2i.ZERO
 var boundary_center := Vector2i.ZERO
 var pending_boundary_center := Vector2i.ZERO
@@ -91,6 +100,7 @@ func loaded_blocks_for_transfer() -> Array[Dictionary]:
 
 
 func _process(_delta: float) -> void:
+	_start_queued_download()
 	if world == null or base_place.is_empty() or not world.has_method("_map_block_watch_positions"):
 		return
 	var positions: Array = world.call("_map_block_watch_positions")
@@ -142,10 +152,71 @@ func _cache_path(block: Vector2i) -> String:
 
 static func retry_delay_ms(attempt: int) -> int:
 	var delay := RETRY_BASE_DELAY_MS
-	var doublings := mini(maxi(attempt - 1, 0), 4)
-	for _index in range(doublings):
+	for _index in range(maxi(attempt - 1, 0)):
+		if delay >= RETRY_MAX_DELAY_MS:
+			break
 		delay = mini(delay * 2, RETRY_MAX_DELAY_MS)
 	return delay
+
+
+static func retry_after_delay_ms(headers: PackedStringArray, now_unix: float = -1.0) -> int:
+	for header in headers:
+		var separator := header.find(":")
+		if separator < 0 or header.substr(0, separator).strip_edges().to_lower() != "retry-after":
+			continue
+		var value := header.substr(separator + 1).strip_edges()
+		if value.is_valid_int():
+			return clampi(value.to_int() * 1000, 0, MAX_RETRY_AFTER_DELAY_MS)
+		return _http_date_delay_ms(value, now_unix)
+	return -1
+
+
+static func retry_delay_for_response(attempt: int, code: int, headers: PackedStringArray, now_unix: float = -1.0) -> int:
+	var delay := retry_delay_ms(attempt)
+	var server_delay := retry_after_delay_ms(headers, now_unix)
+	if server_delay >= 0:
+		return maxi(delay, server_delay)
+	if code == 429:
+		return maxi(delay, RATE_LIMIT_FALLBACK_DELAY_MS)
+	return delay
+
+
+static func _http_date_delay_ms(value: String, now_unix: float) -> int:
+	var parts := value.replace(",", "").split(" ", false)
+	if parts.size() != 6 or parts[5].to_upper() != "GMT":
+		return -1
+	var month := int(MONTH_NUMBERS.get(parts[2].to_lower(), 0))
+	var date_parts := parts[4].split(":", false)
+	if month == 0 or date_parts.size() != 3 or not parts[1].is_valid_int() or not parts[3].is_valid_int():
+		return -1
+	for part in date_parts:
+		if not part.is_valid_int():
+			return -1
+	var day := parts[1].to_int()
+	var year := parts[3].to_int()
+	var hour := date_parts[0].to_int()
+	var minute := date_parts[1].to_int()
+	var second := date_parts[2].to_int()
+	if year < 1 or day < 1 or hour > 23 or minute > 59 or second > 59:
+		return -1
+	var days_in_month := 31
+	if month == 2:
+		var is_leap_year := year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+		days_in_month = 29 if is_leap_year else 28
+	elif month == 4 or month == 6 or month == 9 or month == 11:
+		days_in_month = 30
+	if day > days_in_month:
+		return -1
+	var target_unix := Time.get_unix_time_from_datetime_dict({
+		"year": year,
+		"month": month,
+		"day": day,
+		"hour": hour,
+		"minute": minute,
+		"second": second,
+	})
+	var current_unix := now_unix if now_unix >= 0.0 else Time.get_unix_time_from_system()
+	return clampi(ceili(maxf(float(target_unix) - current_unix, 0.0) * 1000.0), 0, MAX_RETRY_AFTER_DELAY_MS)
 
 
 func _window_ready(center: Vector2i) -> bool:
@@ -191,11 +262,19 @@ func _load_block(block: Vector2i) -> void:
 		if not pending_blocks.has(block):
 			pending_blocks.append(block)
 		return
+	if Time.get_ticks_msec() < next_request_allowed_at_ms:
+		if not pending_blocks.has(block):
+			pending_blocks.append(block)
+		return
 	_start_download(block)
 
 
 func _start_download(block: Vector2i) -> void:
 	if not desired_blocks.has(block) or requests.size() >= MAX_CONCURRENT_DOWNLOADS:
+		return
+	if Time.get_ticks_msec() < next_request_allowed_at_ms:
+		if not pending_blocks.has(block):
+			pending_blocks.append(block)
 		return
 	var bounds := Grid.block_bounds(base_place.origin, block)
 	var bbox := "%.7f,%.7f,%.7f,%.7f" % bounds
@@ -208,6 +287,7 @@ func _start_download(block: Vector2i) -> void:
 	add_child(request)
 	request.request_completed.connect(_on_download_completed.bind(block, request))
 	requests[block] = request
+	next_request_allowed_at_ms = Time.get_ticks_msec() + MIN_REQUEST_INTERVAL_MS
 	var error := request.request(endpoint + "?data=" + query.uri_encode(), PackedStringArray(["User-Agent: " + USER_AGENT, "Accept: application/json"]))
 	if error != OK:
 		requests.erase(block)
@@ -216,11 +296,17 @@ func _start_download(block: Vector2i) -> void:
 		_start_queued_download()
 
 
-func _on_download_completed(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray, block: Vector2i, request: HTTPRequest) -> void:
+func _on_download_completed(result: int, code: int, headers: PackedStringArray, body: PackedByteArray, block: Vector2i, request: HTTPRequest) -> void:
 	requests.erase(block)
 	request.queue_free()
 	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
-		_fail_block(block, "OSM-Download für Kartenblock %s fehlgeschlagen (HTTP %d, Fehler %d)." % [Grid.key(block), code, result])
+		var attempt := int(retry_attempts.get(block, 0)) + 1
+		var retry_delay := retry_delay_for_response(attempt, code, headers)
+		var retry_after := retry_after_delay_ms(headers)
+		if code == 429 or code == 503 or retry_after >= 0:
+			var cooldown := retry_delay if code == 429 or code == 503 else retry_after
+			_apply_request_cooldown(cooldown)
+		_fail_block(block, "OSM-Download für Kartenblock %s fehlgeschlagen (HTTP %d, Fehler %d)." % [Grid.key(block), code, result], retry_delay)
 		_start_queued_download()
 		return
 	var json := JSON.new()
@@ -258,11 +344,18 @@ func _store_block(block: Vector2i, place: Dictionary) -> bool:
 
 
 func _start_queued_download() -> void:
+	if requests.size() >= MAX_CONCURRENT_DOWNLOADS or Time.get_ticks_msec() < next_request_allowed_at_ms:
+		return
 	while not pending_blocks.is_empty() and requests.size() < MAX_CONCURRENT_DOWNLOADS:
 		var block: Vector2i = pending_blocks.pop_front()
 		var is_loaded: bool = loaded_blocks.has(block) and block != base_block
 		if desired_blocks.has(block) and not is_loaded and not requests.has(block):
 			_start_download(block)
+			return
+
+
+func _apply_request_cooldown(delay_ms: int) -> void:
+	next_request_allowed_at_ms = maxi(next_request_allowed_at_ms, Time.get_ticks_msec() + delay_ms)
 
 
 func _activate_block(block: Vector2i, place: Dictionary) -> void:
@@ -398,10 +491,10 @@ func _clear_stream_status() -> void:
 	stream_status_message = ""
 
 
-func _fail_block(block: Vector2i, message: String) -> void:
+func _fail_block(block: Vector2i, message: String, minimum_delay_ms: int = 0) -> void:
 	var attempt := int(retry_attempts.get(block, 0)) + 1
 	retry_attempts[block] = attempt
-	var delay := retry_delay_ms(attempt)
+	var delay := maxi(retry_delay_ms(attempt), minimum_delay_ms)
 	failed_blocks[block] = Time.get_ticks_msec() + delay
 	var retry_message := "%s Automatischer Versuch %d in %d Sekunden." % [message, attempt, ceili(float(delay) / 1000.0)]
 	_report_error(retry_message)
