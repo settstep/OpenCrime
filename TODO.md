@@ -2,6 +2,7 @@
 
 Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenfolge.
 
+- Ein Spiel-Logfile mit Zeitstempeln und relevanten Fehlern/Netzwerkereignissen erstellen, damit Fehler wie OSM-Downloadabbrüche und ungültige Spielstände besser debuggt werden können.
 - Sounds und Musik.
 - Detailliertere Spielerfiguren und Animationen.
 - NPCs und deren Verhalten.

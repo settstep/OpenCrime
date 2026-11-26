@@ -211,7 +211,10 @@ Kartenausschnitt zunächst als Startbereich, während der vollständige
 der Server fehlende Blöcke von Overpass und überträgt sie an die Clients.
 Bereits aktive Blöcke werden beim Beitritt ebenfalls übertragen. Clients
 speichern empfangene Blöcke im lokalen Cache und benötigen daher keinen eigenen
-Zugriff auf die Overpass-Quelle.
+Zugriff auf die Overpass-Quelle. Unter Windows befindet sich der Cache
+üblicherweise in `%APPDATA%\Godot\app_userdata\OpenCrime\map_blocks`.
+Die Dateinamen enthalten derzeit einen Hash der Orts-ID und die Blockindizes;
+sie sind nicht als geografische Koordinaten lesbar.
 
 ### Kartenfaktor testen
 

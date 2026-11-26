@@ -71,7 +71,7 @@ move_back={
 
 [opencrime]
 
-osm/scale=1.1
+osm/scale=1.3
 osm/download_blocks=true
 osm/tile_url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 osm/overpass_url="https://overpass-api.de/api/interpreter"
