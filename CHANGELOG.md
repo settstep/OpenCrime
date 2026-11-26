@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.18.1
+- Die Missionsübersicht und der Hinweis darunter überlagern die Lebensenergie-Anzeige nicht mehr.
+
 ## 0.18.0
 - OSM-Blockdownloads werden einzeln und mit mindestens einer Sekunde Abstand gestartet.
 - Bei HTTP 429/503 werden Anfragen global pausiert; `Retry-After` wird als Sekundenangabe oder HTTP-Datum berücksichtigt.

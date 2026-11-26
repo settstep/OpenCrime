@@ -24,6 +24,12 @@ func _test() -> void:
 	if not world.mission_ready or world.mission_ui.state.player.offers.size() != 1:
 		_fail("The first SMS was not displayed.")
 		return
+	var health_hud: Control = world.get_node("HUD/Health")
+	var mission_summary: Control = world.mission_ui.get_node("Summary")
+	var mission_notice: Control = world.mission_ui.get_node("Notice")
+	if mission_summary.get_global_rect().intersects(health_hud.get_global_rect()) or mission_summary.get_global_rect().intersects(mission_notice.get_global_rect()):
+		_fail("The mission summary overlaps the health HUD or its notice.")
+		return
 	if not world.mission_ui.details.text.contains("Hauptauftrag"):
 		_fail("The story mission was not identified in the SMS.")
 		return

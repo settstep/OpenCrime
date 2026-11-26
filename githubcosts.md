@@ -31,3 +31,4 @@
 | 26.11.2026 | 14:47 | 43      | add portable UTM map block cache                            |
 | 26.11.2026 | 18:00 | 44      | prefetch full UTM block for new locations                   |
 | 26.11.2026 | 18:34 | 44      | respect Overpass rate limits and retry headers              |
+| 26.11.2026 | 18:42 | 44      | prevent mission HUD from overlapping health display         |
