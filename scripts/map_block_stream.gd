@@ -9,7 +9,7 @@ const PlaceStore = preload("res://scripts/place_store.gd")
 const GameLog = preload("res://scripts/game_log.gd")
 
 var CACHE_DIRECTORY := PlaceStore.BLOCK_CACHE_DIRECTORY
-const USER_AGENT := "OpenCrime/0.20.0 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.21.0 (+https://github.com/settstep/OpenCrime)"
 const MAX_RESPONSE_BYTES := 8 * 1024 * 1024
 const MAX_CONCURRENT_DOWNLOADS := 1
 const MIN_REQUEST_INTERVAL_MS := 1000
@@ -277,8 +277,10 @@ func _start_download(block: Vector2i) -> void:
 			pending_blocks.append(block)
 		return
 	var bounds := Grid.block_bounds(base_place.origin, block)
-	var bbox := "%.7f,%.7f,%.7f,%.7f" % bounds
-	var query := '[out:json][timeout:60];(way["highway"](%s);way["building"](%s);way["amenity"="parking"](%s););out body geom;' % [bbox, bbox, bbox]
+	var query := PlaceStore.block_query(bounds)
+	if query.is_empty():
+		_fail_block(block, "OSM-Abfrage für Kartenblock %s konnte nicht erstellt werden." % Grid.key(block))
+		return
 	var endpoint: String = ProjectSettings.get_setting("opencrime/osm/overpass_url")
 	GameLog.info("osm", "request started block=%s bounds=%s" % [Grid.key(block), str(bounds)])
 	var request := HTTPRequest.new()
@@ -324,7 +326,7 @@ func _on_download_completed(result: int, code: int, headers: PackedStringArray, 
 		return
 	failed_blocks.erase(block)
 	retry_attempts.erase(block)
-	GameLog.info("osm", "block downloaded block=%s ways=%d bytes=%d" % [Grid.key(block), place.ways.size(), body.size()])
+	GameLog.info("osm", "block downloaded block=%s ways=%d point_features=%d bytes=%d" % [Grid.key(block), place.ways.size(), place.nodes.size(), body.size()])
 	if desired_blocks.has(block):
 		if block == base_block:
 			_replace_block(block, place)

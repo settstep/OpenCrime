@@ -36,3 +36,4 @@
 | 26.11.2026 | 19:48 | 45      | keep mission markers visible in unexplored areas            |
 | 26.11.2026 | 19:56 | 45      | show cached map blocks on world map                         |
 | 26.11.2026 | 20:50 | 45      | start directly from cached map blocks                       |
+| 26.11.2026 | 23:17 | 45      | cache traffic and emergency OSM features                    |

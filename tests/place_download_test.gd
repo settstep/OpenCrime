@@ -72,9 +72,6 @@ func _test() -> void:
 	if not await _respond(test_server, 500, "{}") or not await _wait_request(selection) or not selection.info.text.contains("fehlgeschlagen"):
 		_fail("HTTP error was not shown.")
 		return
-	if not last_request.contains('way["amenity"="parking"]'.uri_encode()):
-		_fail("The Overpass query did not request parking ways.")
-		return
 	var chosen := []
 	selection.place_chosen.connect(func(place: Dictionary): chosen.append(place))
 	selection._on_start_pressed()
@@ -90,13 +87,14 @@ func _test() -> void:
 		latitude + latitude_delta,
 		longitude + longitude_delta,
 	]
-	var bbox := "%.7f,%.7f,%.7f,%.7f" % expected_bounds
-	var expected_query := '[out:json][timeout:60];(way["highway"](%s);way["building"](%s);way["amenity"="parking"](%s););out body geom;' % [bbox, bbox, bbox]
-	if not last_request.contains(expected_query.uri_encode()):
+	var expected_query := PlaceStore.block_query(expected_bounds)
+	if not last_request.contains(expected_query.uri_encode()) or not expected_query.contains('node["emergency"~"^(fire_hydrant|defibrillator)$"]') or not expected_query.contains('node["traffic_sign"]'):
 		_fail("The Overpass query did not request the selected 1km UTM block.")
 		return
 	var response := {"elements": [
 		{"type": "way", "id": 123, "tags": {"highway": "residential"}, "geometry": [{"lat": latitude - 0.0005, "lon": longitude}, {"lat": latitude + 0.0005, "lon": longitude}]},
+		{"type": "node", "id": 125, "tags": {"highway": "traffic_signals"}, "lat": latitude + 0.0001, "lon": longitude + 0.0001},
+		{"type": "node", "id": 126, "tags": {"emergency": "fire_hydrant"}, "lat": latitude + 0.0002, "lon": longitude + 0.0002},
 		{"type": "way", "id": 124, "tags": {"amenity": "parking"}, "geometry": [
 			{"lat": latitude + 0.0005, "lon": longitude + 0.0005},
 			{"lat": latitude + 0.0006, "lon": longitude + 0.0005},
@@ -112,14 +110,14 @@ func _test() -> void:
 	saved_block_path = PlaceStore.block_cache_path(block_id)
 	var loaded := PlaceStore.find_by_id(id)
 	var cached_block := PlaceStore.read_block_cache(block, selected_origin)
-	if loaded.is_empty() or loaded.ways.size() != 2 or loaded.ways[1].tags.get("amenity") != "parking":
-		_fail("Downloaded place was not persisted.")
+	if loaded.is_empty() or loaded.ways.size() != 2 or loaded.ways[1].tags.get("amenity") != "parking" or loaded.nodes.size() != 2:
+		_fail("Downloaded place did not retain roads, parking, and point features.")
 		return
 	if Grid.block_at_origin(loaded.origin) != block:
 		_fail("The saved safe start point did not belong to the downloaded UTM block.")
 		return
-	if cached_block.get("id", "") != block_id or cached_block.ways.size() != 2:
-		_fail("The complete UTM block was not cached before the game started.")
+	if cached_block.get("id", "") != block_id or cached_block.ways.size() != 2 or cached_block.nodes.size() != 2 or cached_block.get("block_data_version", 0) != PlaceStore.BLOCK_DATA_VERSION:
+		_fail("The complete, versioned UTM block was not cached before the game started.")
 		return
 	for index in 4:
 		if not is_equal_approx(float(loaded.bounds[index]), float(expected_place_bounds[index])) or not is_equal_approx(float(cached_block.bounds[index]), float(expected_bounds[index])):
@@ -129,6 +127,12 @@ func _test() -> void:
 	if remove_error != OK:
 		_fail("Could not remove the saved place before testing the block-cache hit.")
 		return
+	var outdated_block := cached_block.duplicate(true)
+	outdated_block.erase("block_data_version")
+	outdated_block.erase("nodes")
+	if PlaceStore.write_block_cache(block_id, outdated_block) != OK:
+		_fail("Could not prepare an outdated cache block for the manual-refresh test.")
+		return
 	selection.queue_free()
 	await process_frame
 	var cached_selection := Selection.instantiate()
@@ -137,7 +141,7 @@ func _test() -> void:
 	var cached_chosen := []
 	cached_selection.place_chosen.connect(func(place: Dictionary): cached_chosen.append(place))
 	cached_selection._on_map_selected(latitude, longitude)
-	if not cached_selection.info.text.contains("Gecachter") or cached_selection.name_field.editable:
+	if not cached_selection.info.text.contains("fehlen noch") or cached_selection.name_field.editable or not cached_selection.refresh_button.visible:
 		_fail("A cached block did not select the direct, unnamed start mode.")
 		return
 	cached_selection._on_start_pressed()
@@ -157,8 +161,19 @@ func _test() -> void:
 	if spawn_distance > 100.0:
 		_fail("The cached-block start was not near the clicked coordinates.")
 		return
+	cached_selection._on_refresh_pressed()
+	if not await _respond(test_server, 200, JSON.stringify(response)) or not await _wait_request(cached_selection):
+		_fail("A manual refresh did not download the selected cached block.")
+		return
+	var refreshed_block := PlaceStore.read_block_cache(block, selected_origin)
+	if refreshed_block.get("block_data_version", 0) != PlaceStore.BLOCK_DATA_VERSION or refreshed_block.get("nodes", []).size() != 2:
+		_fail("The manual refresh did not replace the old cache with traffic and emergency objects.")
+		return
+	if not cached_selection.info.text.contains("aktualisiert") or FileAccess.file_exists(cached_place_path):
+		_fail("Manual refresh did not report success or created a saved place.")
+		return
 	_cleanup(cached_selection)
-	print("Full UTM block download, safe spawn, and direct offline cache start passed")
+	print("OSM traffic/emergency download, cache-version refresh, and direct cached start passed")
 	quit(0)
 
 

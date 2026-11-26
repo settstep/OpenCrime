@@ -221,6 +221,14 @@ bzw. im Projektordner während der Entwicklung. Die Dateinamen enthalten UTM-Zon
 und Rasterindizes. UTM-Zonen sind derzeit nicht über ihre Zonengrenzen hinweg
 zu einem gemeinsamen Raster verbunden; dort können geografisch benachbarte
 Blöcke unterschiedliche Block-IDs haben.
+Kartenblöcke enthalten Straßen, Gebäude, Parkplätze sowie erfasste
+Verkehrssteuerung und Notfallobjekte (z. B. Ampeln, Verkehrszeichen,
+Hydranten und Defibrillatoren). Vorhandene Cache-Dateien aus älteren
+Versionen enthalten diese zusätzlichen Objekte noch nicht. Sie können einen
+Kartenblock vor dem Start in der Ortsauswahl über **Kartenblock aktualisieren**
+erneut von Overpass laden; bis der Download erfolgreich ist, bleiben die
+bisherigen Cache-Daten erhalten. Das Aktualisieren betrifft jeweils einen
+1-km-Block.
 Der Ordner `OpenCrimeData` enthält außerdem Spielstände, gespeicherte Orte,
 Kartenkachel-Cache, Erste-Hilfe-Einstellungen und Logs. Ist der Spieleordner
 nicht beschreibbar, wird mit einer Meldung auf den Godot-Benutzerordner
@@ -274,7 +282,7 @@ wird weiterhin benötigt, um das Spiel auszuführen und Szenen zu bearbeiten.
 
 Die aktuelle Spielversion steht als `config/version` im Abschnitt
 `[application]` der `project.godot` und wird im Hauptmenü angezeigt.
-Die aktuelle Version ist **0.20.0**. Bei einer neuen Version wird dieser Wert manuell
+Die aktuelle Version ist **0.21.0**. Bei einer neuen Version wird dieser Wert manuell
 angepasst; er folgt dem Schema `MAJOR.MINOR.PATCH`, zum Beispiel `0.2.0` für
 eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
 allein prüft noch nicht die Multiplayer-Kompatibilität.

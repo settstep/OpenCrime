@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.21.0
+- OSM-Kartenblöcke enthalten zusätzlich Verkehrssteuerung, Verkehrszeichen, Hydranten und Defibrillatoren.
+- Veraltete gecachte Blöcke können in der Ortsauswahl manuell aktualisiert werden; bisherige Cache-Daten bleiben bis zum erfolgreichen Download nutzbar.
+
 ## 0.20.0
 - Ein Klick in einen gecachten 1-km-UTM-Block startet nahe der angeklickten Position, ohne dafür einen neuen gespeicherten Ort anzulegen.
 

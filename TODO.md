@@ -21,6 +21,7 @@ Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenf
 - Begehbare Gebäude und Innenräume umsetzen; der Editiermodus soll die dafür nötigen Gebäudeformen und Öffnungen unterstützen.
 - Gespeicherte Ortsliste in der Ortsauswahl durch rasterbasierte Auswahl ersetzen; mitgelieferte Offline-Orte und Serverstart-Kompatibilität dabei bewahren.
 - Für den ausgewählten Kartenblock verfügbare Inhalte anzeigen (Aufträge, Erste-Hilfe-/Essensorte, Apotheken, Geschäfte und kaufbare Immobilien) und passende Symbole auf der Karte darstellen.
+- Verkehrssteuerung und Notfallobjekte aus den OSM-Cacheblöcken in der Spielwelt darstellen.
 - Windows-x64-Builds als GitHub Release anbieten (Godot-Export mit EXE und PCK, Versionshinweisen und kurzer Testanleitung).
 - Spezielle Mehrspieleraufträge mit einer Mindestanzahl an Spielern.
 - Auftragsangebote abhängig von Zeit oder Ereignissen verfallen lassen.

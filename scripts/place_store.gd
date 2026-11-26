@@ -2,6 +2,7 @@ extends RefCounted
 
 const DataPaths = preload("res://scripts/data_paths.gd")
 const Grid = preload("res://scripts/map_block_grid.gd")
+const BLOCK_DATA_VERSION := 2
 const BUILTIN_PLACES := [
 	{"id": "thalhofen", "name": "Thalhofen – Waldmünchener Straße", "path": "res://data/thalhofen.json", "origin": [47.7748417, 10.6034933]},
 	{"id": "gendarmenmarkt", "name": "Berlin – Gendarmenmarkt", "path": "res://data/gendarmenmarkt.json", "origin": [52.5130, 13.3912]},
@@ -28,7 +29,9 @@ static func is_valid(place: Dictionary) -> bool:
 		return false
 	if not place.id is String or place.id.is_empty() or not place.name is String or place.name.is_empty():
 		return false
-	if not place.origin is Array or place.origin.size() != 2 or not place.bounds is Array or place.bounds.size() != 4 or not place.ways is Array:
+	if not place.origin is Array or place.origin.size() != 2 or not place.bounds is Array or place.bounds.size() != 4 or not place.ways is Array or not place.get("nodes", []) is Array:
+		return false
+	if place.has("block_data_version") and typeof(place.block_data_version) != TYPE_INT:
 		return false
 	for value in place.origin + place.bounds:
 		if (typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT) or not is_finite(float(value)):
@@ -54,7 +57,28 @@ static func is_valid(place: Dictionary) -> bool:
 					return false
 			if absf(float(point[0])) > 90.0 or absf(float(point[1])) > 180.0:
 				return false
+	for node in place.get("nodes", []):
+		if not node is Dictionary or not node.has_all(["id", "tags", "location"]) or not node.tags is Dictionary or not node.location is Array or node.location.size() != 2:
+			return false
+		if (typeof(node.id) != TYPE_INT and typeof(node.id) != TYPE_FLOAT) or float(node.id) <= 0.0 or not is_finite(float(node.id)):
+			return false
+		for value in node.location:
+			if (typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT) or not is_finite(float(value)):
+				return false
+		if absf(float(node.location[0])) > 90.0 or absf(float(node.location[1])) > 180.0:
+			return false
 	return true
+
+
+static func block_needs_refresh(block_data: Dictionary) -> bool:
+	return block_data.get("block_data_version", 0) != BLOCK_DATA_VERSION
+
+
+static func block_query(bounds: Array) -> String:
+	if bounds.size() != 4:
+		return ""
+	var bbox := "%.7f,%.7f,%.7f,%.7f" % bounds
+	return '[out:json][timeout:60];(way["highway"](%s);way["building"](%s);way["amenity"="parking"](%s);node["highway"~"^(traffic_signals|stop|give_way|crossing)$"](%s);node["traffic_sign"](%s);way["traffic_sign"](%s);node["emergency"~"^(fire_hydrant|defibrillator)$"](%s);way["emergency"~"^(fire_hydrant|defibrillator)$"](%s););out body geom;' % [bbox, bbox, bbox, bbox, bbox, bbox, bbox, bbox]
 
 
 static func available_places() -> Array[Dictionary]:
@@ -105,14 +129,31 @@ static func from_overpass(response: Dictionary, latitude: float, longitude: floa
 	if response.has("osm3s") and not response.osm3s is Dictionary:
 		return {}
 	var ways: Array = []
+	var nodes: Array = []
+	var seen_elements := {}
 	var closest := Vector2.ZERO
 	var closest_distance := INF
 	var longitude_scale := 111320.0 * cos(deg_to_rad(latitude))
 	for element in response.elements:
-		if not element is Dictionary or element.get("type") != "way" or not element.has_all(["id", "tags", "geometry"]):
+		if not element is Dictionary or not element.has_all(["id", "tags"]) or not element.tags is Dictionary:
+			return {}
+		var element_key := str(element.get("type", "")) + ":" + str(element.id)
+		if seen_elements.has(element_key):
+			continue
+		seen_elements[element_key] = true
+		if element.get("type") == "node":
+			if not element.has_all(["lat", "lon"]):
+				return {}
+			if (typeof(element.lat) != TYPE_INT and typeof(element.lat) != TYPE_FLOAT) or (typeof(element.lon) != TYPE_INT and typeof(element.lon) != TYPE_FLOAT):
+				return {}
+			if not is_finite(float(element.lat)) or not is_finite(float(element.lon)) or absf(float(element.lat)) > 90.0 or absf(float(element.lon)) > 180.0:
+				return {}
+			nodes.append({"id": element.id, "tags": element.tags, "location": [element.lat, element.lon]})
+			continue
+		if element.get("type") != "way" or not element.has("geometry"):
 			return {}
 		var geometry: Array = []
-		if not element.geometry is Array or not element.tags is Dictionary:
+		if not element.geometry is Array:
 			return {}
 		for point in element.geometry:
 			if not point is Dictionary or not point.has_all(["lat", "lon"]):
@@ -162,6 +203,7 @@ static func from_overpass(response: Dictionary, latitude: float, longitude: floa
 		"origin": [latitude - closest.y / 111320.0, longitude + closest.x / longitude_scale],
 		"bounds": bounds,
 		"ways": ways,
+		"nodes": nodes,
 		"source": ProjectSettings.get_setting("opencrime/osm/overpass_url"),
 		"osm_timestamp": response.get("osm3s", {}).get("timestamp_osm_base", ""),
 	}
@@ -174,8 +216,25 @@ static func from_overpass_block(response: Dictionary, origin: Array, bounds: Arr
 	if response.has("osm3s") and not response.osm3s is Dictionary:
 		return {}
 	var ways: Array = []
+	var nodes: Array = []
+	var seen_elements := {}
 	for element in response.elements:
-		if not element is Dictionary or element.get("type") != "way" or not element.has_all(["id", "tags", "geometry"]) or not element.tags is Dictionary or not element.geometry is Array:
+		if not element is Dictionary or not element.has_all(["id", "tags"]) or not element.tags is Dictionary:
+			return {}
+		var element_key := str(element.get("type", "")) + ":" + str(element.id)
+		if seen_elements.has(element_key):
+			continue
+		seen_elements[element_key] = true
+		if element.get("type") == "node":
+			if not element.has_all(["lat", "lon"]):
+				return {}
+			if (typeof(element.lat) != TYPE_INT and typeof(element.lat) != TYPE_FLOAT) or (typeof(element.lon) != TYPE_INT and typeof(element.lon) != TYPE_FLOAT):
+				return {}
+			if not is_finite(float(element.lat)) or not is_finite(float(element.lon)) or absf(float(element.lat)) > 90.0 or absf(float(element.lon)) > 180.0:
+				return {}
+			nodes.append({"id": element.id, "tags": element.tags, "location": [element.lat, element.lon]})
+			continue
+		if element.get("type") != "way" or not element.has("geometry") or not element.geometry is Array:
 			return {}
 		var geometry: Array = []
 		for point in element.geometry:
@@ -196,6 +255,8 @@ static func from_overpass_block(response: Dictionary, origin: Array, bounds: Arr
 		"origin": origin,
 		"bounds": bounds,
 		"ways": ways,
+		"nodes": nodes,
+		"block_data_version": BLOCK_DATA_VERSION,
 		"source": ProjectSettings.get_setting("opencrime/osm/overpass_url"),
 		"osm_timestamp": response.get("osm3s", {}).get("timestamp_osm_base", ""),
 	}
@@ -214,6 +275,14 @@ static func from_cached_block(block_data: Dictionary, latitude: float, longitude
 		if way.has("nodes"):
 			element["nodes"] = way.nodes
 		elements.append(element)
+	for node in block_data.get("nodes", []):
+		elements.append({
+			"type": "node",
+			"id": node.id,
+			"tags": node.tags,
+			"lat": node.location[0],
+			"lon": node.location[1],
+		})
 	var response := {
 		"elements": elements,
 		"osm3s": {"timestamp_osm_base": block_data.get("osm_timestamp", "")},
