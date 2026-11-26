@@ -3,10 +3,13 @@ extends CharacterBody3D
 const SPEED := 6.0
 const MAX_HEALTH := 100
 const RESPAWN_HEALTH := 25
+const MAX_MEDKITS := 5
+const MEDKIT_HEALING := 50
 
 var uses_local_input := true
 var movement_input := Vector2.ZERO
 var health := MAX_HEALTH
+var medkits := 0
 var spawn_position := Vector3.ZERO
 
 

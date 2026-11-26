@@ -57,6 +57,13 @@ static func is_valid(data: Dictionary) -> bool:
 		return false
 	if data.has("health") and (not _number(data.health) or float(data.health) != floorf(float(data.health)) or data.health < 0 or data.health > PlayerScript.MAX_HEALTH or (data.health == 0 and data.in_car)):
 		return false
+	if data.has("inventory"):
+		var inventory: Variant = data.inventory
+		if not inventory is Dictionary or not inventory.has_all(["medkits", "pickup_available", "pickup_position"]) or not _number(inventory.medkits) or float(inventory.medkits) != floorf(float(inventory.medkits)) or inventory.medkits < 0 or inventory.medkits > PlayerScript.MAX_MEDKITS or not inventory.pickup_available is bool or not inventory.pickup_position is Array or inventory.pickup_position.size() != 2:
+			return false
+		for coordinate in inventory.pickup_position:
+			if not _number(coordinate) or absf(float(coordinate)) > 1000000.0:
+				return false
 	if data.has("vehicles") != data.has("active_vehicle"):
 		return false
 	if data.has("vehicles"):

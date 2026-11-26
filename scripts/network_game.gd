@@ -44,6 +44,7 @@ func _ready() -> void:
 		for vehicle in cars:
 			vehicle.uses_local_input = false
 		_setup_first_aid()
+		_setup_medkit()
 		multiplayer.peer_connected.connect(_on_peer_connected)
 		multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 		if dedicated:
@@ -83,6 +84,7 @@ func _process(delta: float) -> void:
 	if players.has(local_id):
 		_show_health(players[local_id].health)
 		_update_first_aid_prompt(players[local_id], driven != null)
+		_update_inventory_prompt(players[local_id], driven != null)
 	if map_open:
 		_update_car_map()
 
@@ -97,6 +99,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("first_aid") and not event.is_echo():
 		_request_first_aid()
+		return
+	if event.is_action_pressed("use_medkit") and not event.is_echo():
+		_request_medkit_use()
 		return
 	if event.is_action_pressed("show_map") and not event.is_echo():
 		_open_map()
@@ -120,6 +125,8 @@ func _physics_process(delta: float) -> void:
 				if _try_respawn(body):
 					_notify(peer_id, "Am Startpunkt mit 25 % Lebensenergie wiederbelebt.")
 				continue
+			if _try_pickup_medkit(body, _driven_car(peer_id) == null):
+				_notify(peer_id, "Erste-Hilfe-Paket aufgenommen.")
 			var direction := Vector2.ZERO
 			if Time.get_ticks_msec() - int(input_times.get(peer_id, 0)) <= INPUT_TIMEOUT_MS:
 				direction = inputs.get(peer_id, Vector2.ZERO)
@@ -152,6 +159,24 @@ func _request_first_aid() -> void:
 		_apply_first_aid(1)
 	else:
 		_request_first_aid_rpc.rpc_id(1)
+
+
+func _request_medkit_use() -> void:
+	if multiplayer.is_server():
+		_apply_medkit_use(1)
+	else:
+		_request_medkit_use_rpc.rpc_id(1)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_medkit_use_rpc() -> void:
+	if multiplayer.is_server():
+		_apply_medkit_use(multiplayer.get_remote_sender_id())
+
+
+func _apply_medkit_use(peer_id: int) -> void:
+	if players.has(peer_id):
+		_notify(peer_id, _use_medkit(players[peer_id], _driven_car(peer_id) != null))
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -198,7 +223,7 @@ func _on_peer_connected(peer_id: int) -> void:
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 		return
 	_verify_map_scale.rpc_id(peer_id, float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING)))
-	_receive_place.rpc_id(peer_id, compressed, first_aid)
+	_receive_place.rpc_id(peer_id, compressed, first_aid, medkit_state)
 	_add_server_player(peer_id)
 	if car_spawn_incomplete:
 		_notify(peer_id, CAR_SPAWN_WARNING)
@@ -344,7 +369,7 @@ func _verify_map_scale(server_scale: float) -> void:
 
 
 @rpc("authority", "call_remote", "reliable")
-func _receive_place(compressed: PackedByteArray, aid_state: Dictionary) -> void:
+func _receive_place(compressed: PackedByteArray, aid_state: Dictionary, kit_state: Dictionary) -> void:
 	if not connected:
 		return
 	if compressed.is_empty() or compressed.size() > MAX_COMPRESSED_BYTES:
@@ -358,12 +383,16 @@ func _receive_place(compressed: PackedByteArray, aid_state: Dictionary) -> void:
 	if not FirstAid.valid_state(aid_state):
 		_reject_place("Server hat ungültige Erste-Hilfe-Daten gesendet.")
 		return
+	if not _valid_medkit_state(kit_state):
+		_reject_place("Server hat ungültige Erste-Hilfe-Paket-Daten gesendet.")
+		return
 	if not OSMMap.populate(self, json.data):
 		_reject_place("Server-Ort konnte nicht aufgebaut werden.")
 		return
 	place_data = json.data
 	_configure_map(place_data)
 	_set_first_aid(aid_state)
+	_set_medkit_state(kit_state)
 	map_ready = true
 	$Ground.show()
 	car.show()
@@ -437,24 +466,34 @@ func _send_snapshot() -> void:
 	var states := {}
 	for peer_id in players:
 		var body: PlayerScript = players[peer_id]
-		states[peer_id] = [body.global_position, body.visible, body.health]
+		states[peer_id] = [body.global_position, body.visible, body.health, body.medkits]
 	var vehicle_states := []
 	for vehicle in cars:
 		vehicle_states.append([vehicle.global_position, vehicle.global_rotation.y, vehicle.driver_id, _horizontal_speed(vehicle)])
-	_receive_snapshot.rpc(states, vehicle_states)
+	_receive_snapshot.rpc(states, vehicle_states, bool(medkit_state.get("available", false)))
 
 
 @rpc("authority", "call_remote", "unreliable_ordered", 1)
-func _receive_snapshot(states: Dictionary, vehicle_states: Array) -> void:
+func _receive_snapshot(states: Dictionary, vehicle_states: Array, pickup_available: bool) -> void:
 	if not map_ready:
 		return
 	if vehicle_states.is_empty() or vehicle_states.size() > SaveStore.MAX_VEHICLES:
 		push_error("Ungültige Fahrzeugliste vom Server.")
 		return
+	for peer_id in states:
+		var state: Variant = states[peer_id]
+		if not state is Array or state.size() != 4 or not state[0] is Vector3 or not state[0].is_finite() or not state[1] is bool or not state[2] is int or state[2] < 0 or state[2] > PlayerScript.MAX_HEALTH or not state[3] is int or state[3] < 0 or state[3] > PlayerScript.MAX_MEDKITS:
+			push_error("Ungültiger Spielerzustand vom Server.")
+			return
 	for state in vehicle_states:
 		if not state is Array or state.size() != 4 or not state[0] is Vector3 or not state[0].is_finite() or not (state[1] is float or state[1] is int) or not is_finite(float(state[1])) or not state[2] is int or not (state[3] is float or state[3] is int) or not is_finite(float(state[3])) or state[3] < 0:
 			push_error("Ungültiger Fahrzeugzustand vom Server.")
 			return
+	if not pickup_available:
+		medkit_state.available = false
+	elif not medkit_state.get("available", false):
+		push_error("Der Server hat ein bereits aufgenommenes Erste-Hilfe-Paket wieder aktiviert.")
+		return
 	for peer_id in players.keys():
 		if not states.has(peer_id):
 			players[peer_id].queue_free()
@@ -471,6 +510,8 @@ func _receive_snapshot(states: Dictionary, vehicle_states: Array) -> void:
 		body.global_position = states[peer_id][0]
 		body.visible = states[peer_id][1]
 		body.health = states[peer_id][2]
+		body.medkits = states[peer_id][3]
+	_set_medkit_state(medkit_state)
 	while cars.size() < vehicle_states.size():
 		var vehicle := _create_car(Vector3.ZERO)
 		vehicle.uses_local_input = false

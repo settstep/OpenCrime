@@ -205,6 +205,7 @@ func _test() -> void:
 	selection.list.select(index)
 	var old_save: Dictionary = SaveStore.read_slot(first_id).data
 	old_save.erase("health")
+	old_save.erase("inventory")
 	if SaveStore.write_slot(old_save) != OK:
 		_fail("The old save could not be written for the migration test.")
 		return
@@ -216,6 +217,9 @@ func _test() -> void:
 		return
 	if world.player.health != 100:
 		_fail("Old saves did not start with full health.")
+		return
+	if world.player.medkits != 0 or not world.medkit_state.available:
+		_fail("Old saves did not receive an empty inventory and a fresh pickup.")
 		return
 	if not world._damage_player(world.player, 40.0) or not world.save_game():
 		_fail("Saving a player waiting to respawn failed.")

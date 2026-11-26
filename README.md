@@ -44,6 +44,14 @@ Ungültige Einstellungen oder ein fehlender geeigneter Ort werden angezeigt
 und deaktivieren nur die Teststation. Geld und Gesundheit werden wie bisher
 im Einzelspieler-Spielstand gespeichert; im Multiplayer nur für die Sitzung.
 
+Ein gelbes Paket mit weißem Kreuz kann zu Fuß in der Nähe automatisch
+aufgenommen werden. Das Inventar fasst höchstens fünf Pakete; mit **H** wird
+eines benutzt und heilt bis zu 50 Lebenspunkte, höchstens bis zur vollen
+Lebensenergie. Während man fährt, bei voller Lebensenergie oder während einer
+Wiederbelebung wird kein Paket verbraucht. Im Einzelspieler werden Inventar und
+Zustand des Welt-Pakets gespeichert; im Multiplayer prüft und verwaltet der
+Server Aufheben, Benutzung und Synchronisierung.
+
 Mit **Escape** öffnet sich das Menü; mit Escape oder **Spiel fortsetzen**
 kehrt man zurück. Im Einzelspieler pausiert das Spiel, im Multiplayer läuft
 der Server weiter und nur die eigene Steuerung wird gesperrt. **Zum Hauptmenü**
@@ -298,6 +306,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/multicar_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/health_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/first_aid_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/medkit_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/pause_menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_map_test.gd

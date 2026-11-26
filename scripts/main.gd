@@ -10,6 +10,7 @@ const Missions = preload("res://scripts/missions.gd")
 const FirstAid = preload("res://scripts/first_aid.gd")
 const MissionUI = preload("res://scenes/mission_ui.tscn")
 const ENTER_DISTANCE := 3.5
+const MEDKIT_PICKUP_RADIUS := 2.5
 const INITIAL_CAR_COUNT := 3
 const CAR_SPAWN_WARNING := "Nicht genügend geeignete Plätze für alle Testfahrzeuge gefunden."
 const AUTOSAVE_INTERVAL := 30.0
@@ -26,6 +27,8 @@ const CAMERA_ZOOM_RESPONSE := 3.0
 @onready var health_label: Label = $HUD/Health/Label
 @onready var health_bar: ProgressBar = $HUD/Health/Bar
 @onready var first_aid_prompt: Label = $HUD/FirstAidPrompt
+@onready var inventory_label: Label = $HUD/Health/Inventory
+@onready var inventory_prompt: Label = $HUD/InventoryPrompt
 
 var in_car := false
 var cars: Array[CarScript] = []
@@ -48,6 +51,8 @@ var missions_open := false
 var mission_ready := false
 var first_aid := {}
 var first_aid_marker: Node3D
+var medkit_state := {}
+var medkit_marker: Node3D
 
 
 func _ready() -> void:
@@ -92,6 +97,30 @@ func _ready() -> void:
 		first_aid_marker.add_child(part)
 	first_aid_marker.hide()
 	add_child(first_aid_marker)
+	medkit_marker = Node3D.new()
+	medkit_marker.name = "MedkitPickup"
+	var medkit_material := StandardMaterial3D.new()
+	medkit_material.albedo_color = Color(0.9, 0.55, 0.1)
+	medkit_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var case := MeshInstance3D.new()
+	var case_mesh := BoxMesh.new()
+	case_mesh.size = Vector3(0.9, 0.55, 0.65)
+	case_mesh.material = medkit_material
+	case.mesh = case_mesh
+	medkit_marker.add_child(case)
+	var cross_material := StandardMaterial3D.new()
+	cross_material.albedo_color = Color.WHITE
+	cross_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	for size in [Vector3(0.15, 0.08, 0.48), Vector3(0.48, 0.08, 0.15)]:
+		var part := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		mesh.size = size
+		mesh.material = cross_material
+		part.mesh = mesh
+		part.position.y = 0.32
+		medkit_marker.add_child(part)
+	medkit_marker.hide()
+	add_child(medkit_marker)
 	var map := get_node_or_null("OSMMap")
 	if map != null and map.has_meta("place"):
 		_configure_map(map.get_meta("place"))
@@ -110,11 +139,13 @@ func _ready() -> void:
 				mission_ready = false
 				mission_ui.show_error(mission_manager.error)
 		_setup_first_aid()
+		_setup_medkit(restore_data.get("inventory", {}))
 
 
 func _process(delta: float) -> void:
 	_show_health(player.health)
 	_update_first_aid_prompt(player, in_car)
+	_update_inventory_prompt(player, in_car)
 	var target: CharacterBody3D = active_car if in_car else player
 	_update_camera(target, _horizontal_speed(active_car) if in_car else 0.0, delta)
 	game_map.update_position(target.global_position)
@@ -156,6 +187,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("first_aid") and not event.is_echo():
 		_request_first_aid()
 		return
+	if event.is_action_pressed("use_medkit") and not event.is_echo():
+		_request_medkit_use()
+		return
 	if event.is_action_pressed("show_map") and not event.is_echo():
 		_open_map()
 		return
@@ -186,6 +220,96 @@ func _setup_first_aid() -> void:
 		_set_first_aid({"error": message})
 		return
 	_set_first_aid(FirstAid.setup(mission_manager.candidates, Vector2.ZERO))
+
+
+func _setup_medkit(restored: Dictionary = {}) -> void:
+	if not mission_ready or mission_manager.candidates.is_empty():
+		var message := "Erste-Hilfe-Paket ist nicht verfügbar: Es wurde kein geeigneter Ort gefunden."
+		push_warning(message)
+		_set_medkit_state({"error": message})
+		return
+	var point := Vector2.ZERO
+	if restored.has("pickup_position"):
+		point = Vector2(float(restored.pickup_position[0]), float(restored.pickup_position[1]))
+	else:
+		var best_distance := -1.0
+		for candidate in mission_manager.candidates:
+			var candidate_point: Vector2 = candidate.point
+			var distance := candidate_point.length_squared()
+			if not first_aid.has("error") and not first_aid.is_empty():
+				distance = candidate_point.distance_squared_to(first_aid.point)
+			if distance > best_distance:
+				best_distance = distance
+				point = candidate_point
+	medkit_state = {
+		"point": point,
+		"available": bool(restored.get("pickup_available", true)),
+		"healing": PlayerScript.MEDKIT_HEALING,
+	}
+	player.medkits = int(restored.get("medkits", 0))
+	_set_medkit_state(medkit_state)
+
+
+func _set_medkit_state(state: Dictionary) -> void:
+	medkit_state = state
+	if state.has("error"):
+		medkit_marker.hide()
+		game_map.set_medkit(Vector2.ZERO, false)
+		inventory_prompt.text = state.error
+		return
+	var point: Vector2 = state.point
+	medkit_marker.position = Vector3(point.x, 0.65, point.y)
+	medkit_marker.visible = bool(state.available)
+	game_map.set_medkit(point, bool(state.available))
+
+
+func _valid_medkit_state(state: Dictionary) -> bool:
+	if state.has("error"):
+		return state.error is String and not state.error.is_empty()
+	return state.has_all(["point", "available", "healing"]) and state.point is Vector2 and state.point.is_finite() and state.available is bool and state.healing is int and state.healing > 0 and state.healing <= PlayerScript.MAX_HEALTH
+
+
+func _update_inventory_prompt(body: PlayerScript, in_vehicle: bool) -> void:
+	inventory_label.text = "Erste-Hilfe-Pakete: %d / %d" % [body.medkits, PlayerScript.MAX_MEDKITS]
+	if medkit_state.has("error"):
+		inventory_prompt.text = medkit_state.error
+	elif not in_vehicle and body.health > 0 and medkit_state.get("available", false) and body.medkits < PlayerScript.MAX_MEDKITS and Vector2(body.global_position.x, body.global_position.z).distance_to(medkit_state.point) <= MEDKIT_PICKUP_RADIUS:
+		inventory_prompt.text = "Erste-Hilfe-Paket in Reichweite – automatisch aufnehmen"
+	elif not in_vehicle and body.health > 0 and body.medkits > 0 and body.health < PlayerScript.MAX_HEALTH:
+		inventory_prompt.text = "H: Erste-Hilfe-Paket benutzen (+%d Lebenspunkte)" % PlayerScript.MEDKIT_HEALING
+	else:
+		inventory_prompt.text = ""
+
+
+func _try_pickup_medkit(body: PlayerScript, on_foot: bool) -> bool:
+	if not on_foot or body.health <= 0 or medkit_state.is_empty() or medkit_state.has("error") or not medkit_state.available or body.medkits >= PlayerScript.MAX_MEDKITS:
+		return false
+	var position := Vector2(body.global_position.x, body.global_position.z)
+	if position.distance_to(medkit_state.point) > MEDKIT_PICKUP_RADIUS:
+		return false
+	body.medkits += 1
+	medkit_state.available = false
+	_set_medkit_state(medkit_state)
+	return true
+
+
+func _request_medkit_use() -> void:
+	status.text = _use_medkit(player, in_car)
+
+
+func _use_medkit(body: PlayerScript, in_vehicle: bool) -> String:
+	if body.health <= 0:
+		return "Ein Erste-Hilfe-Paket kann während der Wiederbelebung nicht benutzt werden."
+	if in_vehicle:
+		return "Bitte zum Benutzen des Pakets aus dem Fahrzeug aussteigen."
+	if body.medkits <= 0:
+		return "Du hast kein Erste-Hilfe-Paket."
+	if body.health >= PlayerScript.MAX_HEALTH:
+		return "Deine Lebensenergie ist bereits voll."
+	var healed := mini(PlayerScript.MEDKIT_HEALING, PlayerScript.MAX_HEALTH - body.health)
+	body.medkits -= 1
+	body.health += healed
+	return "Erste-Hilfe-Paket benutzt: +%d Lebenspunkte." % healed
 
 
 func _set_first_aid(state: Dictionary) -> void:
@@ -520,6 +644,7 @@ func save_game() -> bool:
 	var explored: Array = []
 	for cell: Vector2i in game_map.explored:
 		explored.append([cell.x, cell.y])
+	var pickup_position: Vector2 = medkit_state.get("point", Vector2.ZERO)
 	var data := {
 		"format": SaveStore.FORMAT_VERSION,
 		"id": save_id,
@@ -532,6 +657,11 @@ func save_game() -> bool:
 		"car_rotation": car.global_rotation.y,
 		"in_car": in_car,
 		"health": player.health,
+		"inventory": {
+			"medkits": player.medkits,
+			"pickup_available": bool(medkit_state.get("available", false)),
+			"pickup_position": [pickup_position.x, pickup_position.y],
+		},
 		"explored": explored,
 	}
 	var vehicles: Array[Dictionary] = []
@@ -569,6 +699,8 @@ func _save_error(message: String) -> void:
 func _restore_game(data: Dictionary) -> void:
 	save_created_at = data.created_at
 	player.health = int(data.get("health", PlayerScript.MAX_HEALTH))
+	var inventory: Dictionary = data.get("inventory", {})
+	player.medkits = int(inventory.get("medkits", 0))
 	var position: Array = data.player_position
 	player.global_position = Vector3(float(position[0]), float(position[1]), float(position[2]))
 	position = data.car_position
@@ -601,6 +733,8 @@ func _physics_process(_delta: float) -> void:
 		if _try_respawn(player):
 			status.text = "Am Startpunkt mit 25 % Lebensenergie wiederbelebt."
 		return
+	if _try_pickup_medkit(player, not in_car):
+		status.text = "Erste-Hilfe-Paket aufgenommen."
 	if mission_ready:
 		mission_manager.visit(1, player.global_position, not in_car)
 	if not interact_requested:

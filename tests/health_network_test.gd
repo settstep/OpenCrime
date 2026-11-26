@@ -2,6 +2,7 @@ extends SceneTree
 
 const MenuScene = preload("res://scenes/menu.tscn")
 const NetworkGame = preload("res://scripts/network_game.gd")
+const PlayerScript = preload("res://scripts/player.gd")
 
 
 func _initialize() -> void:
@@ -47,6 +48,17 @@ func _test() -> void:
 		for peer_id in world.players:
 			if peer_id != 1:
 				guest = peer_id
+		var guest_body: PlayerScript = world.players[guest]
+		guest_body.global_position = Vector3(500, 0.9, 500)
+		world._set_medkit_state({"point": Vector2(500, 500), "available": true, "healing": PlayerScript.MEDKIT_HEALING})
+		if not world._try_pickup_medkit(guest_body, true):
+			_fail("The server did not pick up a nearby medkit.")
+			return
+		guest_body.health = 60
+		world._send_snapshot()
+		if not await _wait_for(func(): return guest_body.medkits == 0 and guest_body.health == 100):
+			_fail("The server did not apply the client's medkit request.")
+			return
 		_add_box(world, Vector3(500, -0.5, 0), Vector3(50, 1, 50))
 		_add_box(world, Vector3(490, 1.5, -6), Vector3(1, 3, 6))
 		world.car.position = Vector3(484, 0.5, -6)
@@ -77,6 +89,13 @@ func _test() -> void:
 		print("Server-authoritative damage and respawn passed")
 	else:
 		var own_id := root.multiplayer.get_unique_id()
+		if not await _wait_for(func(): return world.players.has(own_id) and world.players[own_id].medkits == 1 and world.players[own_id].health == 60 and not world.game_map.has_medkit):
+			_fail("The client did not receive the pickup and inventory state.")
+			return
+		world._request_medkit_use()
+		if not await _wait_for(func(): return world.players[own_id].health == 100 and world.players[own_id].medkits == 0):
+			_fail("The server did not process the client's medkit use.")
+			return
 		if not await _wait_for(func(): return world.car.driver_id == own_id):
 			_fail("Client did not see car entry.")
 			return

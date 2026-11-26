@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.13.0
+- Inventar für bis zu fünf Erste-Hilfe-Pakete; ein Paket kann in der Welt aufgenommen und mit H benutzt werden.
+- Pakete heilen bis zu 50 Lebenspunkte, werden im Einzelspieler gespeichert und im Multiplayer serverautoritativ synchronisiert.
+
 ## 0.12.0
 - Mehrere Testfahrzeuge können unabhängig benutzt und im Multiplayer gleichzeitig gefahren werden.
 - Die Spielkarte markiert Fahrzeuge; Einzelspieler-Spielstände speichern alle Fahrzeugpositionen und das belegte Auto.
