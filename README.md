@@ -148,14 +148,18 @@ Bei **Einzelspieler** und **Spiel hosten** erscheint eine Ortsauswahl. Ziehen
 und zoomen Sie die OpenStreetMap-Karte und klicken Sie auf einen Ort, oder
 wählen Sie einen gespeicherten Ausschnitt aus der Liste. Für einen neuen Ort
 geben Sie einen Namen ein und wählen **Ort laden und starten**. Dafür werden
-Straßen, Gebäude und Parkplatzflächen in einem Gebiet von etwa 330 × 330 Metern
-über die Overpass API geladen. Ein geeigneter Startpunkt muss nahe einer Straße liegen; wird
-keiner gefunden, wählen Sie bitte einen anderen Punkt.
+der vollständige 1 × 1 km große UTM-Block mit Straßen, Gebäuden und
+Parkplatzflächen über die Overpass API geladen, bevor das Spiel startet.
+Existiert der Block bereits im lokalen Cache, kann er auch ohne erneuten
+Download verwendet werden. Der sichere Startpunkt wird nahe dem angeklickten
+Punkt auf einer Straße bestimmt. Die übrigen acht Blöcke des anfänglichen
+3 × 3-Bereichs werden nach Spielstart gestreamt.
 
 Mitgeliefert werden Ausschnitte rund um die Waldmünchener Straße in Thalhofen
-bei Marktoberdorf und den Gendarmenmarkt in Berlin. Gespeicherte Orte werden
-ohne erneuten Download der OSM-Rohdaten gestartet; auch ein Klick innerhalb
-eines gespeicherten Ausschnitts wählt diesen aus. Neue Orte liegen unter
+bei Marktoberdorf und den Gendarmenmarkt in Berlin. Gespeicherte Orte starten
+mit ihren vorhandenen Daten; ihr vollständiger 1-km-Block wird bei Bedarf nach
+Spielstart geladen. Auch ein Klick innerhalb eines gespeicherten Ausschnitts
+wählt diesen aus. Neue Orte liegen unter
 `OpenCrimeData/places`. Die Kartenansicht lädt sichtbare Kartenkacheln über das
 Internet und speichert sie zwischengespeichert unter
 `OpenCrimeData/tile_cache`. Die Liste gespeicherter Orte funktioniert auch offline.
@@ -204,10 +208,11 @@ einen Nachbarblock werden nur neu
 benötigte Blöcke ergänzt und nicht mehr benötigte Geometrie und Kollisionen
 entfernt. Fehlende Blöcke werden über die konfigurierte Overpass-API geladen
 und unter `OpenCrimeData/map_blocks` zwischengespeichert. Bereits gecachte Blöcke
-lassen sich offline verwenden. Für einen neuen Ort dient der geladene
-Kartenausschnitt zunächst als Startbereich, während der vollständige
-1.000-Meter-Block im Hintergrund geladen wird. Im Multiplayer lädt ausschließlich
-der Server fehlende Blöcke von Overpass und überträgt sie an die Clients.
+lassen sich offline verwenden. Bei einem neuen Ort wird der vollständige
+UTM-Block vor Spielstart geladen oder aus dem Cache verwendet. Bereits
+gespeicherte ältere Orte bleiben erhalten; ihr zentraler 1-km-Block wird bei
+Bedarf im Hintergrund geladen. Im Multiplayer lädt ausschließlich der Server
+fehlende Blöcke von Overpass und überträgt sie an die Clients.
 Bereits aktive Blöcke werden beim Beitritt ebenfalls übertragen. Clients
 speichern empfangene Blöcke im lokalen Cache und benötigen daher keinen eigenen
 Zugriff auf die Overpass-Quelle. Unter Windows befindet sich der Cache
@@ -266,7 +271,7 @@ wird weiterhin benötigt, um das Spiel auszuführen und Szenen zu bearbeiten.
 
 Die aktuelle Spielversion steht als `config/version` im Abschnitt
 `[application]` der `project.godot` und wird im Hauptmenü angezeigt.
-Die aktuelle Version ist **0.16.0**. Bei einer neuen Version wird dieser Wert manuell
+Die aktuelle Version ist **0.17.0**. Bei einer neuen Version wird dieser Wert manuell
 angepasst; er folgt dem Schema `MAJOR.MINOR.PATCH`, zum Beispiel `0.2.0` für
 eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
 allein prüft noch nicht die Multiplayer-Kompatibilität.

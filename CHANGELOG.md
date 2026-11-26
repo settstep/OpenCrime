@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.17.0
+- Neue Orte laden und speichern vor Spielstart den vollständigen 1.000 × 1.000-Meter-UTM-Block.
+- Bereits gecachte UTM-Blöcke können direkt zur Ortsauswahl verwendet werden; die übrigen Nachbarblöcke werden nach Spielstart gestreamt.
+
 ## 0.16.0
 - Kartenblöcke sind jetzt 1.000 × 1.000 Meter groß und verwenden UTM-basierte, ortsunabhängige Block-IDs.
 - OSM-Blöcke, Spielstände, gespeicherte Orte, Kartenkacheln, Einstellungen und Logs liegen im portablen Ordner `OpenCrimeData`.

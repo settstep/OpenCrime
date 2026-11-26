@@ -112,6 +112,23 @@ func _test() -> void:
 	stream.world = world
 	stream.loaded_blocks.clear()
 	stream.base_place.origin = origin
+	var original_cache_directory: String = stream.CACHE_DIRECTORY
+	var test_cache_directory := "user://map_block_test_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
+	stream.CACHE_DIRECTORY = test_cache_directory
+	var cache_data := PlaceStore.from_overpass_block(
+		{"elements": []},
+		Grid.block_origin(origin, block),
+		Grid.block_bounds(origin, block),
+		stream.call("_block_id", block)
+	)
+	if cache_data.is_empty() or not stream.call("_store_block", block, cache_data) or PlaceStore.read_block_cache(block, origin, test_cache_directory).get("id", "") != stream.call("_block_id", block):
+		_fail("The map stream did not persist a validated block in the shared cache.")
+		return
+	var cached_path := stream._cache_path(block)
+	if DirAccess.remove_absolute(ProjectSettings.globalize_path(cached_path)) != OK or DirAccess.remove_absolute(ProjectSettings.globalize_path(test_cache_directory)) != OK:
+		_fail("The map block cache test data could not be removed.")
+		return
+	stream.CACHE_DIRECTORY = original_cache_directory
 	stream.boundary_center = block
 	for active_block in Grid.blocks_around(block):
 		stream.loaded_blocks[active_block] = {"data": {"id": stream.call("_block_id", active_block)}}

@@ -7,10 +7,9 @@ const Grid = preload("res://scripts/map_block_grid.gd")
 const OSMMap = preload("res://scripts/osm_map.gd")
 const PlaceStore = preload("res://scripts/place_store.gd")
 const GameLog = preload("res://scripts/game_log.gd")
-const DataPaths = preload("res://scripts/data_paths.gd")
 
-var CACHE_DIRECTORY := DataPaths.path("map_blocks")
-const USER_AGENT := "OpenCrime/0.16.0 (+https://github.com/settstep/OpenCrime)"
+var CACHE_DIRECTORY := PlaceStore.BLOCK_CACHE_DIRECTORY
+const USER_AGENT := "OpenCrime/0.17.0 (+https://github.com/settstep/OpenCrime)"
 const MAX_RESPONSE_BYTES := 8 * 1024 * 1024
 const MAX_CONCURRENT_DOWNLOADS := 2
 const RETRY_BASE_DELAY_MS := 2000
@@ -138,7 +137,7 @@ func _reconcile(next: Dictionary) -> void:
 
 
 func _cache_path(block: Vector2i) -> String:
-	return CACHE_DIRECTORY.path_join(_block_id(block) + ".json")
+	return PlaceStore.block_cache_path(_block_id(block), CACHE_DIRECTORY)
 
 
 static func retry_delay_ms(attempt: int) -> int:
@@ -251,21 +250,9 @@ func _on_download_completed(result: int, code: int, _headers: PackedStringArray,
 
 
 func _store_block(block: Vector2i, place: Dictionary) -> bool:
-	var directory_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(CACHE_DIRECTORY))
-	if directory_error != OK:
-		_fail_block(block, "Kartenblock-Cache konnte nicht erstellt werden (Fehler %d)." % directory_error)
-		return false
-	var path := _cache_path(block)
-	var file := FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		_fail_block(block, "Kartenblock konnte nicht zwischengespeichert werden (Fehler %d)." % FileAccess.get_open_error())
-		return false
-	file.store_string(JSON.stringify(place))
-	file.flush()
-	var write_error := file.get_error()
-	file.close()
-	if write_error != OK:
-		_fail_block(block, "Kartenblock-Cache konnte nicht geschrieben werden (Fehler %d)." % write_error)
+	var error := PlaceStore.write_block_cache(_block_id(block), place, CACHE_DIRECTORY)
+	if error != OK:
+		_fail_block(block, "Kartenblock konnte nicht zwischengespeichert werden (Fehler %d)." % error)
 		return false
 	return true
 

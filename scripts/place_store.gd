@@ -1,12 +1,14 @@
 extends RefCounted
 
 const DataPaths = preload("res://scripts/data_paths.gd")
+const Grid = preload("res://scripts/map_block_grid.gd")
 const BUILTIN_PLACES := [
 	{"id": "thalhofen", "name": "Thalhofen – Waldmünchener Straße", "path": "res://data/thalhofen.json", "origin": [47.7748417, 10.6034933]},
 	{"id": "gendarmenmarkt", "name": "Berlin – Gendarmenmarkt", "path": "res://data/gendarmenmarkt.json", "origin": [52.5130, 13.3912]},
 ]
 
 static var DIRECTORY := DataPaths.path("places")
+static var BLOCK_CACHE_DIRECTORY := DataPaths.path("map_blocks")
 
 
 static func read_file(path: String) -> Dictionary:
@@ -198,6 +200,86 @@ static func from_overpass_block(response: Dictionary, origin: Array, bounds: Arr
 		"osm_timestamp": response.get("osm3s", {}).get("timestamp_osm_base", ""),
 	}
 	return place if is_valid(place) else {}
+
+
+static func from_cached_block(block_data: Dictionary, latitude: float, longitude: float, bounds: Array, place_name: String) -> Dictionary:
+	if not is_valid(block_data):
+		return {}
+	var elements: Array = []
+	for way in block_data.ways:
+		var geometry: Array = []
+		for point in way.geometry:
+			geometry.append({"lat": point[0], "lon": point[1]})
+		var element := {"type": "way", "id": way.id, "tags": way.tags, "geometry": geometry}
+		if way.has("nodes"):
+			element["nodes"] = way.nodes
+		elements.append(element)
+	var response := {
+		"elements": elements,
+		"osm3s": {"timestamp_osm_base": block_data.get("osm_timestamp", "")},
+	}
+	return from_overpass(response, latitude, longitude, bounds, place_name)
+
+
+static func block_cache_path(block_id: String, directory: String = "") -> String:
+	var cache_directory := BLOCK_CACHE_DIRECTORY if directory.is_empty() else directory
+	return cache_directory.path_join(block_id + ".json")
+
+
+static func read_block_cache(block: Vector2i, reference_origin: Array, directory: String = "") -> Dictionary:
+	if reference_origin.size() != 2:
+		return {}
+	var block_id := "block_" + Grid.tile_id(block, reference_origin)
+	var path := block_cache_path(block_id, directory)
+	if not FileAccess.file_exists(path):
+		return {}
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		push_error("Kartenblock-Cache konnte nicht gelesen werden: " + path)
+		return {}
+	var json := JSON.new()
+	var parse_error := json.parse(file.get_as_text())
+	file.close()
+	if parse_error != OK or not json.data is Dictionary or not is_valid(json.data) or json.data.id != block_id:
+		push_warning("Ungültiger Kartenblock-Cache wird erneut geladen: " + path)
+		return {}
+	var expected_origin := Grid.block_origin(reference_origin, block)
+	var expected_bounds := Grid.block_bounds(reference_origin, block)
+	if expected_origin.size() != 2 or expected_bounds.size() != 4:
+		push_warning("Kartenblock-Cache kann nicht dem UTM-Raster zugeordnet werden: " + path)
+		return {}
+	for index in 2:
+		if not is_equal_approx(float(json.data.origin[index]), float(expected_origin[index])):
+			push_warning("Kartenblock-Cache hat einen abweichenden Ursprung: " + path)
+			return {}
+	for index in 4:
+		if not is_equal_approx(float(json.data.bounds[index]), float(expected_bounds[index])):
+			push_warning("Kartenblock-Cache hat abweichende Grenzen: " + path)
+			return {}
+	return json.data
+
+
+static func write_block_cache(block_id: String, place: Dictionary, directory: String = "") -> Error:
+	if not block_id.begins_with("block_utm") or block_id.contains("/") or block_id.contains("\\") or place.get("id", "") != block_id or not is_valid(place):
+		return ERR_INVALID_DATA
+	var path := block_cache_path(block_id, directory)
+	var cache_directory := path.get_base_dir()
+	var error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(cache_directory))
+	if error != OK:
+		push_error("Kartenblock-Cache konnte nicht erstellt werden (Fehler %d)." % error)
+		return error
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		error = FileAccess.get_open_error()
+		push_error("Kartenblock-Cache konnte nicht geöffnet werden (Fehler %d): %s" % [error, path])
+		return error
+	file.store_string(JSON.stringify(place))
+	file.flush()
+	error = file.get_error()
+	file.close()
+	if error != OK:
+		push_error("Kartenblock-Cache konnte nicht geschrieben werden (Fehler %d): %s" % [error, path])
+	return error
 
 
 static func save_place(place: Dictionary) -> Error:
