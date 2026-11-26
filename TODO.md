@@ -3,6 +3,9 @@
 Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenfolge.
 
 - Sounds und Musik.
+- Tastenbelegung im Hauptmenü unter „Optionen“ einstellbar machen.
+- Grafikeinstellungen unter „Optionen“ anbieten, mindestens Vollbild- und Fenstermodus.
+- Lokalisierung und Auswahl weiterer Sprachen unterstützen.
 - Detailliertere Spielerfiguren und Animationen.
 - NPCs und deren Verhalten.
 - Bessere Fahrzeugmodelle.

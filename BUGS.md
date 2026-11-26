@@ -10,3 +10,4 @@ beobachteten Effekt; die Ursache ist noch nicht in jedem Fall geklärt.
 | BUG-003 | Kritisch | Behoben (0.15.1) | Spielstände mit numerisch als Dezimalwert geparster Formatversion wurden fälschlich als ungültig erkannt. |
 | BUG-004 | Niedrig | Behoben (0.16.0) | Der Kartenblock-Cache war schwer auffindbar und seine Dateinamen waren nicht geografisch lesbar. Er liegt nun unter `OpenCrimeData/map_blocks`; Dateinamen enthalten die UTM-Zone und Rasterindizes. |
 | BUG-005 | Mittel | Offen | Objekte auf der Spielkarte, konkret Erste-Hilfe-Kästen, werden erst angezeigt, wenn ihr Bereich bereits aufgedeckt wurde. |
+| BUG-006 | Mittel | Offen | Der Text oben rechts wird von einem anderen Element überlagert und ist dadurch schwer lesbar; betroffen sind unter anderem „Geld 0 $“ und das abschließende „: J“. |
