@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.18.3
+- Aktive Auftragsmarker bleiben auch in noch nicht aufgedeckten Kartenbereichen sichtbar.
+
 ## 0.18.2
 - Objektmarker auf der Spielkarte werden erst angezeigt, wenn das zugehörige Kartenfeld aufgedeckt wurde; der Spieler-Marker bleibt sichtbar.
 

@@ -66,11 +66,14 @@ func _test() -> void:
 	var cell_size: float = map.CELL_SIZE * map.map_scale
 	var marker_cell := Vector2i(floori(marker_position.x / cell_size), floori(marker_position.y / cell_size))
 	var marker_rect := Rect2(Vector2(-100000, -100000), Vector2(200000, 200000))
-	if map._is_position_explored(marker_position) or map._marker_is_visible(marker_position, map._map_factor(), marker_rect):
+	if map._is_position_explored(marker_position) or map._object_marker_is_visible(marker_position, map._map_factor(), marker_rect):
 		_fail("An object marker was visible before its map cell was explored.")
 		return
+	if not map._position_is_in_view(marker_position, map._map_factor(), marker_rect):
+		_fail("An unexplored mission target was hidden despite being within the map view.")
+		return
 	map.explored[marker_cell] = true
-	if not map._is_position_explored(marker_position) or not map._marker_is_visible(marker_position, map._map_factor(), marker_rect):
+	if not map._is_position_explored(marker_position) or not map._object_marker_is_visible(marker_position, map._map_factor(), marker_rect):
 		_fail("An object marker did not become visible after its map cell was explored.")
 		return
 	map.explored.erase(marker_cell)

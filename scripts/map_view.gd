@@ -6,7 +6,7 @@ signal map_error(message: String)
 const TILE_SIZE := 256.0
 const DataPaths = preload("res://scripts/data_paths.gd")
 const FALLBACK_CACHE_SECONDS := 604800
-const USER_AGENT := "OpenCrime/0.18.2 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.18.3 (+https://github.com/settstep/OpenCrime)"
 
 var CACHE_DIRECTORY := DataPaths.path("tile_cache")
 var center := Vector2(47.7748417, 10.6034933)
