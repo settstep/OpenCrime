@@ -45,3 +45,4 @@
 | 27.11.2026 | 12:45 | 55      | add building merge editor                                   |
 | 27.11.2026 | 13:03 | 58      | allow editing building levels                               |
 | 27.11.2026 | 13:58 | 59      | prevent player sticking to building walls                   |
+| 27.11.2026 | 17:58 | 61      | build separate blocks for building floors                   |

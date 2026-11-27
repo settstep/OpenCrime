@@ -336,13 +336,20 @@ static func _building_height(tags: Dictionary) -> float:
 			return height
 		push_warning("Ungültige OSM-Gebäudehöhe: " + str(tags.height))
 	if tags.has("building:levels"):
-		var levels := str(tags["building:levels"]).strip_edges()
-		if levels.is_valid_int() and int(levels) > 0 and int(levels) <= 1000:
-			return float(levels.to_int()) * LEVEL_HEIGHT
+		var levels := _building_levels(tags)
+		if levels > 0:
+			return float(levels) * LEVEL_HEIGHT
 		push_warning("Ungültige OSM-Etagenzahl: " + str(tags["building:levels"]))
 	if tags.get("building", "") in ["garage", "garages"]:
 		return 3.0
 	return BUILDING_HEIGHT
+
+
+static func _building_levels(tags: Dictionary) -> int:
+	var levels := str(tags.get("building:levels", "")).strip_edges()
+	if levels.is_valid_int() and int(levels) > 0 and int(levels) <= 1000:
+		return levels.to_int()
+	return 0
 
 
 static func _add_area(map: Node3D, way: Dictionary, material: Material, map_scale: float, origin: Array, prefix: String, height: float) -> void:
@@ -396,8 +403,17 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
 	surface.set_material(material)
 	var height := _building_height(way.tags) * map_scale
+	var floor_count := _building_levels(way.tags)
+	if way.tags.has("height") and _measurement(way.tags.height, 10000.0) > 0.0:
+		floor_count = 0
+	var segment_count := maxi(1, floor_count)
+	var segment_height := height / float(segment_count)
 	for index in triangles:
-		surface.add_vertex(Vector3(points[index].x * map_scale, height, points[index].y * map_scale))
+		surface.add_vertex(Vector3(points[index].x * map_scale, segment_height, points[index].y * map_scale))
+	if floor_count > 0:
+		for index in range(triangles.size() - 1, -1, -1):
+			var point := points[triangles[index]]
+			surface.add_vertex(Vector3(point.x * map_scale, 0, point.y * map_scale))
 	# Wall collision faces must point consistently outward for either OSM winding.
 	var clockwise := Geometry2D.is_polygon_clockwise(points)
 	for index in points.size():
@@ -409,8 +425,8 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 			b = temporary
 		var a_bottom := Vector3(a.x * map_scale, 0, a.y * map_scale)
 		var b_bottom := Vector3(b.x * map_scale, 0, b.y * map_scale)
-		var a_top := a_bottom + Vector3.UP * height
-		var b_top := b_bottom + Vector3.UP * height
+		var a_top := a_bottom + Vector3.UP * segment_height
+		var b_top := b_bottom + Vector3.UP * segment_height
 		for vertex in [a_bottom, a_top, b_top, a_bottom, b_top, b_bottom]:
 			surface.add_vertex(vertex)
 	surface.generate_normals()
@@ -423,10 +439,19 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 	body.set_meta("measurement_height", height)
 	body.set_meta("measurement_osm_id", way.id)
 	body.set_meta("measurement_way", way.duplicate(true))
-	var visual := MeshInstance3D.new()
-	visual.mesh = mesh
-	body.add_child(visual)
-	var collider := CollisionShape3D.new()
-	collider.shape = mesh.create_trimesh_shape()
-	body.add_child(collider)
+	var shape := mesh.create_trimesh_shape()
+	for index in segment_count:
+		var visual := MeshInstance3D.new()
+		visual.name = "Segment_%d" % (index + 1)
+		visual.mesh = mesh
+		visual.position.y = float(index) * segment_height
+		var collider := CollisionShape3D.new()
+		collider.name = "SegmentCollision_%d" % (index + 1)
+		collider.shape = shape
+		collider.position.y = visual.position.y
+		if floor_count > 0:
+			visual.set_meta("floor_number", index + 1)
+			collider.set_meta("floor_number", index + 1)
+		body.add_child(visual)
+		body.add_child(collider)
 	map.add_child(body)

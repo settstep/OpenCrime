@@ -5,7 +5,7 @@ signal cancelled
 
 const PlaceStore = preload("res://scripts/place_store.gd")
 const Grid = preload("res://scripts/map_block_grid.gd")
-const USER_AGENT := "OpenCrime/0.25.1 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.26.0 (+https://github.com/settstep/OpenCrime)"
 const PLACE_EXTENT_METERS := 165.0
 const MAX_RESPONSE_BYTES := 8 * 1024 * 1024
 

@@ -203,7 +203,13 @@ Ist genau ein Gebäude ausgewählt, kann seine **Etagenzahl** als ganze Zahl von
 1 bis 1000 eingegeben und gespeichert werden. Das gilt auch für bereits
 zusammengefasste Gebäude. Die Spielhöhe wird mit 3 Metern pro Etage berechnet
 und wie die übrige Karte skaliert; eine vorhandene OSM-Höhenangabe wird dafür
-lokal übersteuert, aber nicht in den OSM-Daten verändert.
+lokal übersteuert, aber nicht in den OSM-Daten verändert. Jede Etage wird als
+eigener Geometrie- und Kollisionsblock aufgebaut; bei vier Etagen sind das
+vier übereinanderliegende Blöcke von jeweils 3 Metern vor Skalierung.
+Die Etagen haben denselben Grundriss und sind aktuell noch nicht einzeln
+bearbeitbar. Auch eine gültige OSM-Etagenzahl ohne vorrangige Höhenangabe
+wird so aufgebaut. Hat ein unbearbeitetes OSM-Gebäude eine gültige
+Höhenangabe, behält diese Vorrang und das Gebäude bleibt vorerst ein Block.
 Zum Zusammenfassen werden mindestens zwei Gebäude ausgewählt.
 **Gebäude zusammenfassen** vereinigt die zusammenhängenden Grundrisse zu
 einem Gebäude. Lücken werden nicht aufgefüllt; getrennte Grundrisse und

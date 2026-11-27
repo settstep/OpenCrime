@@ -60,6 +60,7 @@ func _test() -> void:
 			{"id": 14, "tags": {"highway": "service"}, "geometry": [[0.0001, 0.0], [0.0002, -0.0001]]},
 			{"id": 15, "tags": {"highway": "footway"}, "geometry": [[0.0001, -0.0001], [0.0001, 0.0001]]},
 			{"id": 16, "tags": {"highway": "service"}, "geometry": [[0.0, 0.001], [0.0000001, 0.001], [0.0000001, 0.001], [0.0001, 0.001]]},
+			{"id": 17, "tags": {"building": "yes", "building:levels": "2.5"}, "geometry": _square(0.0009)},
 		],
 	}
 	for factor in [1.0, 2.0]:
@@ -104,15 +105,21 @@ func _test() -> void:
 		if path_joints.multimesh.instance_count < path_transforms.size() or not _joint_covers(path_transforms, path_joints.multimesh.mesh, path_end, factor):
 			_fail("The path end is not rounded across its full width.")
 			return
-		for expected in [[5, 12.0], [6, 6.0], [7, 3.0], [13, 9.0]]:
+		for expected in [[5, 12.0, 1], [6, 6.0, 2], [7, 3.0, 1], [13, 9.0, 3], [17, 10.0, 1]]:
 			var building: StaticBody3D = map.get_node("Building_%d" % expected[0])
-			var mesh: MeshInstance3D = building.get_child(0)
-			var collision: CollisionShape3D = building.get_child(1)
-			var faces: PackedVector3Array = collision.shape.get_faces()
+			if building.get_child_count() != expected[2] * 2:
+				_fail("Incorrect number of building segments for way %s." % expected[0])
+				return
 			var max_y := 0.0
-			for point in faces:
-				max_y = maxf(max_y, point.y)
-			if not is_equal_approx(mesh.mesh.get_aabb().size.y, expected[1] * factor) or not is_equal_approx(max_y, expected[1] * factor):
+			for index in expected[2]:
+				var mesh: MeshInstance3D = building.get_child(index * 2)
+				var collision: CollisionShape3D = building.get_child(index * 2 + 1)
+				if not is_equal_approx(mesh.mesh.get_aabb().size.y, expected[1] * factor / expected[2]):
+					_fail("Building segment height is incorrect for way %s." % expected[0])
+					return
+				for point in collision.shape.get_faces():
+					max_y = maxf(max_y, point.y + collision.position.y)
+			if not is_equal_approx(max_y, expected[1] * factor):
 				_fail("Building height or collision is incorrect for way %s." % expected[0])
 				return
 		var parking: MeshInstance3D = map.get_node_or_null("Parking_8")
@@ -134,6 +141,16 @@ func _test() -> void:
 			_fail("Parking surface faces away from the light.")
 			return
 		world.free()
+	var large_map := Node3D.new()
+	var tall_way: Dictionary = place.ways[5].duplicate(true)
+	tall_way.tags["building:levels"] = "1000"
+	OSMMap._add_building(large_map, tall_way, StandardMaterial3D.new(), 1.0, place.origin)
+	var tall_building := large_map.get_node("Building_6") as StaticBody3D
+	var top_floor := tall_building.get_node("Segment_1000") as MeshInstance3D
+	if tall_building.get_child_count() != 2000 or not is_equal_approx(top_floor.position.y, 2997.0) or not is_equal_approx(top_floor.mesh.get_aabb().size.y, 3.0):
+		_fail("The maximum supported floor count did not produce 1000 stacked floors.")
+		return
+	large_map.free()
 	if not _test_point_features():
 		return
 	var thalhofen := PlaceStore.find_by_id("thalhofen")

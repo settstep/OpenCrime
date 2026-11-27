@@ -43,10 +43,17 @@ func _test() -> void:
 	var player: CharacterBody3D = PlayerScene.instantiate()
 	player.uses_local_input = false
 	world.add_child(player)
-	for reverse in [false, true]:
+	for scenario in [
+		{"reverse": false, "levels": 0}, {"reverse": true, "levels": 0},
+		{"reverse": false, "levels": 4}, {"reverse": true, "levels": 4},
+	]:
+		var reverse: bool = scenario.reverse
 		var map := Node3D.new()
 		world.add_child(map)
-		OSMMap._add_building(map, _way(reverse), StandardMaterial3D.new(), 1.0, ORIGIN)
+		var way := _way(reverse)
+		if scenario.levels > 0:
+			way.tags["building:levels"] = str(scenario.levels)
+		OSMMap._add_building(map, way, StandardMaterial3D.new(), 1.0, ORIGIN)
 		for side in [
 			{"start": Vector3(-2, 0.9, -5), "inward": Vector2.RIGHT, "tangent": Vector2.DOWN},
 			{"start": Vector3(12, 0.9, -5), "inward": Vector2.LEFT, "tangent": Vector2.UP},

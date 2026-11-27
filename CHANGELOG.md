@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.26.0
+- Gebäude mit festgelegter Etagenzahl werden aus einzelnen, jeweils 3 Meter hohen Etagenblöcken aufgebaut; Geometrie und Kollision sind pro Etage getrennt.
+
 ## 0.25.1
 - Gebäudewände erhalten unabhängig von der OSM-Konturrichtung eine einheitliche Kollisionsausrichtung, damit die Spielfigur an Wänden entlang und wieder weg laufen kann.
 

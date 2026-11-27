@@ -104,7 +104,7 @@ func _test() -> void:
 			return
 		var standalone: StaticBody3D = world.get_node("OSMMap/Building_3")
 		var standalone_message: String = world._commit_building_levels(standalone.get_meta("measurement_way"), 3)
-		if standalone_message != "Etagenzahl wurde gespeichert.":
+		if standalone_message != "Etagenzahl wurde gespeichert." or world.get_node("OSMMap/Building_3").get_child_count() != 6:
 			_fail("Live standalone level edit failed: " + standalone_message)
 			return
 		while not FileAccess.file_exists(directory.path_join("standalone_levels.flag")) and Time.get_ticks_msec() < deadline:
@@ -114,7 +114,7 @@ func _test() -> void:
 			return
 		var building: StaticBody3D = world.get_node("OSMMap/Building_1")
 		var level_message: String = world._commit_building_levels(building.get_meta("measurement_way"), 4)
-		if level_message != "Etagenzahl wurde gespeichert.":
+		if level_message != "Etagenzahl wurde gespeichert." or world.get_node("OSMMap/Building_1").get_child_count() != 8:
 			_fail("Live server level edit failed: " + level_message)
 			return
 		while not FileAccess.file_exists(directory.path_join("levels.flag")) and Time.get_ticks_msec() < deadline:
@@ -158,7 +158,7 @@ func _test() -> void:
 			_fail("Server edits were incorrectly saved as the client's local edits.")
 			return
 		var initial_c: StaticBody3D = world.get_node("OSMMap/Building_3")
-		if absf(float(initial_c.get_meta("measurement_height")) - 7.8) > 0.01 or world._commit_building_levels(initial_c.get_meta("measurement_way"), 3) != "Nur der Server-Host kann Gebäude bearbeiten.":
+		if absf(float(initial_c.get_meta("measurement_height")) - 7.8) > 0.01 or initial_c.get_child_count() != 4 or world._commit_building_levels(initial_c.get_meta("measurement_way"), 3) != "Nur der Server-Host kann Gebäude bearbeiten.":
 			_fail("Initial level edit was not received or the client was allowed to edit.")
 			return
 		var ready := FileAccess.open(directory.path_join("ready.flag"), FileAccess.WRITE)
@@ -183,7 +183,7 @@ func _test() -> void:
 			if int(world.building_edits.level_edits[0].levels) == 3:
 				break
 			await process_frame
-		if int(world.building_edits.level_edits[0].levels) != 3 or absf(float(world.get_node("OSMMap/Building_3").get_meta("measurement_height")) - 11.7) > 0.01:
+		if int(world.building_edits.level_edits[0].levels) != 3 or absf(float(world.get_node("OSMMap/Building_3").get_meta("measurement_height")) - 11.7) > 0.01 or world.get_node("OSMMap/Building_3").get_child_count() != 6:
 			_fail("Live standalone level edit was not applied to the client.")
 			return
 		var standalone_flag := FileAccess.open(directory.path_join("standalone_levels.flag"), FileAccess.WRITE)
@@ -192,7 +192,7 @@ func _test() -> void:
 			if world.building_edits.merges[0].result.tags.get("building:levels") == "4":
 				break
 			await process_frame
-		if world.building_edits.merges[0].result.tags.get("building:levels") != "4" or absf(float(world.get_node("OSMMap/Building_1").get_meta("measurement_height")) - 15.6) > 0.01:
+		if world.building_edits.merges[0].result.tags.get("building:levels") != "4" or absf(float(world.get_node("OSMMap/Building_1").get_meta("measurement_height")) - 15.6) > 0.01 or world.get_node("OSMMap/Building_1").get_child_count() != 8:
 			_fail("Live server level edit was not applied to the client.")
 			return
 		var levels_flag := FileAccess.open(directory.path_join("levels.flag"), FileAccess.WRITE)
@@ -201,7 +201,7 @@ func _test() -> void:
 			if world.building_edits.merges[0].sources.size() == 3:
 				break
 			await process_frame
-		if world.building_edits.merges[0].sources.size() != 3 or world.get_node_or_null("OSMMap/Building_3") != null or not world.building_edits.level_edits.is_empty() or world.building_edits.merges[0].result.tags.get("building:levels") != "4":
+		if world.building_edits.merges[0].sources.size() != 3 or world.get_node_or_null("OSMMap/Building_3") != null or not world.building_edits.level_edits.is_empty() or world.building_edits.merges[0].result.tags.get("building:levels") != "4" or world.get_node("OSMMap/Building_1").get_child_count() != 8:
 			_fail("Live server edit did not rebuild the client map.")
 			return
 		var done := FileAccess.open(directory.path_join("done.flag"), FileAccess.WRITE)

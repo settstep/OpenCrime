@@ -33,6 +33,25 @@ func _can_leave_wall(player: CharacterBody3D) -> bool:
 	return sliding.z > start.z + 0.8 and sliding.x < 0.0 and player.global_position.x < sliding.x - 1.0
 
 
+func _has_floors(building: StaticBody3D, count: int, scale_factor: float) -> bool:
+	if building.get_child_count() != count * 2:
+		return false
+	for index in count:
+		var visual := building.get_node_or_null("Segment_%d" % (index + 1)) as MeshInstance3D
+		var collider := building.get_node_or_null("SegmentCollision_%d" % (index + 1)) as CollisionShape3D
+		var height := 3.0 * scale_factor
+		if visual == null or collider == null or visual.get_meta("floor_number", 0) != index + 1 or collider.get_meta("floor_number", 0) != index + 1:
+			return false
+		if not is_equal_approx(visual.position.y, index * height) or not is_equal_approx(collider.position.y, index * height) or not is_equal_approx(visual.mesh.get_aabb().size.y, height):
+			return false
+		var bounds := AABB(collider.shape.get_faces()[0], Vector3.ZERO)
+		for point in collider.shape.get_faces():
+			bounds = bounds.expand(point)
+		if not is_equal_approx(bounds.size.y, height):
+			return false
+	return true
+
+
 func _test() -> void:
 	var directory := ProjectSettings.globalize_path("user://building_editor_test_" + Crypto.new().generate_random_bytes(8).hex_encode())
 	DataPaths.root_override = directory
@@ -85,7 +104,7 @@ func _test() -> void:
 	await physics_frame
 	await physics_frame
 	var first_building: StaticBody3D = world.get_node("OSMMap/Building_1")
-	if absf(float(first_building.get_meta("measurement_height")) - 7.8) > 0.01:
+	if absf(float(first_building.get_meta("measurement_height")) - 7.8) > 0.01 or not _has_floors(first_building, 2, 1.3):
 		_fail("Level edit did not change the scaled building height.")
 		return
 	root.push_input(key, true)
@@ -143,9 +162,21 @@ func _test() -> void:
 	await physics_frame
 	await physics_frame
 	var merged_building: StaticBody3D = world.get_node("OSMMap/Building_1")
-	if absf(float(merged_building.get_meta("measurement_height")) - 15.6) > 0.01:
+	if absf(float(merged_building.get_meta("measurement_height")) - 15.6) > 0.01 or not _has_floors(merged_building, 4, 1.3):
 		_fail("Merged building did not adopt the edited level count.")
 		return
+	for floor_index in 4:
+		var y := (floor_index + 0.5) * 3.9
+		var query := PhysicsRayQueryParameters3D.create(Vector3(-2, y, -6.5), Vector3(2, y, -6.5), OSMMap.BUILDING_PICK_LAYER)
+		var hit := world.get_world_3d().direct_space_state.intersect_ray(query)
+		if hit.is_empty() or hit.collider != merged_building:
+			_fail("The merged building did not have a collision on floor %d." % (floor_index + 1))
+			return
+		var owner_id := merged_building.shape_find_owner(hit.shape)
+		var shape_node := merged_building.shape_owner_get_owner(owner_id) as CollisionShape3D
+		if shape_node == null or shape_node.get_meta("floor_number", 0) != floor_index + 1:
+			_fail("The collision did not identify floor %d." % (floor_index + 1))
+			return
 	key.keycode = KEY_F4
 	root.push_input(key, true)
 	await process_frame
@@ -190,7 +221,7 @@ func _test() -> void:
 	if reloaded.get_node_or_null("OSMMap/Building_1") == null or reloaded.get_node_or_null("OSMMap/Building_2") != null:
 		_fail("Saved merge was not reapplied when the map was reopened.")
 		return
-	if absf(float(reloaded.get_node("OSMMap/Building_1").get_meta("measurement_height")) - 15.6) > 0.01:
+	if absf(float(reloaded.get_node("OSMMap/Building_1").get_meta("measurement_height")) - 15.6) > 0.01 or not _has_floors(reloaded.get_node("OSMMap/Building_1"), 4, 1.3):
 		_fail("Level override was not restored after reopening the map.")
 		return
 	reloaded.set_process(false)
