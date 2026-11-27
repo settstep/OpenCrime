@@ -3,6 +3,7 @@ extends SceneTree
 const BuildingEdits = preload("res://scripts/building_edits.gd")
 const OSMMap = preload("res://scripts/osm_map.gd")
 const Grid = preload("res://scripts/map_block_grid.gd")
+const DataPaths = preload("res://scripts/data_paths.gd")
 
 
 func _initialize() -> void:
@@ -19,6 +20,18 @@ func _rectangle(id: int, left: float, right: float, origin: Array) -> Dictionary
 
 
 func _test() -> void:
+	var concave := PackedVector2Array([Vector2(0, 0), Vector2(8, 0), Vector2(8, 3), Vector2(3, 3), Vector2(3, 8), Vector2(0, 8)])
+	if OSMMap._building_interior(concave, 0.3).is_empty():
+		_fail("A concave footprint could not be hollowed.")
+		return
+	concave.reverse()
+	if OSMMap._building_interior(concave, 0.3).is_empty():
+		_fail("Reversing a concave footprint changed its hollowing behavior.")
+		return
+	var narrow := PackedVector2Array([Vector2(0, 0), Vector2(10, 0), Vector2(10, 0.5), Vector2(0, 0.5)])
+	if not OSMMap._building_interior(narrow, 0.3).is_empty():
+		_fail("A footprint too narrow for the walls was accepted.")
+		return
 	var origin := [47.7748417, 10.6034933]
 	var a := _rectangle(1, 0, 10, origin)
 	var b := _rectangle(2, 10, 20, origin)
@@ -86,6 +99,18 @@ func _test() -> void:
 	if not single.set_data({"format": 1, "merges": []}):
 		_fail("Older building-edit files without level edits were rejected.")
 		return
+	var osm_levels: Dictionary = a.duplicate(true)
+	osm_levels.tags.erase("height")
+	osm_levels.tags["building:levels"] = "2"
+	var osm_hollow := single.prepare_hollow(osm_levels, 1, 0.3)
+	if osm_hollow.has("error") or not single.set_data(osm_hollow.data):
+		_fail("A building with an existing OSM level count could not be hollowed.")
+		return
+	var osm_place := {"ways": [osm_levels]}
+	if single.apply(osm_place).ways[0].get("_hollow_floors", []).size() != 1 or osm_levels.has("_hollow_floors"):
+		_fail("Hollowing an OSM building did not preserve the original data.")
+		return
+	single.set_data({"format": 1, "merges": []})
 	if not single.prepare_levels(a, 0).has("error") or not single.prepare_levels(a, 1001).has("error"):
 		_fail("Out-of-range level counts were accepted.")
 		return
@@ -126,6 +151,51 @@ func _test() -> void:
 	single.scan_conflicts([changed])
 	if not single.prepare_levels(adjusted_a, 4).has("error") or single.apply(place).ways[0].tags.has("building:levels") or not single.set_blocked([1]):
 		_fail("A conflicted level edit was applied or allowed to be edited.")
+		return
+	single.scan_conflicts([place])
+	if not single.prepare_hollow(adjusted_a, 4, 0.3).has("error") or not single.prepare_hollow(adjusted_a, 1, 0.0).has("error") or not single.prepare_hollow(adjusted_a, 1, 20.0).has("error"):
+		_fail("Invalid floors or wall thicknesses were accepted.")
+		return
+	var hollow := single.prepare_hollow(adjusted_a, 2, 0.3)
+	if hollow.has("error") or not single.save(hollow.data) or not single.load_file():
+		_fail("A hollow floor could not be saved and reloaded: %s" % hollow)
+		return
+	var hollow_way: Dictionary = single.apply(place).ways[0]
+	if hollow_way._hollow_floors.size() != 1 or int(hollow_way._hollow_floors[0].floor) != 2 or not is_equal_approx(float(hollow_way._hollow_floors[0].wall_thickness), 0.3):
+		_fail("The saved hollow floor was not applied.")
+		return
+	if not single.prepare_hollow(hollow_way, 2, 0.3).has("error") or not single.prepare_levels(hollow_way, 1).has("error") or not single.prepare([hollow_way, b]).has("error") or not single.prepare([a, b]).has("error"):
+		_fail("An existing room was overwritten by a duplicate edit, reduced level count or merge.")
+		return
+	var extended_levels := single.prepare_levels(hollow_way, 4)
+	if extended_levels.has("error") or extended_levels.data.level_edits[0].hollow_floors.size() != 1:
+		_fail("Increasing the level count discarded the hollow floor.")
+		return
+	single.scan_conflicts([changed])
+	if single.apply(place).ways[0].has("_hollow_floors"):
+		_fail("A conflicted hollow floor was applied.")
+		return
+	DataPaths.root_override = directory
+	var defaults := BuildingEdits.load_wall_thickness()
+	var config_path := directory.path_join("config/building_editor.json")
+	if defaults.has("error") or not is_equal_approx(defaults.thickness, 0.3) or not FileAccess.file_exists(config_path):
+		_fail("The default wall-thickness settings were not created.")
+		return
+	var config := FileAccess.open(config_path, FileAccess.WRITE)
+	config.store_string("{\"wall_thickness_m\": 0.6}")
+	config.close()
+	var customized := BuildingEdits.load_wall_thickness()
+	if customized.has("error") or not is_equal_approx(customized.thickness, 0.6):
+		_fail("The configured wall thickness was not used.")
+		return
+	config = FileAccess.open(config_path, FileAccess.WRITE)
+	config.store_string("{\"wall_thickness_m\": -1}")
+	config.close()
+	if not BuildingEdits.load_wall_thickness().has("error"):
+		_fail("Invalid wall-thickness settings were accepted.")
+		return
+	if DirAccess.remove_absolute(config_path) != OK or DirAccess.remove_absolute(config_path.get_base_dir()) != OK:
+		_fail("Test settings could not be cleaned up.")
 		return
 	if DirAccess.remove_absolute(edits.path) != OK or DirAccess.remove_absolute(directory) != OK:
 		_fail("Test files could not be cleaned up.")

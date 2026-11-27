@@ -5,6 +5,7 @@ const Grid = preload("res://scripts/map_block_grid.gd")
 const OSMMap = preload("res://scripts/osm_map.gd")
 const FORMAT := 1
 const MAX_BYTES := 3 * 1024 * 1024
+const DEFAULT_CONFIG := "res://data/building_editor.json"
 
 var path := DataPaths.path("map_edits/buildings.json")
 var merges: Array = []
@@ -50,6 +51,8 @@ func set_data(value: Variant) -> bool:
 	for merge in value.merges:
 		if not merge is Dictionary or not merge.get("sources") is Array or merge.sources.size() < 2 or not _valid_way(merge.get("result")):
 			return false
+		if not _valid_floor_edits(merge.get("hollow_floors", []), merge.result, OSMMap._floor_count(merge.result.tags)):
+			return false
 		var contains_result := false
 		for source in merge.sources:
 			if not _valid_way(source) or seen.has(int(source.id)):
@@ -60,6 +63,8 @@ func set_data(value: Variant) -> bool:
 			return false
 	for edit in value.get("level_edits", []):
 		if not edit is Dictionary or not _valid_way(edit.get("source"), false) or not _valid_levels(edit.get("levels")) or seen.has(int(edit.source.id)):
+			return false
+		if not _valid_floor_edits(edit.get("hollow_floors", []), edit.source, int(edit.levels)):
 			return false
 		seen[int(edit.source.id)] = true
 	merges = value.merges.duplicate(true)
@@ -107,6 +112,26 @@ static func _valid_levels(value: Variant) -> bool:
 	return (value is int or value is float) and is_finite(float(value)) and float(value) == floorf(float(value)) and float(value) >= 1.0 and float(value) <= 1000.0
 
 
+static func _valid_floor_edits(edits: Variant, way: Dictionary, levels: int) -> bool:
+	if not edits is Array or edits.size() > levels:
+		return false
+	var seen := {}
+	var checked_thickness := {}
+	var points := OSMMap._building_points(way, way.geometry[0])
+	for edit in edits:
+		if not edit is Dictionary or not _valid_levels(edit.get("floor")) or int(edit.floor) > levels or seen.has(int(edit.floor)):
+			return false
+		var thickness: Variant = edit.get("wall_thickness")
+		if not (thickness is int or thickness is float) or not is_finite(float(thickness)) or float(thickness) <= 0.0 or float(thickness) > 1000.0:
+			return false
+		if not checked_thickness.has(float(thickness)):
+			if OSMMap._building_interior(points, float(thickness)).is_empty():
+				return false
+			checked_thickness[float(thickness)] = true
+		seen[int(edit.floor)] = true
+	return true
+
+
 func apply(place: Dictionary) -> Dictionary:
 	var result := place.duplicate(true)
 	conflicts.clear()
@@ -132,6 +157,7 @@ func apply(place: Dictionary) -> Dictionary:
 				ways.append(way)
 		var merged: Dictionary = merge.result.duplicate(true)
 		merged["_edit_sources"] = merge.sources.duplicate(true)
+		merged["_hollow_floors"] = merge.get("hollow_floors", []).duplicate(true)
 		ways.append(merged)
 		result.ways = ways
 	for edit in level_edits:
@@ -145,6 +171,7 @@ func apply(place: Dictionary) -> Dictionary:
 			var changed: Dictionary = way.duplicate(true)
 			_set_levels(changed, int(edit.levels))
 			changed["_edit_sources"] = [edit.source.duplicate(true)]
+			changed["_hollow_floors"] = edit.get("hollow_floors", []).duplicate(true)
 			result.ways[index] = changed
 	return result
 
@@ -195,6 +222,9 @@ func prepare_levels(way: Dictionary, levels: int) -> Dictionary:
 				continue
 			if int(merge.result.id) != id or not way.has("_edit_sources") or blocked_merges.has(int(merge.result.id)):
 				return {"error": "Dieses Gebäude gehört zu einer bestehenden Zusammenfassung mit OSM-Konflikt."}
+			for floor_edit in merge.get("hollow_floors", []):
+				if int(floor_edit.floor) > levels:
+					return {"error": "Die Etagenzahl kann nicht unter eine bereits bearbeitete Etage reduziert werden."}
 			_set_levels(merge.result, levels)
 			return {"data": next}
 	var original: Dictionary = way.duplicate(true)
@@ -203,13 +233,86 @@ func prepare_levels(way: Dictionary, levels: int) -> Dictionary:
 			return {"error": "Die ursprünglichen OSM-Daten des Gebäudes sind ungültig."}
 		original = way._edit_sources[0].duplicate(true)
 	original.erase("_edit_sources")
+	original.erase("_hollow_floors")
 	var retained := []
+	var hollow_floors := []
 	for edit in next.level_edits:
 		if int(edit.source.id) != id:
 			retained.append(edit)
-	retained.append({"source": original, "levels": levels})
+		else:
+			hollow_floors = edit.get("hollow_floors", []).duplicate(true)
+			for floor_edit in hollow_floors:
+				if int(floor_edit.floor) > levels:
+					return {"error": "Die Etagenzahl kann nicht unter eine bereits bearbeitete Etage reduziert werden."}
+	retained.append({"source": original, "levels": levels, "hollow_floors": hollow_floors})
 	next.level_edits = retained
 	return {"data": next}
+
+
+func prepare_hollow(way: Dictionary, floor_number: int, thickness: float) -> Dictionary:
+	if not _valid_way(way, false):
+		return {"error": "Bitte ein gültiges Gebäude auswählen."}
+	var levels := OSMMap._floor_count(way.tags)
+	if floor_number < 1 or floor_number > levels:
+		return {"error": "Bitte zuerst eine gültige Etagenzahl festlegen und eine Etage auswählen."}
+	if not is_finite(thickness) or thickness <= 0.0 or thickness > 1000.0:
+		return {"error": "Die Wanddicke muss größer als 0 und höchstens 1000 Meter sein."}
+	if OSMMap._building_interior(OSMMap._building_points(way, way.geometry[0]), thickness).is_empty():
+		return {"error": "Dieser Grundriss ergibt mit der Wanddicke keinen zusammenhängenden Innenraum."}
+	var prepared := prepare_levels(way, levels)
+	if prepared.has("error"):
+		return prepared
+	var target: Dictionary = {}
+	for merge in prepared.data.merges:
+		if int(merge.result.id) == int(way.id):
+			target = merge
+			break
+	if target.is_empty():
+		for edit in prepared.data.level_edits:
+			if int(edit.source.id) == int(way.id):
+				target = edit
+				break
+	if target.is_empty():
+		return {"error": "Die Etage konnte nicht zugeordnet werden."}
+	var floors: Array = target.get("hollow_floors", [])
+	for edit in floors:
+		if int(edit.floor) == floor_number:
+			return {"error": "Diese Etage ist bereits ausgehöhlt."}
+	floors.append({"floor": floor_number, "wall_thickness": thickness})
+	target["hollow_floors"] = floors
+	return prepared
+
+
+static func load_wall_thickness() -> Dictionary:
+	var path := DataPaths.path("config/building_editor.json")
+	var source := path if FileAccess.file_exists(path) else DEFAULT_CONFIG
+	var file := FileAccess.open(source, FileAccess.READ)
+	if file == null:
+		return {"error": "Gebäudeeditor-Einstellungen konnten nicht gelesen werden: " + source}
+	if file.get_length() > 4096:
+		return {"error": "Gebäudeeditor-Einstellungen sind zu groß: " + source}
+	var text := file.get_as_text()
+	file.close()
+	var json := JSON.new()
+	if json.parse(text) != OK or not json.data is Dictionary:
+		return {"error": "Gebäudeeditor-Einstellungen sind ungültig: " + source}
+	var thickness: Variant = json.data.get("wall_thickness_m")
+	if not (thickness is int or thickness is float) or not is_finite(float(thickness)) or float(thickness) <= 0.0 or float(thickness) > 1000.0:
+		return {"error": "Wanddicke muss eine Zahl größer als 0 und höchstens 1000 Meter sein: " + source}
+	if source != path:
+		var code := DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+		if code != OK:
+			return {"error": "Konfigurationsordner konnte nicht angelegt werden (Fehler %d)." % code}
+		file = FileAccess.open(path, FileAccess.WRITE)
+		if file == null:
+			return {"error": "Gebäudeeditor-Einstellungen konnten nicht angelegt werden: " + path}
+		file.store_string(text)
+		file.flush()
+		code = file.get_error()
+		file.close()
+		if code != OK:
+			return {"error": "Gebäudeeditor-Einstellungen konnten nicht gespeichert werden (Fehler %d)." % code}
+	return {"thickness": float(thickness)}
 
 
 func prepare(selected: Array) -> Dictionary:
@@ -222,6 +325,8 @@ func prepare(selected: Array) -> Dictionary:
 	for way in selected:
 		if not _valid_way(way):
 			return {"error": "Ein ausgewählter Gebäudegrundriss ist ungültig."}
+		if not way.get("_hollow_floors", []).is_empty():
+			return {"error": "Gebäude mit bearbeiteten Etagen können noch nicht zusammengefasst werden."}
 		var way_sources: Array = way.get("_edit_sources", [way])
 		for source in way_sources:
 			if ids.has(int(source.id)):
@@ -240,6 +345,15 @@ func prepare(selected: Array) -> Dictionary:
 		if polygon.size() < 3 or Geometry2D.triangulate_polygon(polygon).is_empty():
 			return {"error": "Ein Gebäudegrundriss kann nicht verarbeitet werden."}
 		polygons.append(polygon)
+	for edit in level_edits:
+		if ids.has(int(edit.source.id)) and not edit.get("hollow_floors", []).is_empty():
+			return {"error": "Gebäude mit bearbeiteten Etagen können noch nicht zusammengefasst werden."}
+	for old in merges:
+		if old.get("hollow_floors", []).is_empty():
+			continue
+		for source in old.sources:
+			if ids.has(int(source.id)):
+				return {"error": "Gebäude mit bearbeiteten Etagen können noch nicht zusammengefasst werden."}
 	while polygons.size() > 1:
 		var combined := false
 		for first in range(polygons.size()):
@@ -264,6 +378,7 @@ func prepare(selected: Array) -> Dictionary:
 	geometry.append(geometry[0].duplicate())
 	var merged: Dictionary = selected[0].duplicate(true)
 	merged.erase("_edit_sources")
+	merged.erase("_hollow_floors")
 	merged.erase("nodes")
 	merged.geometry = geometry
 	var next := []

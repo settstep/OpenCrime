@@ -46,3 +46,4 @@
 | 27.11.2026 | 13:03 | 58      | allow editing building levels                               |
 | 27.11.2026 | 13:58 | 59      | prevent player sticking to building walls                   |
 | 27.11.2026 | 17:58 | 61      | build separate blocks for building floors                   |
+| 27.11.2026 | 19:23 | 63      | add hollow building floors                                  |

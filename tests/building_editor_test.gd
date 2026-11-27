@@ -34,8 +34,6 @@ func _can_leave_wall(player: CharacterBody3D) -> bool:
 
 
 func _has_floors(building: StaticBody3D, count: int, scale_factor: float) -> bool:
-	if building.get_child_count() != count * 2:
-		return false
 	for index in count:
 		var visual := building.get_node_or_null("Segment_%d" % (index + 1)) as MeshInstance3D
 		var collider := building.get_node_or_null("SegmentCollision_%d" % (index + 1)) as CollisionShape3D
@@ -177,12 +175,89 @@ func _test() -> void:
 		if shape_node == null or shape_node.get_meta("floor_number", 0) != floor_index + 1:
 			_fail("The collision did not identify floor %d." % (floor_index + 1))
 			return
+	root.push_input(first_click, true)
+	await physics_frame
+	await physics_frame
+	if editor.selected.size() != 1 or not editor.floor_number.editable or editor.hollow_button.disabled:
+		_fail("The floor selector was not enabled for the merged building.")
+		return
+	editor.floor_number.value = 2
+	if merged_building.get_node("Segment_3").visible:
+		_fail("Floors above the selected floor were not hidden in the editor.")
+		return
+	editor.hollow_button.pressed.emit()
+	await physics_frame
+	await physics_frame
+	merged_building = world.get_node("OSMMap/Building_1")
+	if editor.selected.size() != 1 or editor.floor_number.value != 2 or not editor.hollow_button.disabled or not merged_building.has_node("FloorPreview_2") or not merged_building.get_node("FloorPreview_2").visible or merged_building.get_node("Segment_2").visible or merged_building.get_node("Segment_3").visible:
+		_fail("Hollowing the floor did not retain selection and show the open preview: " + editor.message.text)
+		return
+	var saved_floor: Array = world.building_edits.merges[0].hollow_floors
+	if saved_floor.size() != 1 or int(saved_floor[0].floor) != 2 or not is_equal_approx(float(saved_floor[0].wall_thickness), 0.3):
+		_fail("The selected floor and default wall thickness were not persisted.")
+		return
+	var inner_query := PhysicsRayQueryParameters3D.create(Vector3(6.5, 5.85, -6.5), Vector3(-2, 5.85, -6.5), OSMMap.BUILDING_PICK_LAYER)
+	var inner_hit := world.get_world_3d().direct_space_state.intersect_ray(inner_query)
+	if inner_hit.is_empty() or absf(inner_hit.position.x - 0.39) > 0.02:
+		_fail("Interior wall collision does not have the requested scaled thickness: %s" % inner_hit)
+		return
+	world.player.global_position = Vector3(3.0, 4.8, -6.5)
+	world.player.velocity = Vector3.ZERO
+	world.player.movement_input = Vector2.LEFT
+	for frame in 40:
+		await physics_frame
+	var inside_wall: Vector3 = world.player.global_position
+	world.player.movement_input = Vector2(-1, 1).normalized()
+	for frame in 20:
+		await physics_frame
+	var inside_slide: Vector3 = world.player.global_position
+	world.player.movement_input = Vector2.RIGHT
+	for frame in 20:
+		await physics_frame
+	world.player.movement_input = Vector2.ZERO
+	if inside_wall.x < 0.75 or inside_wall.x > 1.0 or absf(inside_wall.y - 4.8) > 0.1 or inside_slide.z < inside_wall.z + 0.8 or world.player.global_position.x < inside_slide.x + 1.0:
+		_fail("Player could not collide, slide and move away inside the hollow floor: %s -> %s -> %s" % [inside_wall, inside_slide, world.player.global_position])
+		return
+	world.player.global_position = Vector3(-2, 0.9, -6.5)
+	world.player.velocity = Vector3.ZERO
+	var settings_file := FileAccess.open(directory.path_join("config/building_editor.json"), FileAccess.WRITE)
+	if settings_file == null:
+		_fail("Could not change the wall-thickness settings.")
+		return
+	settings_file.store_string("{\"wall_thickness_m\": 0.6}")
+	settings_file.close()
+	editor.floor_number.value = 4
+	editor.hollow_button.pressed.emit()
+	await physics_frame
+	await physics_frame
+	merged_building = world.get_node("OSMMap/Building_1")
+	if not merged_building.has_node("FloorPreview_4") or editor.selected.size() != 1:
+		_fail("A second floor could not be hollowed independently.")
+		return
+	var both_floors: Array = world.building_edits.merges[0].hollow_floors
+	if both_floors.size() != 2 or not is_equal_approx(float(both_floors[0].wall_thickness), 0.3) or not is_equal_approx(float(both_floors[1].wall_thickness), 0.6):
+		_fail("Changed settings did not apply only to the newly hollowed floor.")
+		return
+	var upper_wall_query := PhysicsRayQueryParameters3D.create(Vector3(6.5, 14.0, -6.5), Vector3(-2, 14.0, -6.5), OSMMap.BUILDING_PICK_LAYER)
+	var upper_wall_hit := world.get_world_3d().direct_space_state.intersect_ray(upper_wall_query)
+	if upper_wall_hit.is_empty() or absf(upper_wall_hit.position.x - 0.78) > 0.02:
+		_fail("The custom wall thickness did not affect the new floor collision: %s" % upper_wall_hit)
+		return
+	var ceiling_query := PhysicsRayQueryParameters3D.create(Vector3(6.5, 14.0, -6.5), Vector3(6.5, 17.0, -6.5), OSMMap.BUILDING_PICK_LAYER)
+	ceiling_query.hit_back_faces = false
+	var ceiling_hit := world.get_world_3d().direct_space_state.intersect_ray(ceiling_query)
+	if ceiling_hit.is_empty() or absf(ceiling_hit.position.y - 15.6) > 0.02:
+		_fail("The hollow top floor is missing its interior ceiling collision: %s" % ceiling_hit)
+		return
 	key.keycode = KEY_F4
 	root.push_input(key, true)
 	await process_frame
 	await process_frame
 	if editor.active or not measurement.active:
 		_fail("Switching from the editor to measurement failed.")
+		return
+	if not merged_building.get_node("Segment_4").visible or merged_building.get_node("FloorPreview_4").visible:
+		_fail("Closing the editor did not restore the normal building view.")
 		return
 	var click := InputEventMouseButton.new()
 	click.button_index = MOUSE_BUTTON_LEFT
@@ -221,7 +296,7 @@ func _test() -> void:
 	if reloaded.get_node_or_null("OSMMap/Building_1") == null or reloaded.get_node_or_null("OSMMap/Building_2") != null:
 		_fail("Saved merge was not reapplied when the map was reopened.")
 		return
-	if absf(float(reloaded.get_node("OSMMap/Building_1").get_meta("measurement_height")) - 15.6) > 0.01 or not _has_floors(reloaded.get_node("OSMMap/Building_1"), 4, 1.3):
+	if absf(float(reloaded.get_node("OSMMap/Building_1").get_meta("measurement_height")) - 15.6) > 0.01 or not _has_floors(reloaded.get_node("OSMMap/Building_1"), 4, 1.3) or not reloaded.get_node("OSMMap/Building_1").has_node("FloorPreview_2") or not reloaded.get_node("OSMMap/Building_1").has_node("FloorPreview_4"):
 		_fail("Level override was not restored after reopening the map.")
 		return
 	reloaded.set_process(false)
@@ -235,8 +310,27 @@ func _test() -> void:
 	if not await _can_leave_wall(reloaded.player):
 		_fail("Player could not slide and move away from the restored merged building.")
 		return
+	reloaded.map_block_stream.desired_blocks[other_block] = true
+	reloaded.map_block_stream._activate_block(other_block, place)
+	var neighbor_map: Node3D = reloaded.map_block_stream.loaded_blocks[other_block].node
+	var neighbor: StaticBody3D = neighbor_map.get_node("Building_1")
+	var reloaded_editor: Control = reloaded.get_node("HUD/BuildingEditor")
+	reloaded_editor.active = true
+	reloaded_editor.selected.append(neighbor)
+	neighbor.tree_exiting.connect(reloaded_editor._clear_selection)
+	reloaded_editor._update_selection()
+	reloaded_editor.floor_number.value = 1
+	reloaded_editor.hollow_button.pressed.emit()
+	await process_frame
+	await process_frame
+	var rebuilt_neighbor: StaticBody3D = reloaded.map_block_stream.loaded_blocks[other_block].node.get_node("Building_1")
+	if reloaded_editor.selected.size() != 1 or reloaded_editor.selected[0] != rebuilt_neighbor or not rebuilt_neighbor.get_node("FloorPreview_1").visible:
+		_fail("A hollowed floor in a streamed block lost its selection or preview.")
+		return
+	reloaded_editor.close_editor()
 	reloaded.free()
-	if DirAccess.remove_absolute(path) != OK or DirAccess.remove_absolute(path.get_base_dir()) != OK or DirAccess.remove_absolute(directory) != OK:
+	var config_path: String = directory.path_join("config/building_editor.json")
+	if DirAccess.remove_absolute(config_path) != OK or DirAccess.remove_absolute(config_path.get_base_dir()) != OK or DirAccess.remove_absolute(path) != OK or DirAccess.remove_absolute(path.get_base_dir()) != OK or DirAccess.remove_absolute(directory) != OK:
 		_fail("Could not clean up editor test files.")
 		return
 	print("Building editor input, saved merge and measurement passed")

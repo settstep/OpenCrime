@@ -352,6 +352,35 @@ static func _building_levels(tags: Dictionary) -> int:
 	return 0
 
 
+static func _floor_count(tags: Dictionary) -> int:
+	if tags.has("height") and _measurement(tags.height, 10000.0) > 0.0:
+		return 0
+	return _building_levels(tags)
+
+
+static func _building_points(way: Dictionary, origin: Array) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	for coordinate in way.geometry:
+		var point := _project(coordinate, origin)
+		if points.is_empty() or point.distance_to(points[points.size() - 1]) > 0.01:
+			points.append(point)
+	if points.size() > 1 and points[0].distance_to(points[points.size() - 1]) < 0.01:
+		points.remove_at(points.size() - 1)
+	return points
+
+
+static func _building_interior(points: PackedVector2Array, thickness: float) -> PackedVector2Array:
+	if points.size() < 3 or not is_finite(thickness) or thickness <= 0.0 or Geometry2D.triangulate_polygon(points).is_empty():
+		return PackedVector2Array()
+	var interiors := Geometry2D.offset_polygon(points, -thickness, Geometry2D.JOIN_MITER)
+	if interiors.size() != 1 or interiors[0].size() < 3 or Geometry2D.triangulate_polygon(interiors[0]).is_empty():
+		return PackedVector2Array()
+	for point in interiors[0]:
+		if not Geometry2D.is_point_in_polygon(point, points):
+			return PackedVector2Array()
+	return interiors[0]
+
+
 static func _add_area(map: Node3D, way: Dictionary, material: Material, map_scale: float, origin: Array, prefix: String, height: float) -> void:
 	if way.tags.get("area", "") == "no" or way.geometry.size() < 4 or way.geometry[0] != way.geometry[-1]:
 		return
@@ -387,50 +416,17 @@ static func _add_area(map: Node3D, way: Dictionary, material: Material, map_scal
 
 
 static func _add_building(map: Node3D, way: Dictionary, material: Material, map_scale: float, origin: Array) -> void:
-	var points := PackedVector2Array()
-	for coordinate in way.geometry:
-		var point := _project(coordinate, origin)
-		if points.is_empty() or point.distance_to(points[points.size() - 1]) > 0.01:
-			points.append(point)
-	if points.size() > 1 and points[0].distance_to(points[points.size() - 1]) < 0.01:
-		points.remove_at(points.size() - 1)
+	var points := _building_points(way, origin)
 	var triangles := Geometry2D.triangulate_polygon(points)
 	if triangles.is_empty():
 		push_warning("OSM-Gebäude %d konnte nicht trianguliert werden." % int(way.id))
 		return
 
-	var surface := SurfaceTool.new()
-	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-	surface.set_material(material)
 	var height := _building_height(way.tags) * map_scale
-	var floor_count := _building_levels(way.tags)
-	if way.tags.has("height") and _measurement(way.tags.height, 10000.0) > 0.0:
-		floor_count = 0
+	var floor_count := _floor_count(way.tags)
 	var segment_count := maxi(1, floor_count)
 	var segment_height := height / float(segment_count)
-	for index in triangles:
-		surface.add_vertex(Vector3(points[index].x * map_scale, segment_height, points[index].y * map_scale))
-	if floor_count > 0:
-		for index in range(triangles.size() - 1, -1, -1):
-			var point := points[triangles[index]]
-			surface.add_vertex(Vector3(point.x * map_scale, 0, point.y * map_scale))
-	# Wall collision faces must point consistently outward for either OSM winding.
-	var clockwise := Geometry2D.is_polygon_clockwise(points)
-	for index in points.size():
-		var a := points[index]
-		var b := points[(index + 1) % points.size()]
-		if not clockwise:
-			var temporary := a
-			a = b
-			b = temporary
-		var a_bottom := Vector3(a.x * map_scale, 0, a.y * map_scale)
-		var b_bottom := Vector3(b.x * map_scale, 0, b.y * map_scale)
-		var a_top := a_bottom + Vector3.UP * segment_height
-		var b_top := b_bottom + Vector3.UP * segment_height
-		for vertex in [a_bottom, a_top, b_top, a_bottom, b_top, b_bottom]:
-			surface.add_vertex(vertex)
-	surface.generate_normals()
-	var mesh := surface.commit()
+	var mesh := _building_segment_mesh(points, triangles, material, map_scale, segment_height, floor_count > 0)
 	var body := StaticBody3D.new()
 	body.name = "Building_%d" % int(way.id)
 	body.collision_layer |= BUILDING_PICK_LAYER
@@ -440,18 +436,98 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 	body.set_meta("measurement_osm_id", way.id)
 	body.set_meta("measurement_way", way.duplicate(true))
 	var shape := mesh.create_trimesh_shape()
+	var hollow_floors: Array = way.get("_hollow_floors", [])
+	var floor_thickness := {}
+	var hollow_meshes := {}
+	for edit in hollow_floors:
+		floor_thickness[int(edit.floor)] = float(edit.wall_thickness)
 	for index in segment_count:
+		var floor_mesh := mesh
+		var floor_shape := shape
+		var preview_mesh: ArrayMesh
+		if floor_thickness.has(index + 1):
+			var thickness: float = floor_thickness[index + 1]
+			if not hollow_meshes.has(thickness):
+				var interior := _building_interior(points, thickness)
+				if interior.is_empty():
+					push_error("Innenraum von Gebäude %s, Etage %d konnte nicht aufgebaut werden." % [str(way.id), index + 1])
+				else:
+					var hollow_mesh := _building_segment_mesh(points, triangles, material, map_scale, segment_height, true, interior)
+					var collision_mesh := _building_segment_mesh(points, triangles, material, map_scale, segment_height, true, interior, false, true)
+					hollow_meshes[thickness] = {
+						"mesh": hollow_mesh,
+						"shape": collision_mesh.create_trimesh_shape(),
+						"preview": _building_segment_mesh(points, triangles, material, map_scale, segment_height, true, interior, true),
+						"interior": interior,
+					}
+			if hollow_meshes.has(thickness):
+				floor_mesh = hollow_meshes[thickness].mesh
+				floor_shape = hollow_meshes[thickness].shape
+				preview_mesh = hollow_meshes[thickness].preview
 		var visual := MeshInstance3D.new()
 		visual.name = "Segment_%d" % (index + 1)
-		visual.mesh = mesh
+		visual.mesh = floor_mesh
 		visual.position.y = float(index) * segment_height
 		var collider := CollisionShape3D.new()
 		collider.name = "SegmentCollision_%d" % (index + 1)
-		collider.shape = shape
+		collider.shape = floor_shape
 		collider.position.y = visual.position.y
 		if floor_count > 0:
 			visual.set_meta("floor_number", index + 1)
 			collider.set_meta("floor_number", index + 1)
 		body.add_child(visual)
 		body.add_child(collider)
+		if preview_mesh != null:
+			var preview := MeshInstance3D.new()
+			preview.name = "FloorPreview_%d" % (index + 1)
+			preview.mesh = preview_mesh
+			preview.position.y = visual.position.y
+			preview.visible = false
+			preview.set_meta("interior_points", hollow_meshes[floor_thickness[index + 1]].interior)
+			body.add_child(preview)
 	map.add_child(body)
+
+
+static func _building_segment_mesh(points: PackedVector2Array, triangles: PackedInt32Array, material: Material, map_scale: float, height: float, bottom: bool, interior := PackedVector2Array(), preview := false, collision_caps := false) -> ArrayMesh:
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	surface.set_material(material)
+	if not preview:
+		for index in triangles:
+			surface.add_vertex(Vector3(points[index].x * map_scale, height, points[index].y * map_scale))
+		if collision_caps and not interior.is_empty():
+			for index in range(triangles.size() - 1, -1, -1):
+				var point := points[triangles[index]]
+				surface.add_vertex(Vector3(point.x * map_scale, height, point.y * map_scale))
+	if bottom:
+		if interior.is_empty() or collision_caps:
+			for index in range(triangles.size() - 1, -1, -1):
+				var point := points[triangles[index]]
+				surface.add_vertex(Vector3(point.x * map_scale, 0, point.y * map_scale))
+		if not interior.is_empty():
+			for index in triangles:
+				var point := points[index]
+				surface.add_vertex(Vector3(point.x * map_scale, 0, point.y * map_scale))
+	_add_building_walls(surface, points, map_scale, height, false)
+	if not interior.is_empty():
+		_add_building_walls(surface, interior, map_scale, height, true)
+	surface.generate_normals()
+	return surface.commit()
+
+
+static func _add_building_walls(surface: SurfaceTool, points: PackedVector2Array, map_scale: float, height: float, inward: bool) -> void:
+	# Wall collision faces must point outward, or into the room for interior walls.
+	var clockwise := Geometry2D.is_polygon_clockwise(points)
+	for index in points.size():
+		var a := points[index]
+		var b := points[(index + 1) % points.size()]
+		if clockwise == inward:
+			var temporary := a
+			a = b
+			b = temporary
+		var a_bottom := Vector3(a.x * map_scale, 0, a.y * map_scale)
+		var b_bottom := Vector3(b.x * map_scale, 0, b.y * map_scale)
+		var a_top := a_bottom + Vector3.UP * height
+		var b_top := b_bottom + Vector3.UP * height
+		for vertex in [a_bottom, a_top, b_top, a_bottom, b_top, b_bottom]:
+			surface.add_vertex(vertex)

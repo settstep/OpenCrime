@@ -62,6 +62,27 @@ layout_mode = 2
 disabled = true
 text = "Etagenzahl speichern"
 
+[node name="FloorInfo" type="Label" parent="Panel/Layout"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Etage auswählen (1 = Erdgeschoss):"
+
+[node name="Floor" type="HBoxContainer" parent="Panel/Layout"]
+layout_mode = 2
+
+[node name="Number" type="SpinBox" parent="Panel/Layout/Floor"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 1.0
+max_value = 1.0
+value = 1.0
+editable = false
+
+[node name="Hollow" type="Button" parent="Panel/Layout/Floor"]
+layout_mode = 2
+disabled = true
+text = "Etage aushöhlen"
+
 [node name="Message" type="Label" parent="Panel/Layout"]
 layout_mode = 2
 autowrap_mode = 2

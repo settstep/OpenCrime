@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.27.0
+- Im Gebäudeeditor können einzelne Etagen ausgewählt und mit konfigurierbarer Wanddicke ausgehöhlt werden; eine Vorschau zeigt den Innenraum.
+- Etagenänderungen werden separat von OSM-Daten gespeichert und im Multiplayer vom Server synchronisiert.
+
 ## 0.26.0
 - Gebäude mit festgelegter Etagenzahl werden aus einzelnen, jeweils 3 Meter hohen Etagenblöcken aufgebaut; Geometrie und Kollision sind pro Etage getrennt.
 

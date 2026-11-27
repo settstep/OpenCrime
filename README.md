@@ -206,10 +206,25 @@ und wie die übrige Karte skaliert; eine vorhandene OSM-Höhenangabe wird dafür
 lokal übersteuert, aber nicht in den OSM-Daten verändert. Jede Etage wird als
 eigener Geometrie- und Kollisionsblock aufgebaut; bei vier Etagen sind das
 vier übereinanderliegende Blöcke von jeweils 3 Metern vor Skalierung.
-Die Etagen haben denselben Grundriss und sind aktuell noch nicht einzeln
-bearbeitbar. Auch eine gültige OSM-Etagenzahl ohne vorrangige Höhenangabe
+Die Etagen haben zunächst denselben Grundriss. Auch eine gültige OSM-Etagenzahl ohne vorrangige Höhenangabe
 wird so aufgebaut. Hat ein unbearbeitetes OSM-Gebäude eine gültige
 Höhenangabe, behält diese Vorrang und das Gebäude bleibt vorerst ein Block.
+Bei genau einem ausgewählten Gebäude kann eine Etage gewählt werden
+(1 = Erdgeschoss). **Etage aushöhlen** ersetzt ihren Block durch einen Raum
+mit Außenwänden, Boden und Decke. Die Vorschau blendet die Decke der
+ausgehöhlten Etage und darüberliegende Etagen nur im Editor aus; beim Verlassen
+erscheint das Gebäude wieder geschlossen. Türen, Fenster und ein Betreten
+des Raumes sind noch nicht implementiert.
+
+Die Standard-Wanddicke steht in
+`OpenCrimeData/config/building_editor.json` unter `wall_thickness_m` und
+beträgt 0,3 Meter vor Skalierung. Die Datei wird beim ersten Aushöhlen
+angelegt; Änderungen gelten für danach bearbeitete Etagen. Die Dicke wird
+zusammen mit jeder Etagenänderung gespeichert und im Multiplayer vom Server
+vorgegeben. Zu schmale oder in mehrere Räume zerfallende Grundrisse werden
+nicht ausgehöhlt. Bereits bearbeitete Etagen können derzeit weder durch
+Reduzieren der Etagenzahl entfernt noch beim Zusammenfassen von Gebäuden
+übernommen werden; solche Änderungen werden abgelehnt.
 Zum Zusammenfassen werden mindestens zwei Gebäude ausgewählt.
 **Gebäude zusammenfassen** vereinigt die zusammenhängenden Grundrisse zu
 einem Gebäude. Lücken werden nicht aufgefüllt; getrennte Grundrisse und

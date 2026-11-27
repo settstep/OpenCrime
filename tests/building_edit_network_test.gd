@@ -132,6 +132,16 @@ func _test() -> void:
 		if not FileAccess.file_exists(directory.path_join("done.flag")):
 			_fail("Client did not receive the live server edit.")
 			return
+		building = world.get_node("OSMMap/Building_1")
+		var hollow_message: String = world._commit_building_hollow(building.get_meta("measurement_way"), 2)
+		if hollow_message != "Etage wurde ausgehöhlt und gespeichert." or not world.get_node("OSMMap/Building_1").has_node("FloorPreview_2"):
+			_fail("Live server floor edit failed: " + hollow_message)
+			return
+		while not FileAccess.file_exists(directory.path_join("hollow.flag")) and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not FileAccess.file_exists(directory.path_join("hollow.flag")):
+			_fail("Client did not receive the hollow floor.")
+			return
 		var changed: Dictionary = place.duplicate(true)
 		changed.ways[0].geometry[0][0] += 0.00001
 		changed.ways[0].geometry[-1][0] += 0.00001
@@ -206,6 +216,17 @@ func _test() -> void:
 			return
 		var done := FileAccess.open(directory.path_join("done.flag"), FileAccess.WRITE)
 		done.close()
+		while Time.get_ticks_msec() < deadline:
+			if not world.building_edits.merges[0].get("hollow_floors", []).is_empty():
+				break
+			await process_frame
+		var hollow_building: StaticBody3D = world.get_node("OSMMap/Building_1")
+		var floors: Array = world.building_edits.merges[0].get("hollow_floors", [])
+		if floors.size() != 1 or int(floors[0].floor) != 2 or not is_equal_approx(float(floors[0].wall_thickness), 0.3) or not hollow_building.has_node("FloorPreview_2") or world._commit_building_hollow(hollow_building.get_meta("measurement_way"), 1) != "Nur der Server-Host kann Gebäude bearbeiten.":
+			_fail("The hollow floor was not synchronized or a client was allowed to edit.")
+			return
+		var hollow_flag := FileAccess.open(directory.path_join("hollow.flag"), FileAccess.WRITE)
+		hollow_flag.close()
 		while world.building_edits.blocked_merges.is_empty() and Time.get_ticks_msec() < deadline:
 			await process_frame
 		if world.building_edits.blocked_merges.is_empty() or world.get_node_or_null("OSMMap/Building_2") == null or world.get_node_or_null("OSMMap/Building_3") == null:
