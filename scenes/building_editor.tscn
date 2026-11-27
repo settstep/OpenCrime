@@ -83,6 +83,11 @@ layout_mode = 2
 disabled = true
 text = "Etage aushöhlen"
 
+[node name="Wall" type="Button" parent="Panel/Layout"]
+layout_mode = 2
+disabled = true
+text = "Wand hinzufügen"
+
 [node name="Message" type="Label" parent="Panel/Layout"]
 layout_mode = 2
 autowrap_mode = 2

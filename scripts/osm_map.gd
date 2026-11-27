@@ -2,6 +2,7 @@ extends RefCounted
 
 const PlaceStore = preload("res://scripts/place_store.gd")
 const MapBlockGrid = preload("res://scripts/map_block_grid.gd")
+const BuildingWalls = preload("res://scripts/building_walls.gd")
 const ORIGIN_LAT := 47.7748417
 const ORIGIN_LON := 10.6034933
 const BUILDING_HEIGHT := 10.0
@@ -438,9 +439,11 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 	var shape := mesh.create_trimesh_shape()
 	var hollow_floors: Array = way.get("_hollow_floors", [])
 	var floor_thickness := {}
+	var floor_edits := {}
 	var hollow_meshes := {}
 	for edit in hollow_floors:
 		floor_thickness[int(edit.floor)] = float(edit.wall_thickness)
+		floor_edits[int(edit.floor)] = edit
 	for index in segment_count:
 		var floor_mesh := mesh
 		var floor_shape := shape
@@ -484,7 +487,35 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 			preview.position.y = visual.position.y
 			preview.visible = false
 			preview.set_meta("interior_points", hollow_meshes[floor_thickness[index + 1]].interior)
+			var floor_edit: Dictionary = floor_edits[index + 1]
+			var local_points := _building_points(way, way.geometry[0])
+			var local_interior := _building_interior(local_points, float(floor_edit.wall_thickness))
+			var wall_data := BuildingWalls.build(local_interior, floor_edit.get("walls", []))
+			if wall_data.has("error"):
+				push_error("Innenwände von Gebäude %s, Etage %d konnten nicht aufgebaut werden: %s" % [str(way.id), index + 1, wall_data.error])
+			else:
+				preview.set_meta("wall_origin", points[0])
+				preview.set_meta("wall_regions", wall_data.regions)
+				preview.set_meta("wall_polygons", wall_data.walls)
 			body.add_child(preview)
+			if not wall_data.has("error"):
+				for wall_index in wall_data.walls.size():
+					var wall_points := PackedVector2Array()
+					for point in wall_data.walls[wall_index]:
+						wall_points.append(point + points[0])
+					var wall_mesh := _building_segment_mesh(wall_points, Geometry2D.triangulate_polygon(wall_points), material, map_scale, segment_height, false)
+					var wall_visual := MeshInstance3D.new()
+					wall_visual.name = "InteriorWall_%d_%d" % [index + 1, wall_index + 1]
+					wall_visual.mesh = wall_mesh
+					wall_visual.position.y = visual.position.y
+					wall_visual.set_meta("floor_number", index + 1)
+					var wall_collision := CollisionShape3D.new()
+					wall_collision.name = "InteriorWallCollision_%d_%d" % [index + 1, wall_index + 1]
+					wall_collision.shape = wall_mesh.create_trimesh_shape()
+					wall_collision.position.y = visual.position.y
+					wall_collision.set_meta("floor_number", index + 1)
+					body.add_child(wall_visual)
+					body.add_child(wall_collision)
 	map.add_child(body)
 
 

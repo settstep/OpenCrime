@@ -3,6 +3,7 @@ extends RefCounted
 const DataPaths = preload("res://scripts/data_paths.gd")
 const Grid = preload("res://scripts/map_block_grid.gd")
 const OSMMap = preload("res://scripts/osm_map.gd")
+const BuildingWalls = preload("res://scripts/building_walls.gd")
 const FORMAT := 1
 const MAX_BYTES := 3 * 1024 * 1024
 const DEFAULT_CONFIG := "res://data/building_editor.json"
@@ -128,6 +129,13 @@ static func _valid_floor_edits(edits: Variant, way: Dictionary, levels: int) -> 
 			if OSMMap._building_interior(points, float(thickness)).is_empty():
 				return false
 			checked_thickness[float(thickness)] = true
+		var walls: Variant = edit.get("walls", [])
+		if not walls is Array:
+			return false
+		if not walls.is_empty():
+			var interior := OSMMap._building_interior(points, float(thickness))
+			if BuildingWalls.build(interior, walls).has("error"):
+				return false
 		seen[int(edit.floor)] = true
 	return true
 
@@ -281,6 +289,50 @@ func prepare_hollow(way: Dictionary, floor_number: int, thickness: float) -> Dic
 	floors.append({"floor": floor_number, "wall_thickness": thickness})
 	target["hollow_floors"] = floors
 	return prepared
+
+
+func prepare_wall(way: Dictionary, floor_number: int, cursor: Vector2, thickness: float) -> Dictionary:
+	if not _valid_way(way, false):
+		return {"error": "Bitte ein gültiges Gebäude auswählen."}
+	var levels := OSMMap._floor_count(way.tags)
+	if floor_number < 1 or floor_number > levels:
+		return {"error": "Bitte eine gültige Etage auswählen."}
+	var prepared := prepare_levels(way, levels)
+	if prepared.has("error"):
+		return prepared
+	var target: Dictionary = {}
+	var original: Dictionary = {}
+	for merge in prepared.data.merges:
+		if int(merge.result.id) == int(way.id):
+			target = merge
+			original = merge.result
+			break
+	if target.is_empty():
+		for edit in prepared.data.level_edits:
+			if int(edit.source.id) == int(way.id):
+				target = edit
+				original = edit.source
+				break
+	if target.is_empty():
+		return {"error": "Die Etage konnte nicht zugeordnet werden."}
+	for floor_edit in target.get("hollow_floors", []):
+		if int(floor_edit.floor) != floor_number:
+			continue
+		var walls: Array = floor_edit.get("walls", [])
+		if walls.size() >= BuildingWalls.MAX_WALLS:
+			return {"error": "Auf dieser Etage können keine weiteren Wände gespeichert werden."}
+		var points := OSMMap._building_points(original, original.geometry[0])
+		var interior := OSMMap._building_interior(points, float(floor_edit.wall_thickness))
+		var existing := BuildingWalls.build(interior, walls)
+		if existing.has("error"):
+			return existing
+		var plan := BuildingWalls.plan_wall(existing.regions, cursor, thickness)
+		if plan.has("error"):
+			return plan
+		walls.append({"cursor": [cursor.x, cursor.y], "thickness": thickness})
+		floor_edit["walls"] = walls
+		return prepared
+	return {"error": "Bitte die Etage zuerst aushöhlen."}
 
 
 static func load_wall_thickness() -> Dictionary:

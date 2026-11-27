@@ -220,6 +220,86 @@ func _test() -> void:
 		return
 	world.player.global_position = Vector3(-2, 0.9, -6.5)
 	world.player.velocity = Vector3.ZERO
+	editor.wall_button.pressed.emit()
+	if not editor.wall_mode:
+		_fail("Wall mode could not be started on a hollow floor.")
+		return
+	var first_wall_position := camera.unproject_position(Vector3(10.4, 7.8, -12.2))
+	var move := InputEventMouseMotion.new()
+	move.position = first_wall_position
+	root.push_input(move, true)
+	if editor.wall_preview.is_empty() or editor.wall_preview.has("error"):
+		_fail("The wall preview was not shown at the cursor: %s" % editor.wall_preview)
+		return
+	var wall_click := InputEventMouseButton.new()
+	wall_click.button_index = MOUSE_BUTTON_LEFT
+	wall_click.pressed = true
+	wall_click.position = first_wall_position
+	root.push_input(wall_click, true)
+	await physics_frame
+	await physics_frame
+	merged_building = world.get_node("OSMMap/Building_1")
+	if not editor.wall_mode or editor.selected.size() != 1 or not merged_building.has_node("InteriorWall_2_1"):
+		_fail("The first wall was not saved or the editor lost its selection: " + editor.message.text)
+		return
+	var second_wall_position := camera.unproject_position(Vector3(0.8, 7.8, -9.0))
+	move.position = second_wall_position
+	root.push_input(move, true)
+	if editor.wall_preview.has("error") or editor.wall_preview.is_empty():
+		_fail("The second wall preview was invalid: %s" % editor.wall_preview)
+		return
+	wall_click.position = second_wall_position
+	root.push_input(wall_click, true)
+	await physics_frame
+	await physics_frame
+	merged_building = world.get_node("OSMMap/Building_1")
+	var saved_walls: Array = world.building_edits.merges[0].hollow_floors[0].walls
+	if saved_walls.size() != 2 or not merged_building.has_node("InteriorWall_2_2"):
+		_fail("The second interior wall was not persisted.")
+		return
+	var wall_query := PhysicsRayQueryParameters3D.create(Vector3(2, 5.85, -6), Vector3(14, 5.85, -6), OSMMap.BUILDING_PICK_LAYER)
+	wall_query.hit_back_faces = false
+	var wall_hit := world.get_world_3d().direct_space_state.intersect_ray(wall_query)
+	if wall_hit.is_empty() or absf(wall_hit.position.x - 10.205) > 0.05:
+		_fail("The first interior wall has incorrect collision or thickness: %s" % wall_hit)
+		return
+	var other_side_query := PhysicsRayQueryParameters3D.create(Vector3(14, 5.85, -6), Vector3(2, 5.85, -6), OSMMap.BUILDING_PICK_LAYER)
+	other_side_query.hit_back_faces = false
+	var other_side_hit := world.get_world_3d().direct_space_state.intersect_ray(other_side_query)
+	if other_side_hit.is_empty() or absf(other_side_hit.position.x - 10.595) > 0.05:
+		_fail("The interior wall does not collide from both sides: %s" % other_side_hit)
+		return
+	var second_wall_query := PhysicsRayQueryParameters3D.create(Vector3(3, 5.85, -7), Vector3(3, 5.85, -11), OSMMap.BUILDING_PICK_LAYER)
+	var second_wall_hit := world.get_world_3d().direct_space_state.intersect_ray(second_wall_query)
+	if second_wall_hit.is_empty() or absf(second_wall_hit.position.z + 8.805) > 0.05:
+		_fail("The second interior wall has incorrect collision: %s" % second_wall_hit)
+		return
+	var cancel := InputEventKey.new()
+	cancel.keycode = KEY_ESCAPE
+	cancel.pressed = true
+	root.push_input(cancel, true)
+	if editor.wall_mode or editor.selected.size() != 1 or world.menu_open:
+		_fail("Escape did not cancel wall mode without opening the menu.")
+		return
+	world.player.global_position = Vector3(8, 4.8, -5)
+	world.player.velocity = Vector3.ZERO
+	world.player.movement_input = Vector2.RIGHT
+	for frame in 30:
+		await physics_frame
+	var partition_wall: Vector3 = world.player.global_position
+	world.player.movement_input = Vector2(1, 1).normalized()
+	for frame in 20:
+		await physics_frame
+	var partition_slide: Vector3 = world.player.global_position
+	world.player.movement_input = Vector2.LEFT
+	for frame in 20:
+		await physics_frame
+	world.player.movement_input = Vector2.ZERO
+	if absf(partition_wall.x - 9.805) > 0.1 or partition_slide.z < partition_wall.z + 0.8 or world.player.global_position.x > partition_slide.x - 1.0:
+		_fail("Player could not slide and move away from the new wall: %s -> %s -> %s" % [partition_wall, partition_slide, world.player.global_position])
+		return
+	world.player.global_position = Vector3(-2, 0.9, -6.5)
+	world.player.velocity = Vector3.ZERO
 	var settings_file := FileAccess.open(directory.path_join("config/building_editor.json"), FileAccess.WRITE)
 	if settings_file == null:
 		_fail("Could not change the wall-thickness settings.")
@@ -296,7 +376,7 @@ func _test() -> void:
 	if reloaded.get_node_or_null("OSMMap/Building_1") == null or reloaded.get_node_or_null("OSMMap/Building_2") != null:
 		_fail("Saved merge was not reapplied when the map was reopened.")
 		return
-	if absf(float(reloaded.get_node("OSMMap/Building_1").get_meta("measurement_height")) - 15.6) > 0.01 or not _has_floors(reloaded.get_node("OSMMap/Building_1"), 4, 1.3) or not reloaded.get_node("OSMMap/Building_1").has_node("FloorPreview_2") or not reloaded.get_node("OSMMap/Building_1").has_node("FloorPreview_4"):
+	if absf(float(reloaded.get_node("OSMMap/Building_1").get_meta("measurement_height")) - 15.6) > 0.01 or not _has_floors(reloaded.get_node("OSMMap/Building_1"), 4, 1.3) or not reloaded.get_node("OSMMap/Building_1").has_node("FloorPreview_2") or not reloaded.get_node("OSMMap/Building_1").has_node("FloorPreview_4") or not reloaded.get_node("OSMMap/Building_1").has_node("InteriorWall_2_2"):
 		_fail("Level override was not restored after reopening the map.")
 		return
 	reloaded.set_process(false)

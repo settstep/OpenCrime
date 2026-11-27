@@ -142,6 +142,20 @@ func _test() -> void:
 		if not FileAccess.file_exists(directory.path_join("hollow.flag")):
 			_fail("Client did not receive the hollow floor.")
 			return
+		building = world.get_node("OSMMap/Building_1")
+		var edited_way: Dictionary = building.get_meta("measurement_way")
+		var local_points := OSMMap._building_points(edited_way, edited_way.geometry[0])
+		var interior := OSMMap._building_interior(local_points, 0.3)
+		var cursor := (interior[0] + interior[1]) * 0.5
+		var wall_message: String = world._commit_building_wall(edited_way, 2, cursor, 0.3)
+		if wall_message != "Innenwand wurde gespeichert." or not world.get_node("OSMMap/Building_1").has_node("InteriorWall_2_1"):
+			_fail("Live server wall edit failed: " + wall_message)
+			return
+		while not FileAccess.file_exists(directory.path_join("wall.flag")) and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not FileAccess.file_exists(directory.path_join("wall.flag")):
+			_fail("Client did not receive the interior wall.")
+			return
 		var changed: Dictionary = place.duplicate(true)
 		changed.ways[0].geometry[0][0] += 0.00001
 		changed.ways[0].geometry[-1][0] += 0.00001
@@ -227,6 +241,17 @@ func _test() -> void:
 			return
 		var hollow_flag := FileAccess.open(directory.path_join("hollow.flag"), FileAccess.WRITE)
 		hollow_flag.close()
+		while Time.get_ticks_msec() < deadline:
+			if not world.building_edits.merges[0].hollow_floors[0].get("walls", []).is_empty():
+				break
+			await process_frame
+		hollow_building = world.get_node("OSMMap/Building_1")
+		var walls: Array = world.building_edits.merges[0].hollow_floors[0].get("walls", [])
+		if walls.size() != 1 or not hollow_building.has_node("InteriorWall_2_1") or world._commit_building_wall(hollow_building.get_meta("measurement_way"), 2, Vector2.ZERO, 0.3) != "Nur der Server-Host kann Gebäude bearbeiten.":
+			_fail("The interior wall was not synchronized or a client was allowed to edit.")
+			return
+		var wall_flag := FileAccess.open(directory.path_join("wall.flag"), FileAccess.WRITE)
+		wall_flag.close()
 		while world.building_edits.blocked_merges.is_empty() and Time.get_ticks_msec() < deadline:
 			await process_frame
 		if world.building_edits.blocked_merges.is_empty() or world.get_node_or_null("OSMMap/Building_2") == null or world.get_node_or_null("OSMMap/Building_3") == null:

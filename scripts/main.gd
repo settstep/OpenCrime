@@ -26,6 +26,7 @@ const CAMERA_ZOOM_RESPONSE := 3.0
 const BUILDING_MERGE_SUCCESS := "Gebäude wurden zusammengefasst und gespeichert."
 const BUILDING_LEVELS_SUCCESS := "Etagenzahl wurde gespeichert."
 const BUILDING_HOLLOW_SUCCESS := "Etage wurde ausgehöhlt und gespeichert."
+const BUILDING_WALL_SUCCESS := "Innenwand wurde gespeichert."
 
 @onready var player: PlayerScript = $Player
 @onready var car: CarScript = $Car
@@ -593,6 +594,20 @@ func _commit_building_hollow(way: Dictionary, floor_number: int) -> String:
 		return building_edits.error
 	_refresh_building_edits()
 	return BUILDING_HOLLOW_SUCCESS
+
+
+func _commit_building_wall(way: Dictionary, floor_number: int, cursor: Vector2, thickness: float) -> String:
+	if building_edits == null:
+		return "Gebäudeänderungen sind nicht verfügbar."
+	if building_edits.load_failed:
+		return "Gebäudeänderungen sind nicht verfügbar: " + building_edits.error
+	var result: Dictionary = building_edits.prepare_wall(way, floor_number, cursor, thickness)
+	if result.has("error"):
+		return result.error
+	if not building_edits.save(result.data):
+		return building_edits.error
+	_refresh_building_edits()
+	return BUILDING_WALL_SUCCESS
 
 
 func _on_map_block_unloaded(block: Vector2i) -> void:

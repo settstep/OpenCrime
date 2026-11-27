@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.28.0
+- Im Gebäudeeditor können ausgehöhlte Etagen mit rechtwinklig einrastenden Innenwänden unterteilt werden. Vorschau, Speicherung und Multiplayer-Synchronisierung sind enthalten.
+
 ## 0.27.0
 - Im Gebäudeeditor können einzelne Etagen ausgewählt und mit konfigurierbarer Wanddicke ausgehöhlt werden; eine Vorschau zeigt den Innenraum.
 - Etagenänderungen werden separat von OSM-Daten gespeichert und im Multiplayer vom Server synchronisiert.

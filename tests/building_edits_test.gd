@@ -171,6 +171,22 @@ func _test() -> void:
 	if extended_levels.has("error") or extended_levels.data.level_edits[0].hollow_floors.size() != 1:
 		_fail("Increasing the level count discarded the hollow floor.")
 		return
+	if not single.prepare_wall(hollow_way, 1, Vector2(3, -0.6), 0.3).has("error") or not single.prepare_wall(hollow_way, 2, Vector2(3, -0.6), -1.0).has("error"):
+		_fail("A wall was accepted on a solid floor or with an invalid thickness.")
+		return
+	var wall := single.prepare_wall(hollow_way, 2, Vector2(3, -0.6), 0.3)
+	if wall.has("error") or not single.save(wall.data) or not single.load_file():
+		_fail("An interior wall could not be saved and reloaded: %s" % wall)
+		return
+	hollow_way = single.apply(place).ways[0]
+	if hollow_way._hollow_floors[0].get("walls", []).size() != 1 or single.prepare_levels(hollow_way, 4).data.level_edits[0].hollow_floors[0].walls.size() != 1:
+		_fail("The saved wall was lost when applying or changing the floor count.")
+		return
+	var bad_data := single.data()
+	bad_data.level_edits[0].hollow_floors[0].walls[0].thickness = -1
+	if single.set_data(bad_data):
+		_fail("Invalid saved wall data was accepted.")
+		return
 	single.scan_conflicts([changed])
 	if single.apply(place).ways[0].has("_hollow_floors"):
 		_fail("A conflicted hollow floor was applied.")

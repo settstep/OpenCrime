@@ -216,12 +216,20 @@ ausgehöhlten Etage und darüberliegende Etagen nur im Editor aus; beim Verlasse
 erscheint das Gebäude wieder geschlossen. Türen, Fenster und ein Betreten
 des Raumes sind noch nicht implementiert.
 
+Für eine ausgehöhlte Etage aktiviert **Wand hinzufügen** den Wandmodus.
+Die Maus positioniert eine Vorschau rechtwinklig zur nächsten Raumwand;
+ein Klick setzt die Wand bis zur ersten gegenüberliegenden Außen- oder
+Innenwand. So lassen sich weitere Räume unterteilen. Mit **Escape** oder
+erneutem Klick auf den Knopf wird der Wandmodus beendet. An ungeeigneten
+Stellen, etwa zu nah an einer Ecke oder wenn der Raum nicht eindeutig in
+zwei Räume geteilt werden kann, wird keine Wand gesetzt.
+
 Die Standard-Wanddicke steht in
 `OpenCrimeData/config/building_editor.json` unter `wall_thickness_m` und
 beträgt 0,3 Meter vor Skalierung. Die Datei wird beim ersten Aushöhlen
-angelegt; Änderungen gelten für danach bearbeitete Etagen. Die Dicke wird
-zusammen mit jeder Etagenänderung gespeichert und im Multiplayer vom Server
-vorgegeben. Zu schmale oder in mehrere Räume zerfallende Grundrisse werden
+angelegt; Änderungen gelten für danach ausgehöhlte Etagen und beim nächsten
+Aktivieren des Wandmodus für neue Innenwände. Die jeweilige Dicke wird
+gespeichert und im Multiplayer vom Server vorgegeben. Zu schmale oder in mehrere Räume zerfallende Grundrisse werden
 nicht ausgehöhlt. Bereits bearbeitete Etagen können derzeit weder durch
 Reduzieren der Etagenzahl entfernt noch beim Zusammenfassen von Gebäuden
 übernommen werden; solche Änderungen werden abgelehnt.
