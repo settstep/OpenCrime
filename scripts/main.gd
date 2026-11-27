@@ -24,6 +24,7 @@ const CAMERA_ZOOM_START_SPEED := 6.0
 const CAMERA_ZOOM_MAX_SPEED := 25.0
 const CAMERA_ZOOM_RESPONSE := 3.0
 const BUILDING_MERGE_SUCCESS := "Gebäude wurden zusammengefasst und gespeichert."
+const BUILDING_LEVELS_SUCCESS := "Etagenzahl wurde gespeichert."
 
 @onready var player: PlayerScript = $Player
 @onready var car: CarScript = $Car
@@ -501,7 +502,7 @@ func _apply_building_edits(place: Dictionary) -> Dictionary:
 		return place
 	var effective: Dictionary = building_edits.apply(place)
 	if not building_edits.conflicts.is_empty():
-		status.text = "OSM-Gebäude %s geändert; Zusammenfassung nicht angewendet." % str(building_edits.conflicts)
+		status.text = "OSM-Gebäude %s geändert; Gebäudeänderung nicht angewendet." % str(building_edits.conflicts)
 	return effective
 
 
@@ -538,7 +539,7 @@ func _check_building_conflicts() -> void:
 		places.append(entry.data)
 	if building_edits.scan_conflicts(places):
 		if not building_edits.blocked_merges.is_empty():
-			status.text = "OSM-Gebäude geändert; Zusammenfassung %s wird nicht angewendet." % str(building_edits.blocked_merges.keys())
+			status.text = "OSM-Gebäude geändert; Gebäudeänderung %s wird nicht angewendet." % str(building_edits.blocked_merges.keys())
 			push_warning(status.text)
 		_refresh_building_edits()
 		_building_conflicts_changed()
@@ -560,6 +561,20 @@ func _commit_building_merge(ways: Array) -> String:
 		return building_edits.error
 	_refresh_building_edits()
 	return BUILDING_MERGE_SUCCESS
+
+
+func _commit_building_levels(way: Dictionary, levels: int) -> String:
+	if building_edits == null:
+		return "Gebäudeänderungen sind nicht verfügbar."
+	if building_edits.load_failed:
+		return "Gebäudeänderungen sind nicht verfügbar: " + building_edits.error
+	var result: Dictionary = building_edits.prepare_levels(way, levels)
+	if result.has("error"):
+		return result.error
+	if not building_edits.save(result.data):
+		return building_edits.error
+	_refresh_building_edits()
+	return BUILDING_LEVELS_SUCCESS
 
 
 func _on_map_block_unloaded(block: Vector2i) -> void:

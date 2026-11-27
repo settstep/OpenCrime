@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.25.0
+- Im Gebäudeeditor lässt sich die Etagenzahl einzelner und zusammengefasster Gebäude festlegen; die lokale Änderung wird gespeichert und im Multiplayer vom Server synchronisiert.
+
 ## 0.24.0
 - Im Gebäudeeditor können zusammenhängende OSM-Gebäude zu einem Gebäude zusammengefasst werden. Die lokalen Änderungen bleiben getrennt von den OSM-Daten gespeichert.
 - Im Multiplayer verwaltet der Server seine Gebäudeänderungen und synchronisiert sie mit den Spielern.

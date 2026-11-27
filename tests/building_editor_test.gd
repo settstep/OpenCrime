@@ -34,6 +34,7 @@ func _test() -> void:
 	root.add_child(world)
 	world.set_process(false)
 	world.map_block_stream.set_process(false)
+	world.player.position = Vector3(-20, 0.9, 0)
 	var camera: Camera3D = world.get_node("Camera3D")
 	camera.size = 50
 	camera.global_position = Vector3(13, 50, -6.5)
@@ -50,6 +51,45 @@ func _test() -> void:
 	if not editor.active or not editor.panel.visible:
 		_fail("F5 did not open the building editor.")
 		return
+	var first_click := InputEventMouseButton.new()
+	first_click.button_index = MOUSE_BUTTON_LEFT
+	first_click.pressed = true
+	first_click.position = camera.unproject_position(Vector3(6.5, 6.5, -6.5))
+	root.push_input(first_click, true)
+	await physics_frame
+	await physics_frame
+	if editor.selected.size() != 1 or editor.levels_button.disabled or not editor.levels_input.text.is_empty():
+		_fail("Selecting one building did not enable the empty level input.")
+		return
+	editor.levels_input.text = "0"
+	editor.levels_button.pressed.emit()
+	if not editor.message.text.contains("1 bis 1000") or FileAccess.file_exists(world.building_edits.path):
+		_fail("Invalid levels were not rejected without saving.")
+		return
+	editor.levels_input.text = "2"
+	editor.levels_input.grab_focus()
+	editor.levels_button.pressed.emit()
+	await physics_frame
+	await physics_frame
+	var first_building: StaticBody3D = world.get_node("OSMMap/Building_1")
+	if absf(float(first_building.get_meta("measurement_height")) - 7.8) > 0.01:
+		_fail("Level edit did not change the scaled building height.")
+		return
+	root.push_input(key, true)
+	if editor.active:
+		_fail("F5 did not close the editor after editing levels.")
+		return
+	var position_before: Vector3 = world.player.global_position
+	Input.action_press("move_forward")
+	for frame in 8:
+		await physics_frame
+	Input.action_release("move_forward")
+	if world.player.global_position.distance_to(position_before) < 0.1:
+		_fail("The player could not move after editing levels and leaving the editor.")
+		return
+	root.push_input(key, true)
+	await process_frame
+	await process_frame
 	for center in [Vector3(6.5, 6.5, -6.5), Vector3(19.5, 6.5, -6.5)]:
 		var click := InputEventMouseButton.new()
 		click.button_index = MOUSE_BUTTON_LEFT
@@ -66,6 +106,20 @@ func _test() -> void:
 	await physics_frame
 	if not editor.selected.is_empty() or world.get_node_or_null("OSMMap/Building_2") != null or not FileAccess.file_exists(world.building_edits.path):
 		_fail("Merge did not update the map, clear the selection and persist the diff.")
+		return
+	root.push_input(first_click, true)
+	await physics_frame
+	await physics_frame
+	if editor.selected.size() != 1 or editor.levels_input.text != "2":
+		_fail("The merged building did not retain the first building's level count.")
+		return
+	editor.levels_input.text = "4"
+	editor.levels_button.pressed.emit()
+	await physics_frame
+	await physics_frame
+	var merged_building: StaticBody3D = world.get_node("OSMMap/Building_1")
+	if absf(float(merged_building.get_meta("measurement_height")) - 15.6) > 0.01:
+		_fail("Merged building did not adopt the edited level count.")
 		return
 	key.keycode = KEY_F4
 	root.push_input(key, true)
@@ -110,6 +164,9 @@ func _test() -> void:
 	root.add_child(reloaded)
 	if reloaded.get_node_or_null("OSMMap/Building_1") == null or reloaded.get_node_or_null("OSMMap/Building_2") != null:
 		_fail("Saved merge was not reapplied when the map was reopened.")
+		return
+	if absf(float(reloaded.get_node("OSMMap/Building_1").get_meta("measurement_height")) - 15.6) > 0.01:
+		_fail("Level override was not restored after reopening the map.")
 		return
 	reloaded.free()
 	if DirAccess.remove_absolute(path) != OK or DirAccess.remove_absolute(path.get_base_dir()) != OK or DirAccess.remove_absolute(directory) != OK:

@@ -15,3 +15,4 @@ beobachteten Effekt; die Ursache ist noch nicht in jedem Fall geklärt.
 | BUG-008 | Mittel | Offen | Wird während des Ladens eines Kartenbereichs mit M die Karte geöffnet, ist sie teilweise vollständig schwarz. Erst „Zur Position“ zeigt den erkundeten Bereich wieder an. |
 | BUG-009 | Mittel | Offen | Beim Start an einem neu gewählten Kartenpunkt wird weiterhin ein eigener gespeicherter Ort angelegt, obwohl der Startpunkt aus dem Kartenblock kommen soll. |
 | BUG-010 | Hoch | Offen | Wege und Gebäude in grünen Nachbarblöcken fehlen zunächst oder erscheinen verspätet, sodass der Spieler in einem Gebäude stecken bleiben kann. |
+| BUG-011 | Hoch | Offen | Nach dem Zusammenfassen von Gebäuden und Verlassen des F5-Editors lässt sich die Spielfigur nicht mehr bewegen. Das Problem bleibt nach Beenden und erneutem Laden des Spielstands bestehen; ohne Zusammenfassen tritt es beim Verlassen des Editors nicht auf. |

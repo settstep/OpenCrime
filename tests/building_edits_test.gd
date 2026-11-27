@@ -82,6 +82,51 @@ func _test() -> void:
 	if not reloaded.save(extended.data):
 		_fail("Existing diff file could not be replaced: " + reloaded.error)
 		return
+	var single := BuildingEdits.new()
+	if not single.set_data({"format": 1, "merges": []}):
+		_fail("Older building-edit files without level edits were rejected.")
+		return
+	if not single.prepare_levels(a, 0).has("error") or not single.prepare_levels(a, 1001).has("error"):
+		_fail("Out-of-range level counts were accepted.")
+		return
+	var open_way: Dictionary = a.duplicate(true)
+	open_way.geometry.pop_back()
+	var open_edit: Dictionary = single.prepare_levels(open_way, 2)
+	if open_edit.has("error") or not single.set_data(open_edit.data):
+		_fail("A rendered unclosed building could not receive a level edit.")
+		return
+	single.set_data({"format": 1, "merges": []})
+	var level_result: Dictionary = single.prepare_levels(a, 3)
+	single.path = edits.path
+	if level_result.has("error") or not single.save(level_result.data) or not single.load_file():
+		_fail("Individual level edit could not be saved and reloaded.")
+		return
+	var adjusted: Dictionary = single.apply(place)
+	var adjusted_a: Dictionary = adjusted.ways[0]
+	if adjusted_a.tags.has("height") or adjusted_a.tags.get("building:levels") != "3" or OSMMap._building_height(adjusted_a.tags) != 9.0 or a.tags.height != "5" or single.level_edits[0].source.tags.height != "5":
+		_fail("Level override did not preserve the original or override the explicit OSM height.")
+		return
+	var second_edit: Dictionary = single.prepare_levels(adjusted_a, 4)
+	if second_edit.has("error") or second_edit.data.level_edits[0].source.tags.height != "5":
+		_fail("Editing a level override lost the original OSM building.")
+		return
+	var merged_with_levels: Dictionary = single.prepare([adjusted_a, b])
+	if merged_with_levels.has("error") or not merged_with_levels.data.level_edits.is_empty() or merged_with_levels.data.merges[0].result.tags.get("building:levels") != "3" or merged_with_levels.data.merges[0].sources[0].tags.height != "5":
+		_fail("Merging an edited building lost its level override or original source.")
+		return
+	if not single.set_data(merged_with_levels.data):
+		_fail("Merge containing an edited building was rejected.")
+		return
+	var merged_way: Dictionary = single.apply(place).ways[-1]
+	var merged_levels: Dictionary = single.prepare_levels(merged_way, 4)
+	if merged_levels.has("error") or merged_levels.data.merges[0].result.tags.get("building:levels") != "4" or merged_levels.data.merges[0].sources.size() != 2:
+		_fail("Level edit on a merged building lost the original sources.")
+		return
+	single.set_data(level_result.data)
+	single.scan_conflicts([changed])
+	if not single.prepare_levels(adjusted_a, 4).has("error") or single.apply(place).ways[0].tags.has("building:levels") or not single.set_blocked([1]):
+		_fail("A conflicted level edit was applied or allowed to be edited.")
+		return
 	if DirAccess.remove_absolute(edits.path) != OK or DirAccess.remove_absolute(directory) != OK:
 		_fail("Test files could not be cleaned up.")
 		return

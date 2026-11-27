@@ -8,6 +8,8 @@ const OSMMap = preload("res://scripts/osm_map.gd")
 @onready var panel: PanelContainer = $Panel
 @onready var selection_label: Label = $Panel/Layout/Selection
 @onready var merge_button: Button = $Panel/Layout/Merge
+@onready var levels_input: LineEdit = $Panel/Layout/Levels/Input
+@onready var levels_button: Button = $Panel/Layout/Levels/Apply
 @onready var message: Label = $Panel/Layout/Message
 
 var active := false
@@ -18,9 +20,10 @@ var click_position := Vector2.ZERO
 
 func _ready() -> void:
 	merge_button.pressed.connect(_merge)
+	levels_button.pressed.connect(_apply_levels)
 
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if not measurement._can_interact():
 		return
 	if event is InputEventKey and event.pressed and not event.echo and not event.alt_pressed and (event.keycode == KEY_F5 or event.physical_keycode == KEY_F5):
@@ -38,6 +41,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			measurement._clear_selection()
 			active = true
 			message.text = ""
+		return
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not measurement._can_interact():
 		return
 	if active and event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		click_position = event.position
@@ -80,6 +88,7 @@ func _process(_delta: float) -> void:
 func close_editor() -> void:
 	active = false
 	pending_click = false
+	levels_input.release_focus()
 	_clear_selection()
 	queue_redraw()
 
@@ -95,6 +104,14 @@ func _clear_selection() -> void:
 func _update_selection() -> void:
 	selection_label.text = "%d Gebäude ausgewählt." % selected.size()
 	merge_button.disabled = selected.size() < 2
+	levels_input.editable = selected.size() == 1
+	levels_button.disabled = selected.size() != 1
+	levels_input.text = ""
+	if selected.size() == 1 and is_instance_valid(selected[0]):
+		var way: Dictionary = selected[0].get_meta("measurement_way")
+		var levels := str(way.tags.get("building:levels", "")).strip_edges()
+		if levels.is_valid_int() and levels.to_int() >= 1 and levels.to_int() <= 1000:
+			levels_input.text = levels
 	queue_redraw()
 
 
@@ -107,6 +124,17 @@ func _merge() -> void:
 			return
 		ways.append(building.get_meta("measurement_way"))
 	message.text = world.call("_commit_building_merge", ways)
+
+
+func _apply_levels() -> void:
+	if selected.size() != 1 or not is_instance_valid(selected[0]) or not selected[0].is_inside_tree():
+		message.text = "Bitte genau ein geladenes Gebäude auswählen."
+		return
+	var value := levels_input.text.strip_edges()
+	if not value.is_valid_int() or value.to_int() < 1 or value.to_int() > 1000:
+		message.text = "Bitte eine ganze Etagenzahl von 1 bis 1000 eingeben."
+		return
+	message.text = world.call("_commit_building_levels", selected[0].get_meta("measurement_way"), value.to_int())
 
 
 func _draw() -> void:

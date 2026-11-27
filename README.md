@@ -198,7 +198,13 @@ Garantie für exakt vermessene Gebäude. Der Modus funktioniert lokal auch im
 Multiplayer und verändert weder Kartendaten noch Spielstände.
 
 Mit **F5** öffnet und schließt man den Gebäudeeditor. Durch Anklicken werden
-mindestens zwei Gebäude ausgewählt; ein erneuter Klick wählt eines ab.
+Gebäude ausgewählt; ein erneuter Klick wählt eines ab.
+Ist genau ein Gebäude ausgewählt, kann seine **Etagenzahl** als ganze Zahl von
+1 bis 1000 eingegeben und gespeichert werden. Das gilt auch für bereits
+zusammengefasste Gebäude. Die Spielhöhe wird mit 3 Metern pro Etage berechnet
+und wie die übrige Karte skaliert; eine vorhandene OSM-Höhenangabe wird dafür
+lokal übersteuert, aber nicht in den OSM-Daten verändert.
+Zum Zusammenfassen werden mindestens zwei Gebäude ausgewählt.
 **Gebäude zusammenfassen** vereinigt die zusammenhängenden Grundrisse zu
 einem Gebäude. Lücken werden nicht aufgefüllt; getrennte Grundrisse und
 Grundrisse mit einem entstehenden Innenhof werden abgelehnt. Das zuerst
@@ -206,10 +212,10 @@ ausgewählte Gebäude bestimmt Höhe und sonstige Eigenschaften. Anschließend
 kann das Ergebnis mit **F4** vermessen werden.
 
 Die Änderungen gelten lokal für alle Spielstände und liegen als separate
-Zusammenfassungen mit ihren ursprünglichen OSM-Gebäuden unter
+Gebäudeänderungen mit ihren ursprünglichen OSM-Gebäuden unter
 `OpenCrimeData/map_edits/buildings.json`. Die OSM-Cachedateien und Spielstände
 bleiben unverändert. Ändert sich ein ursprünglicher Grundriss bei einem
-OSM-Download, wird die betroffene Zusammenfassung im geladenen Bereich nicht
+OSM-Download, wird die betroffene Änderung im geladenen Bereich nicht
 angewendet und eine Warnung angezeigt. Ein Export oder eine Bearbeitung solcher
 Konflikte ist noch nicht implementiert.
 Im Multiplayer kann nur der Host bearbeiten; der Server speichert seine eigenen
@@ -326,7 +332,7 @@ eigenen Pfad ausgeführt werden.
 
 Die aktuelle Spielversion steht als `config/version` im Abschnitt
 `[application]` der `project.godot` und wird im Hauptmenü angezeigt.
-Die aktuelle Version ist **0.24.0**. Bei einer neuen Version wird dieser Wert manuell
+Die aktuelle Version ist **0.25.0**. Bei einer neuen Version wird dieser Wert manuell
 angepasst; er folgt dem Schema `MAJOR.MINOR.PATCH`, zum Beispiel `0.2.0` für
 eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
 allein prüft noch nicht die Multiplayer-Kompatibilität.

@@ -43,6 +43,25 @@ layout_mode = 2
 disabled = true
 text = "Gebäude zusammenfassen"
 
+[node name="LevelsInfo" type="Label" parent="Panel/Layout"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Etagenzahl für ein Gebäude (1 bis 1000; 3 m je Etage):"
+
+[node name="Levels" type="HBoxContainer" parent="Panel/Layout"]
+layout_mode = 2
+
+[node name="Input" type="LineEdit" parent="Panel/Layout/Levels"]
+layout_mode = 2
+size_flags_horizontal = 3
+editable = false
+placeholder_text = "Etagenzahl"
+
+[node name="Apply" type="Button" parent="Panel/Layout/Levels"]
+layout_mode = 2
+disabled = true
+text = "Etagenzahl speichern"
+
 [node name="Message" type="Label" parent="Panel/Layout"]
 layout_mode = 2
 autowrap_mode = 2

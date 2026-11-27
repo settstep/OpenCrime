@@ -8,6 +8,7 @@ const MAX_BYTES := 3 * 1024 * 1024
 
 var path := DataPaths.path("map_edits/buildings.json")
 var merges: Array = []
+var level_edits: Array = []
 var error := ""
 var load_failed := false
 var conflicts: Array[int] = []
@@ -16,6 +17,7 @@ var blocked_merges := {}
 
 func load_file() -> bool:
 	merges = []
+	level_edits = []
 	error = ""
 	load_failed = false
 	if not FileAccess.file_exists(path):
@@ -38,11 +40,11 @@ func load_file() -> bool:
 
 
 func data() -> Dictionary:
-	return {"format": FORMAT, "merges": merges.duplicate(true)}
+	return {"format": FORMAT, "merges": merges.duplicate(true), "level_edits": level_edits.duplicate(true)}
 
 
 func set_data(value: Variant) -> bool:
-	if not value is Dictionary or value.get("format") != FORMAT or not value.get("merges") is Array:
+	if not value is Dictionary or value.get("format") != FORMAT or not value.get("merges") is Array or not value.get("level_edits", []) is Array:
 		return false
 	var seen := {}
 	for merge in value.merges:
@@ -56,7 +58,12 @@ func set_data(value: Variant) -> bool:
 			contains_result = contains_result or int(source.id) == int(merge.result.id)
 		if not contains_result:
 			return false
+	for edit in value.get("level_edits", []):
+		if not edit is Dictionary or not _valid_way(edit.get("source"), false) or not _valid_levels(edit.get("levels")) or seen.has(int(edit.source.id)):
+			return false
+		seen[int(edit.source.id)] = true
 	merges = value.merges.duplicate(true)
+	level_edits = value.get("level_edits", []).duplicate(true)
 	error = ""
 	return true
 
@@ -67,6 +74,8 @@ func set_blocked(value: Variant) -> bool:
 	var allowed := {}
 	for merge in merges:
 		allowed[int(merge.result.id)] = true
+	for edit in level_edits:
+		allowed[int(edit.source.id)] = true
 	var blocked := {}
 	for id in value:
 		if not (id is int or id is float) or not is_finite(float(id)) or float(id) != floorf(float(id)) or not allowed.has(int(id)):
@@ -76,12 +85,12 @@ func set_blocked(value: Variant) -> bool:
 	return true
 
 
-static func _valid_way(way: Variant) -> bool:
+static func _valid_way(way: Variant, require_closed := true) -> bool:
 	if not way is Dictionary or not way.has_all(["id", "tags", "geometry"]) or not way.tags is Dictionary or not way.tags.has("building") or not way.geometry is Array:
 		return false
 	if not (way.id is int or way.id is float) or not is_finite(float(way.id)) or float(way.id) <= 0 or float(way.id) != floorf(float(way.id)):
 		return false
-	if way.geometry.size() < 4 or way.geometry.size() > 10000:
+	if way.geometry.size() < (4 if require_closed else 3) or way.geometry.size() > 10000:
 		return false
 	for point in way.geometry:
 		if not point is Array or point.size() != 2:
@@ -91,7 +100,11 @@ static func _valid_way(way: Variant) -> bool:
 				return false
 		if absf(float(point[0])) > 85.0 or absf(float(point[1])) > 180.0:
 			return false
-	return way.geometry[0] == way.geometry[-1]
+	return not require_closed or way.geometry[0] == way.geometry[-1]
+
+
+static func _valid_levels(value: Variant) -> bool:
+	return (value is int or value is float) and is_finite(float(value)) and float(value) == floorf(float(value)) and float(value) >= 1.0 and float(value) <= 1000.0
 
 
 func apply(place: Dictionary) -> Dictionary:
@@ -121,6 +134,18 @@ func apply(place: Dictionary) -> Dictionary:
 		merged["_edit_sources"] = merge.sources.duplicate(true)
 		ways.append(merged)
 		result.ways = ways
+	for edit in level_edits:
+		for index in result.ways.size():
+			var way: Dictionary = result.ways[index]
+			if int(way.id) != int(edit.source.id):
+				continue
+			if blocked_merges.has(int(way.id)) or not way.tags.has("building") or not _same_geometry(way.geometry, edit.source.geometry):
+				conflicts.append(int(way.id))
+				continue
+			var changed: Dictionary = way.duplicate(true)
+			_set_levels(changed, int(edit.levels))
+			changed["_edit_sources"] = [edit.source.duplicate(true)]
+			result.ways[index] = changed
 	return result
 
 
@@ -130,6 +155,8 @@ func scan_conflicts(places: Array) -> bool:
 	for merge in merges:
 		for source in merge.sources:
 			sources[int(source.id)] = {"way": source, "merge_id": int(merge.result.id)}
+	for edit in level_edits:
+		sources[int(edit.source.id)] = {"way": edit.source, "merge_id": int(edit.source.id)}
 	for place in places:
 		for way in place.ways:
 			if sources.has(int(way.id)):
@@ -148,6 +175,41 @@ static func _same_geometry(a: Array, b: Array) -> bool:
 		if absf(float(a[index][0]) - float(b[index][0])) > 0.0000000001 or absf(float(a[index][1]) - float(b[index][1])) > 0.0000000001:
 			return false
 	return true
+
+
+static func _set_levels(way: Dictionary, levels: int) -> void:
+	way.tags.erase("height")
+	way.tags["building:levels"] = str(levels)
+
+
+func prepare_levels(way: Dictionary, levels: int) -> Dictionary:
+	if not _valid_way(way, false) or not _valid_levels(levels):
+		return {"error": "Bitte ein gültiges Gebäude und eine Etagenzahl von 1 bis 1000 wählen."}
+	var id := int(way.id)
+	if blocked_merges.has(id):
+		return {"error": "Diese Gebäudeänderung hat einen OSM-Konflikt und kann nicht bearbeitet werden."}
+	var next := data()
+	for merge in next.merges:
+		for source in merge.sources:
+			if int(source.id) != id:
+				continue
+			if int(merge.result.id) != id or not way.has("_edit_sources") or blocked_merges.has(int(merge.result.id)):
+				return {"error": "Dieses Gebäude gehört zu einer bestehenden Zusammenfassung mit OSM-Konflikt."}
+			_set_levels(merge.result, levels)
+			return {"data": next}
+	var original: Dictionary = way.duplicate(true)
+	if way.has("_edit_sources"):
+		if not way._edit_sources is Array or way._edit_sources.size() != 1 or not _valid_way(way._edit_sources[0], false) or int(way._edit_sources[0].id) != id:
+			return {"error": "Die ursprünglichen OSM-Daten des Gebäudes sind ungültig."}
+		original = way._edit_sources[0].duplicate(true)
+	original.erase("_edit_sources")
+	var retained := []
+	for edit in next.level_edits:
+		if int(edit.source.id) != id:
+			retained.append(edit)
+	retained.append({"source": original, "levels": levels})
+	next.level_edits = retained
+	return {"data": next}
 
 
 func prepare(selected: Array) -> Dictionary:
@@ -218,7 +280,11 @@ func prepare(selected: Array) -> Dictionary:
 		if not overlaps:
 			next.append(old)
 	next.append({"sources": sources, "result": merged})
-	return {"data": {"format": FORMAT, "merges": next}}
+	var remaining_levels := []
+	for edit in level_edits:
+		if not ids.has(int(edit.source.id)):
+			remaining_levels.append(edit)
+	return {"data": {"format": FORMAT, "merges": next, "level_edits": remaining_levels}}
 
 
 func save(value: Dictionary) -> bool:
