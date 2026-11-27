@@ -41,3 +41,4 @@
 | 27.11.2026 | 08:09 | 47      | recognize cached OSM blocks after JSON loading              |
 | 27.11.2026 | 08:41 | 48      | display OSM traffic and emergency objects                   |
 | 27.11.2026 | 09:03 | 49      | updated todo                                                |
+| 27.11.2026 | 09:15 | 50      | add building measurement mode                               |

@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.23.0
+- Mit F4 lassen sich OSM-Gebäude anklicken und ihre nummerierten Seiten in OSM-Metern und skalierten Spieleinheiten messen.
+
 ## 0.22.0
 - Als OSM-Punkte erfasste Ampeln, Verkehrszeichen, Übergänge, Hydranten und Defibrillatoren werden vereinfacht in der Spielwelt dargestellt.
 

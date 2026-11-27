@@ -12,6 +12,7 @@ const ROAD_HEIGHT := 0.04
 const PATH_HEIGHT := 0.02
 const WAY_THICKNESS := 0.02
 const JOINT_SEGMENTS := 24
+const BUILDING_PICK_LAYER := 1 << 19
 
 
 static func populate(world: Node3D, place: Dictionary = {}) -> bool:
@@ -410,6 +411,11 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 	var mesh := surface.commit()
 	var body := StaticBody3D.new()
 	body.name = "Building_%d" % int(way.id)
+	body.collision_layer |= BUILDING_PICK_LAYER
+	body.set_meta("measurement_points", points)
+	body.set_meta("measurement_scale", map_scale)
+	body.set_meta("measurement_height", height)
+	body.set_meta("measurement_osm_id", way.id)
 	var visual := MeshInstance3D.new()
 	visual.mesh = mesh
 	body.add_child(visual)

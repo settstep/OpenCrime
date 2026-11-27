@@ -188,6 +188,15 @@ dargestellt. In Straßentags angegebene Gehwege werden nicht automatisch
 hinzuerfunden. Gebäudeformen und geschätzte Höhen bleiben vereinfacht; das
 Gelände ist eben und echte Höhendaten fehlen noch.
 
+Mit **F4** kann der Gebäudemessmodus ein- und ausgeschaltet werden. Bei
+aktivem Modus ein sichtbares OSM-Gebäude anklicken: Seine Dachkanten werden
+nummeriert und die Liste zeigt für jede Seite die Länge des projizierten
+OSM-Grundrisses in Metern und die Länge nach Anwendung des Kartenfaktors in
+Spieleinheiten. Die Liste ist scrollbar. Ein Klick außerhalb eines Gebäudes
+hebt die Auswahl auf. OSM-Daten und Projektion sind Näherungen und keine
+Garantie für exakt vermessene Gebäude. Der Modus funktioniert lokal auch im
+Multiplayer und verändert weder Kartendaten noch Spielstände.
+
 Als OSM-Punkte erfasste Ampeln, Stoppschilder, Vorfahrt- und andere
 Verkehrszeichen, Fußgängerübergänge, Hydranten und Defibrillatoren erscheinen
 als vereinfachte 3D-Modelle beziehungsweise Markierungen. Unterirdische
@@ -260,9 +269,9 @@ Bei mehr als 1 MiB wird eine vorherige Logdatei als `opencrime.log.1` behalten.
 
 ### Kartenfaktor testen
 
-In `project.godot` steht unter `[opencrime]` der Parameter `osm/scale=1.0`.
-Er kann beispielsweise auf `1.2` gesetzt werden, um Abstände, Gebäudegrößen und
-die Straßenbreiten um 20 % zu vergrößern. Der Wert muss eine
+In `project.godot` steht unter `[opencrime]` der Parameter `osm/scale=1.3`.
+Ein Wert von `1.2` vergrößert beispielsweise Abstände, Gebäudegrößen und
+Straßenbreiten gegenüber `1.0` um 20 %. Der Wert muss eine
 endliche Zahl größer als 0 sein. Nach einer Änderung das Spiel neu starten;
 bei geöffnetem Godot-Editor die Projektdatei gegebenenfalls neu laden.
 
@@ -297,7 +306,7 @@ eigenen Pfad ausgeführt werden.
 
 Die aktuelle Spielversion steht als `config/version` im Abschnitt
 `[application]` der `project.godot` und wird im Hauptmenü angezeigt.
-Die aktuelle Version ist **0.22.0**. Bei einer neuen Version wird dieser Wert manuell
+Die aktuelle Version ist **0.23.0**. Bei einer neuen Version wird dieser Wert manuell
 angepasst; er folgt dem Schema `MAJOR.MINOR.PATCH`, zum Beispiel `0.2.0` für
 eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
 allein prüft noch nicht die Multiplayer-Kompatibilität.
@@ -385,6 +394,7 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/pause_menu_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_map_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_features_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/building_measurement_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_scale_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/game_map_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/missions_test.gd
