@@ -416,6 +416,7 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 	body.set_meta("measurement_scale", map_scale)
 	body.set_meta("measurement_height", height)
 	body.set_meta("measurement_osm_id", way.id)
+	body.set_meta("measurement_way", way.duplicate(true))
 	var visual := MeshInstance3D.new()
 	visual.mesh = mesh
 	body.add_child(visual)

@@ -18,7 +18,7 @@ Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenf
 - Offene Höhendaten importieren und auf das Gelände der Spielkarte anwenden.
 - Debug-Modus mit F3 ein- und ausschalten: Beim Überfahren eines OSM-Objekts mit der Maus eine Infobox mit Objekttyp, OSM-ID, Koordinaten und Tags anzeigen; auch dicht beieinanderliegende Objekte auswählbar machen.
 - Einen Karten-Editiermodus im Hauptmenü anbieten: Karte ohne Schaden begehen und befahren, OSM-Knoten als Kugeln und Pfade als Linien anzeigen und Knoten verschieben können.
-- Manuelle Kartenänderungen im OSM-Format speichern und bei erneuten OSM-Downloads anhand der OSM-IDs automatisch anwenden; auch neue Objekte, Gebäude und Routen (z. B. Schilder, Hydranten, Parkplätze und Bürgersteige) anlegen können.
+- Weitere manuelle Kartenänderungen anhand von OSM-IDs unterstützen und Änderungen exportieren; auch neue Objekte, Gebäude und Routen (z. B. Schilder, Hydranten, Parkplätze und Bürgersteige) anlegen können. Gebäudezusammenfassungen werden bereits lokal gespeichert.
 - Begehbare Gebäude und Innenräume umsetzen; der Editiermodus soll die dafür nötigen Gebäudeformen und Öffnungen unterstützen.
 - Gespeicherte Ortsliste in der Ortsauswahl durch rasterbasierte Auswahl ersetzen; mitgelieferte Offline-Orte und Serverstart-Kompatibilität dabei bewahren.
 - Für den ausgewählten Kartenblock verfügbare Inhalte anzeigen (Aufträge, Erste-Hilfe-/Essensorte, Apotheken, Geschäfte und kaufbare Immobilien) und passende Symbole auf der Karte darstellen.

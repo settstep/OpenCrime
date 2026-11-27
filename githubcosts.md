@@ -42,3 +42,4 @@
 | 27.11.2026 | 08:41 | 48      | display OSM traffic and emergency objects                   |
 | 27.11.2026 | 09:03 | 49      | updated todo                                                |
 | 27.11.2026 | 09:15 | 50      | add building measurement mode                               |
+| 27.11.2026 | 12:45 | 55      | add building merge editor                                   |

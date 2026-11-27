@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.24.0
+- Im Gebäudeeditor können zusammenhängende OSM-Gebäude zu einem Gebäude zusammengefasst werden. Die lokalen Änderungen bleiben getrennt von den OSM-Daten gespeichert.
+- Im Multiplayer verwaltet der Server seine Gebäudeänderungen und synchronisiert sie mit den Spielern.
+
 ## 0.23.0
 - Mit F4 lassen sich OSM-Gebäude anklicken und ihre nummerierten Seiten in OSM-Metern und skalierten Spieleinheiten messen.
 

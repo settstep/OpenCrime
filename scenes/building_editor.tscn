@@ -1,0 +1,48 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/building_editor.gd" id="1"]
+
+[node name="BuildingEditor" type="Control"]
+process_mode = 3
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1")
+
+[node name="Panel" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 20.0
+offset_top = 90.0
+offset_right = 410.0
+offset_bottom = 250.0
+
+[node name="Layout" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Panel/Layout"]
+layout_mode = 2
+text = "Gebäude bearbeiten (F5)"
+
+[node name="Info" type="Label" parent="Panel/Layout"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Gebäude anklicken, um sie aus- oder abzuwählen. Das erste bestimmt Höhe und Eigenschaften."
+
+[node name="Selection" type="Label" parent="Panel/Layout"]
+layout_mode = 2
+autowrap_mode = 2
+text = "0 Gebäude ausgewählt."
+
+[node name="Merge" type="Button" parent="Panel/Layout"]
+layout_mode = 2
+disabled = true
+text = "Gebäude zusammenfassen"
+
+[node name="Message" type="Label" parent="Panel/Layout"]
+layout_mode = 2
+autowrap_mode = 2

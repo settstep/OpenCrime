@@ -11,6 +11,8 @@ const FirstAid = preload("res://scripts/first_aid.gd")
 const MapBlockStream = preload("res://scripts/map_block_stream.gd")
 const GameLog = preload("res://scripts/game_log.gd")
 const MissionUI = preload("res://scenes/mission_ui.tscn")
+const BuildingEdits = preload("res://scripts/building_edits.gd")
+const MapGeometry = preload("res://scripts/osm_map.gd")
 const ENTER_DISTANCE := 3.5
 const MEDKIT_PICKUP_RADIUS := 2.5
 const INITIAL_CAR_COUNT := 3
@@ -21,6 +23,7 @@ const CAMERA_MAX_SIZE := 40.0
 const CAMERA_ZOOM_START_SPEED := 6.0
 const CAMERA_ZOOM_MAX_SPEED := 25.0
 const CAMERA_ZOOM_RESPONSE := 3.0
+const BUILDING_MERGE_SUCCESS := "Gebäude wurden zusammengefasst und gespeichert."
 
 @onready var player: PlayerScript = $Player
 @onready var car: CarScript = $Car
@@ -56,6 +59,9 @@ var first_aid_marker: Node3D
 var medkit_state := {}
 var medkit_marker: Node3D
 var map_block_stream: Node
+var building_edits: BuildingEdits
+var refreshing_building_edits := false
+var building_conflict_check_pending := false
 
 
 func _ready() -> void:
@@ -76,6 +82,10 @@ func _ready() -> void:
 	mission_ui.defer_requested.connect(_on_mission_defer)
 	mission_ui.invite_requested.connect(_on_mission_invite)
 	mission_ui.close_requested.connect(_close_missions)
+	building_edits = BuildingEdits.new()
+	if (not _is_network_game() or multiplayer.is_server()) and not building_edits.load_file():
+		status.text = building_edits.error
+		push_error(building_edits.error)
 	mission_marker = MeshInstance3D.new()
 	mission_marker.name = "MissionMarker"
 	var marker_mesh := BoxMesh.new()
@@ -463,7 +473,13 @@ func _reset_to_map() -> void:
 
 
 func _configure_map(place: Dictionary) -> void:
-	game_map.configure(place, float(ProjectSettings.get_setting("opencrime/osm/scale")))
+	var effective := _apply_building_edits(place)
+	var map := get_node_or_null("OSMMap")
+	if map != null:
+		if not MapGeometry.replace_block(map, effective, float(ProjectSettings.get_setting("opencrime/osm/scale"))):
+			push_error("Gebäudeänderungen konnten nicht aufgebaut werden.")
+		map.set_meta("place", place)
+	game_map.configure(effective, float(ProjectSettings.get_setting("opencrime/osm/scale")))
 	if map_block_stream != null and is_instance_valid(map_block_stream):
 		map_block_stream.queue_free()
 	map_block_stream = MapBlockStream.new()
@@ -472,14 +488,83 @@ func _configure_map(place: Dictionary) -> void:
 	map_block_stream.block_loaded.connect(_on_map_block_loaded)
 	map_block_stream.block_unloaded.connect(_on_map_block_unloaded)
 	map_block_stream.configure(self, place, float(ProjectSettings.get_setting("opencrime/osm/scale")))
+	_schedule_building_conflict_check()
 
 
 func _on_map_block_loaded(block: Vector2i, place: Dictionary, world_origin: Array) -> void:
-	game_map.add_block(place, world_origin, block)
+	game_map.add_block(_apply_building_edits(place), world_origin, block)
+	_schedule_building_conflict_check()
+
+
+func _apply_building_edits(place: Dictionary) -> Dictionary:
+	if building_edits == null:
+		return place
+	var effective: Dictionary = building_edits.apply(place)
+	if not building_edits.conflicts.is_empty():
+		status.text = "OSM-Gebäude %s geändert; Zusammenfassung nicht angewendet." % str(building_edits.conflicts)
+	return effective
+
+
+func _refresh_building_edits() -> void:
+	if map_block_stream == null:
+		return
+	var blocks: Dictionary = map_block_stream.loaded_blocks.duplicate()
+	var places := []
+	for block in blocks:
+		places.append(blocks[block].data)
+	if (not _is_network_game() or multiplayer.is_server()) and building_edits.scan_conflicts(places):
+		_building_conflicts_changed()
+	refreshing_building_edits = true
+	for block in blocks:
+		map_block_stream._replace_block(block, blocks[block].data)
+	refreshing_building_edits = false
+
+
+func _schedule_building_conflict_check() -> void:
+	if refreshing_building_edits or building_conflict_check_pending:
+		return
+	building_conflict_check_pending = true
+	call_deferred("_check_building_conflicts")
+
+
+func _check_building_conflicts() -> void:
+	building_conflict_check_pending = false
+	if not is_instance_valid(map_block_stream) or building_edits == null:
+		return
+	if _is_network_game() and not multiplayer.is_server():
+		return
+	var places := []
+	for entry in map_block_stream.loaded_blocks.values():
+		places.append(entry.data)
+	if building_edits.scan_conflicts(places):
+		if not building_edits.blocked_merges.is_empty():
+			status.text = "OSM-Gebäude geändert; Zusammenfassung %s wird nicht angewendet." % str(building_edits.blocked_merges.keys())
+			push_warning(status.text)
+		_refresh_building_edits()
+		_building_conflicts_changed()
+
+
+func _building_conflicts_changed() -> void:
+	pass
+
+
+func _commit_building_merge(ways: Array) -> String:
+	if building_edits == null:
+		return "Gebäudeänderungen sind nicht verfügbar."
+	if building_edits.load_failed:
+		return "Gebäudeänderungen sind nicht verfügbar: " + building_edits.error
+	var result: Dictionary = building_edits.prepare(ways)
+	if result.has("error"):
+		return result.error
+	if not building_edits.save(result.data):
+		return building_edits.error
+	_refresh_building_edits()
+	return BUILDING_MERGE_SUCCESS
 
 
 func _on_map_block_unloaded(block: Vector2i) -> void:
 	game_map.remove_block(block)
+	_schedule_building_conflict_check()
 
 
 func _map_block_watch_positions() -> Array:

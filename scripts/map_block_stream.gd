@@ -9,7 +9,7 @@ const PlaceStore = preload("res://scripts/place_store.gd")
 const GameLog = preload("res://scripts/game_log.gd")
 
 var CACHE_DIRECTORY := PlaceStore.BLOCK_CACHE_DIRECTORY
-const USER_AGENT := "OpenCrime/0.23.0 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.24.0 (+https://github.com/settstep/OpenCrime)"
 const MAX_RESPONSE_BYTES := 8 * 1024 * 1024
 const MAX_CONCURRENT_DOWNLOADS := 1
 const MIN_REQUEST_INTERVAL_MS := 1000
@@ -28,6 +28,7 @@ var base_place: Dictionary = {}
 var map_scale := 1.0
 var desired_blocks: Dictionary = {}
 var loaded_blocks: Dictionary = {}
+var pending_remote_blocks: Dictionary = {}
 var requests: Dictionary = {}
 var pending_blocks: Array[Vector2i] = []
 var failed_blocks: Dictionary = {}
@@ -48,6 +49,7 @@ func configure(target_world: Node3D, place: Dictionary, scale_factor: float) -> 
 	GameLog.info("map", "stream started place=%s scale=%s" % [place.get("id", "unknown"), scale_factor])
 	desired_blocks.clear()
 	loaded_blocks.clear()
+	pending_remote_blocks.clear()
 	ground_blocks.clear()
 	base_block = Grid.block_for_position(Vector2.ZERO, map_scale, base_place.origin)
 	boundary_center = base_block
@@ -82,6 +84,7 @@ func accept_remote_block(block: Vector2i, place: Dictionary) -> bool:
 			return false
 	if not _store_block(block, place):
 		return false
+	pending_remote_blocks.erase(block)
 	failed_blocks.erase(block)
 	retry_attempts.erase(block)
 	if desired_blocks.has(block):
@@ -123,6 +126,9 @@ func _process(_delta: float) -> void:
 
 
 func _reconcile(next: Dictionary) -> void:
+	for block in pending_remote_blocks.keys():
+		if not next.has(block):
+			pending_remote_blocks.erase(block)
 	for block in loaded_blocks.keys():
 		if not next.has(block):
 			var data: Dictionary = loaded_blocks[block]
@@ -234,6 +240,11 @@ func _block_id(block: Vector2i) -> String:
 
 
 func _load_block(block: Vector2i) -> void:
+	if world.call("_is_network_game") and not world.multiplayer.is_server():
+		if not pending_remote_blocks.has(block):
+			if world.call("_request_server_map_block", block):
+				pending_remote_blocks[block] = true
+		return
 	if not bool(ProjectSettings.get_setting("opencrime/osm/download_blocks", true)):
 		return
 	if pending_blocks.has(block):
@@ -256,8 +267,6 @@ func _load_block(block: Vector2i) -> void:
 			return
 		push_warning("Ungültiger Kartenblock-Cache wird erneut geladen: " + path)
 		GameLog.warning("osm", "invalid cache block=%s path=%s" % [Grid.key(block), path])
-	if world.call("_is_network_game") and not world.multiplayer.is_server():
-		return
 	if requests.size() >= MAX_CONCURRENT_DOWNLOADS:
 		if not pending_blocks.has(block):
 			pending_blocks.append(block)
@@ -364,13 +373,14 @@ func _activate_block(block: Vector2i, place: Dictionary) -> void:
 	if not desired_blocks.has(block) or loaded_blocks.has(block):
 		return
 	var node: Node3D
+	var effective: Dictionary = world.call("_apply_building_edits", place) if world.has_method("_apply_building_edits") else place
 	if block == base_block and world.get_node_or_null("OSMMap") != null:
 		node = world.get_node("OSMMap")
-		if not OSMMap.replace_block(node, place, map_scale):
+		if not OSMMap.replace_block(node, effective, map_scale):
 			_report_error("Kartenblock %s konnte nicht aufgebaut werden." % Grid.key(block))
 			return
 	else:
-		node = OSMMap.create_block(place, map_scale)
+		node = OSMMap.create_block(effective, map_scale)
 		if node == null:
 			_report_error("Kartenblock %s konnte nicht aufgebaut werden." % Grid.key(block))
 			return
@@ -391,10 +401,12 @@ func _replace_block(block: Vector2i, place: Dictionary) -> void:
 			return
 		if loaded_blocks.has(block):
 			block_unloaded.emit(block)
-		if not OSMMap.replace_block(base_node, place, map_scale):
+		var effective: Dictionary = world.call("_apply_building_edits", place) if world.has_method("_apply_building_edits") else place
+		if not OSMMap.replace_block(base_node, effective, map_scale):
 			_report_error("Kartenblock %s konnte nicht aufgebaut werden." % Grid.key(block))
 			return
 		base_node.position = _to_world_position(OSMMap._project(place.origin, base_place.origin) * map_scale)
+		base_node.set_meta("place", place)
 		loaded_blocks[block] = {"node": base_node, "data": place}
 		GameLog.info("map", "block replaced block=%s ways=%d" % [Grid.key(block), place.ways.size()])
 		block_loaded.emit(block, place, base_place.origin)

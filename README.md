@@ -197,6 +197,26 @@ hebt die Auswahl auf. OSM-Daten und Projektion sind Näherungen und keine
 Garantie für exakt vermessene Gebäude. Der Modus funktioniert lokal auch im
 Multiplayer und verändert weder Kartendaten noch Spielstände.
 
+Mit **F5** öffnet und schließt man den Gebäudeeditor. Durch Anklicken werden
+mindestens zwei Gebäude ausgewählt; ein erneuter Klick wählt eines ab.
+**Gebäude zusammenfassen** vereinigt die zusammenhängenden Grundrisse zu
+einem Gebäude. Lücken werden nicht aufgefüllt; getrennte Grundrisse und
+Grundrisse mit einem entstehenden Innenhof werden abgelehnt. Das zuerst
+ausgewählte Gebäude bestimmt Höhe und sonstige Eigenschaften. Anschließend
+kann das Ergebnis mit **F4** vermessen werden.
+
+Die Änderungen gelten lokal für alle Spielstände und liegen als separate
+Zusammenfassungen mit ihren ursprünglichen OSM-Gebäuden unter
+`OpenCrimeData/map_edits/buildings.json`. Die OSM-Cachedateien und Spielstände
+bleiben unverändert. Ändert sich ein ursprünglicher Grundriss bei einem
+OSM-Download, wird die betroffene Zusammenfassung im geladenen Bereich nicht
+angewendet und eine Warnung angezeigt. Ein Export oder eine Bearbeitung solcher
+Konflikte ist noch nicht implementiert.
+Im Multiplayer kann nur der Host bearbeiten; der Server speichert seine eigenen
+Änderungen und übermittelt sie beim Beitritt und nach einer Bearbeitung an
+alle Spieler. Änderungen der Clients werden dabei nicht verwendet oder
+überschrieben.
+
 Als OSM-Punkte erfasste Ampeln, Stoppschilder, Vorfahrt- und andere
 Verkehrszeichen, Fußgängerübergänge, Hydranten und Defibrillatoren erscheinen
 als vereinfachte 3D-Modelle beziehungsweise Markierungen. Unterirdische
@@ -306,7 +326,7 @@ eigenen Pfad ausgeführt werden.
 
 Die aktuelle Spielversion steht als `config/version` im Abschnitt
 `[application]` der `project.godot` und wird im Hauptmenü angezeigt.
-Die aktuelle Version ist **0.23.0**. Bei einer neuen Version wird dieser Wert manuell
+Die aktuelle Version ist **0.24.0**. Bei einer neuen Version wird dieser Wert manuell
 angepasst; er folgt dem Schema `MAJOR.MINOR.PATCH`, zum Beispiel `0.2.0` für
 eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
 allein prüft noch nicht die Multiplayer-Kompatibilität.
@@ -395,6 +415,8 @@ Godot-Konsolenprogrammdatei gestartet werden (den Pfad entsprechend anpassen):
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_map_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_features_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/building_measurement_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/building_edits_test.gd
+& "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/building_editor_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/osm_scale_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/game_map_test.gd
 & "C:\Pfad\zu\Godot_v4.7.2-stable_win64_console.exe" --headless --path . --script res://tests/missions_test.gd

@@ -1,9 +1,10 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_player"]
 [ext_resource type="PackedScene" path="res://scenes/car.tscn" id="2_car"]
 [ext_resource type="Script" path="res://scripts/main.gd" id="3_main"]
 [ext_resource type="PackedScene" path="res://scenes/building_measurement.tscn" id="4_measurement"]
+[ext_resource type="PackedScene" path="res://scenes/building_editor.tscn" id="5_editor"]
 
 [sub_resource type="StandardMaterial3D" id="GroundMaterial"]
 albedo_color = Color(0.35, 0.52, 0.31, 1)
@@ -90,7 +91,7 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = 700.0
 offset_bottom = 50.0
-text = "WASD: Bewegen / Fahren   |   E: Fahrzeug   |   F: Erste Hilfe   |   H: Paket   |   M: Karte   |   F4: Messen"
+text = "WASD: Bewegen / Fahren  |  E: Fahrzeug  |  F: Erste Hilfe  |  H: Paket  |  M: Karte  |  F4: Messen  |  F5: Editor"
 
 [node name="Status" type="Label" parent="HUD"]
 offset_left = 20.0
@@ -137,3 +138,5 @@ offset_right = 1000.0
 offset_bottom = -25.0
 
 [node name="BuildingMeasurement" parent="HUD" instance=ExtResource("4_measurement")]
+
+[node name="BuildingEditor" parent="HUD" instance=ExtResource("5_editor")]

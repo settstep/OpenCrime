@@ -27,6 +27,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and event.pressed and not event.echo and not event.alt_pressed and (event.keycode == KEY_F4 or event.physical_keycode == KEY_F4):
 		active = not active
+		if active:
+			world.get_node("HUD/BuildingEditor").close_editor()
 		pending_click = false
 		if not active:
 			_clear_selection()

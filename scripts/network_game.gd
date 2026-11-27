@@ -66,6 +66,8 @@ func _ready() -> void:
 		multiplayer.connection_failed.connect(_on_connection_failed)
 		multiplayer.server_disconnected.connect(_on_server_disconnected)
 		status.text = "Verbinde mit dem Server ..."
+	if building_edits.load_failed:
+		status.text = building_edits.error
 
 
 func _process(delta: float) -> void:
@@ -271,6 +273,10 @@ func _local_movement_input() -> Vector2:
 
 
 func _on_peer_connected(peer_id: int) -> void:
+	if building_edits.load_failed:
+		push_error("Server kann Gebäudeänderungen nicht laden: " + building_edits.error)
+		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+		return
 	var raw := JSON.stringify(place_data).to_utf8_buffer()
 	if raw.size() > MAX_PLACE_BYTES:
 		push_error("Server-Ort ist für die Übertragung zu groß.")
@@ -282,12 +288,51 @@ func _on_peer_connected(peer_id: int) -> void:
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 		return
 	_verify_map_scale.rpc_id(peer_id, float(ProjectSettings.get_setting(OSMMap.SCALE_SETTING)))
+	_send_building_edits(peer_id)
 	_receive_place.rpc_id(peer_id, compressed, first_aid, medkit_state)
 	_add_server_player(peer_id)
 	_send_loaded_map_blocks(peer_id)
 	if car_spawn_incomplete:
 		_notify(peer_id, CAR_SPAWN_WARNING)
 	print("Spieler verbunden: ", peer_id)
+
+
+func _send_building_edits(peer_id: int) -> void:
+	var payload := {"edits": building_edits.data(), "blocked": building_edits.blocked_merges.keys()}
+	var raw := JSON.stringify(payload, "", true, true).to_utf8_buffer()
+	_receive_building_edits.rpc_id(peer_id, raw.compress(FileAccess.COMPRESSION_GZIP))
+
+
+func _building_conflicts_changed() -> void:
+	if multiplayer.is_server():
+		for peer_id in multiplayer.get_peers():
+			_send_building_edits(peer_id)
+
+
+func _commit_building_merge(ways: Array) -> String:
+	if not multiplayer.is_server():
+		return "Nur der Server-Host kann Gebäude bearbeiten."
+	var result := super._commit_building_merge(ways)
+	if result == BUILDING_MERGE_SUCCESS:
+		for peer_id in multiplayer.get_peers():
+			_send_building_edits(peer_id)
+	return result
+
+
+@rpc("authority", "call_remote", "reliable")
+func _receive_building_edits(compressed: PackedByteArray) -> void:
+	if multiplayer.is_server() or not connected:
+		return
+	if compressed.is_empty() or compressed.size() > MAX_COMPRESSED_BYTES:
+		_reject_place("Server-Gebäudeänderungen sind zu groß oder leer.")
+		return
+	var raw := compressed.decompress_dynamic(MAX_COMPRESSED_BYTES, FileAccess.COMPRESSION_GZIP)
+	var json := JSON.new()
+	if raw.is_empty() or json.parse(raw.get_string_from_utf8()) != OK or not json.data is Dictionary or not building_edits.set_data(json.data.get("edits")) or not building_edits.set_blocked(json.data.get("blocked")):
+		_reject_place("Server hat ungültige Gebäudeänderungen gesendet.")
+		return
+	if map_ready:
+		_refresh_building_edits()
 
 
 func _send_loaded_map_blocks(peer_id: int) -> void:
@@ -298,7 +343,25 @@ func _send_loaded_map_blocks(peer_id: int) -> void:
 		_send_map_block(peer_id, entry.block, entry.place)
 
 
+func _request_server_map_block(block: Vector2i) -> bool:
+	if not connected:
+		return false
+	_request_map_block.rpc_id(1, block)
+	return true
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_map_block(block: Vector2i) -> void:
+	if not multiplayer.is_server() or map_block_stream == null or not map_block_stream.loaded_blocks.has(block):
+		return
+	var place: Dictionary = map_block_stream.loaded_blocks[block].data
+	if place.id == map_block_stream._block_id(block):
+		_send_map_block(multiplayer.get_remote_sender_id(), block, place)
+
+
 func _broadcast_map_block(block: Vector2i, place: Dictionary, _world_origin: Array) -> void:
+	if refreshing_building_edits:
+		return
 	for peer_id in multiplayer.get_peers():
 		_send_map_block(peer_id, block, place)
 
