@@ -398,9 +398,15 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 	var height := _building_height(way.tags) * map_scale
 	for index in triangles:
 		surface.add_vertex(Vector3(points[index].x * map_scale, height, points[index].y * map_scale))
+	# Wall collision faces must point consistently outward for either OSM winding.
+	var clockwise := Geometry2D.is_polygon_clockwise(points)
 	for index in points.size():
 		var a := points[index]
 		var b := points[(index + 1) % points.size()]
+		if not clockwise:
+			var temporary := a
+			a = b
+			b = temporary
 		var a_bottom := Vector3(a.x * map_scale, 0, a.y * map_scale)
 		var b_bottom := Vector3(b.x * map_scale, 0, b.y * map_scale)
 		var a_top := a_bottom + Vector3.UP * height

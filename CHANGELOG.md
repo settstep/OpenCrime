@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.25.1
+- Gebäudewände erhalten unabhängig von der OSM-Konturrichtung eine einheitliche Kollisionsausrichtung, damit die Spielfigur an Wänden entlang und wieder weg laufen kann.
+
 ## 0.25.0
 - Im Gebäudeeditor lässt sich die Etagenzahl einzelner und zusammengefasster Gebäude festlegen; die lokale Änderung wird gespeichert und im Multiplayer vom Server synchronisiert.
 

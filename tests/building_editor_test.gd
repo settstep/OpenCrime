@@ -20,6 +20,19 @@ func _way(id: int, left: float, origin: Array) -> Dictionary:
 	return {"id": id, "tags": {"building": "yes", "height": "5"}, "geometry": geometry}
 
 
+func _can_leave_wall(player: CharacterBody3D) -> bool:
+	player.movement_input = Vector2(1, 1).normalized()
+	var start := player.global_position
+	for frame in 20:
+		await physics_frame
+	var sliding := player.global_position
+	player.movement_input = Vector2.LEFT
+	for frame in 20:
+		await physics_frame
+	player.movement_input = Vector2.ZERO
+	return sliding.z > start.z + 0.8 and sliding.x < 0.0 and player.global_position.x < sliding.x - 1.0
+
+
 func _test() -> void:
 	var directory := ProjectSettings.globalize_path("user://building_editor_test_" + Crypto.new().generate_random_bytes(8).hex_encode())
 	DataPaths.root_override = directory
@@ -87,6 +100,12 @@ func _test() -> void:
 	if world.player.global_position.distance_to(position_before) < 0.1:
 		_fail("The player could not move after editing levels and leaving the editor.")
 		return
+	world.player.uses_local_input = false
+	world.car.global_position = Vector3(-100, 0.5, -100)
+	world.player.global_position = Vector3(-0.4, 0.9, -6.5)
+	world.player.velocity = Vector3.ZERO
+	await physics_frame
+	await physics_frame
 	root.push_input(key, true)
 	await process_frame
 	await process_frame
@@ -107,6 +126,12 @@ func _test() -> void:
 	if not editor.selected.is_empty() or world.get_node_or_null("OSMMap/Building_2") != null or not FileAccess.file_exists(world.building_edits.path):
 		_fail("Merge did not update the map, clear the selection and persist the diff.")
 		return
+	root.push_input(key, true)
+	if editor.active or not await _can_leave_wall(world.player):
+		_fail("Player could not slide and move away from the merged building after closing the editor.")
+		return
+	root.push_input(key, true)
+	await process_frame
 	root.push_input(first_click, true)
 	await physics_frame
 	await physics_frame
@@ -167,6 +192,17 @@ func _test() -> void:
 		return
 	if absf(float(reloaded.get_node("OSMMap/Building_1").get_meta("measurement_height")) - 15.6) > 0.01:
 		_fail("Level override was not restored after reopening the map.")
+		return
+	reloaded.set_process(false)
+	reloaded.map_block_stream.set_process(false)
+	reloaded.player.uses_local_input = false
+	reloaded.car.global_position = Vector3(-100, 0.5, -100)
+	reloaded.player.global_position = Vector3(-0.4, 0.9, -6.5)
+	reloaded.player.velocity = Vector3.ZERO
+	await physics_frame
+	await physics_frame
+	if not await _can_leave_wall(reloaded.player):
+		_fail("Player could not slide and move away from the restored merged building.")
 		return
 	reloaded.free()
 	if DirAccess.remove_absolute(path) != OK or DirAccess.remove_absolute(path.get_base_dir()) != OK or DirAccess.remove_absolute(directory) != OK:
