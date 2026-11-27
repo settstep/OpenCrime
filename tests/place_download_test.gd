@@ -172,7 +172,22 @@ func _test() -> void:
 	if not cached_selection.info.text.contains("aktualisiert") or FileAccess.file_exists(cached_place_path):
 		_fail("Manual refresh did not report success or created a saved place.")
 		return
-	_cleanup(cached_selection)
+	cached_selection.queue_free()
+	await process_frame
+	var reopened_selection := Selection.instantiate()
+	root.add_child(reopened_selection)
+	await process_frame
+	var reopened_chosen := []
+	reopened_selection.place_chosen.connect(func(place: Dictionary): reopened_chosen.append(place))
+	reopened_selection._on_map_selected(latitude, longitude)
+	if not reopened_selection.info.text.contains("Gecachter") or reopened_selection.info.text.contains("fehlen noch"):
+		_fail("A refreshed block was not recognized when reopening the place selection.")
+		return
+	reopened_selection._on_start_pressed()
+	if reopened_chosen.size() != 1 or reopened_selection.request.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
+		_fail("The refreshed block did not allow starting without another download.")
+		return
+	_cleanup(reopened_selection)
 	print("OSM traffic/emergency download, cache-version refresh, and direct cached start passed")
 	quit(0)
 

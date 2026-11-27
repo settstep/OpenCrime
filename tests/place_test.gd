@@ -3,6 +3,8 @@ extends SceneTree
 const PlaceStore = preload("res://scripts/place_store.gd")
 const Selection = preload("res://scenes/place_selection.tscn")
 
+var original_block_directory := ""
+
 
 func _initialize() -> void:
 	call_deferred("_test")
@@ -13,6 +15,8 @@ func _test() -> void:
 	if PlaceStore.find_by_id("thalhofen").is_empty() or PlaceStore.find_by_id("gendarmenmarkt").is_empty():
 		_fail("Bundled places are unavailable.")
 		return
+	original_block_directory = PlaceStore.BLOCK_CACHE_DIRECTORY
+	PlaceStore.BLOCK_CACHE_DIRECTORY = "user://place_test_empty_cache_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()]
 	var selection := Selection.instantiate()
 	root.add_child(selection)
 	await process_frame
@@ -62,10 +66,13 @@ func _test() -> void:
 	if not PlaceStore.from_overpass(response, latitude, longitude, bounds, "Test").is_empty():
 		_fail("A start inside a building was accepted.")
 		return
+	PlaceStore.BLOCK_CACHE_DIRECTORY = original_block_directory
 	print("Saved places, offline selection, projection and persistence passed")
 	quit(0)
 
 
 func _fail(reason: String) -> void:
+	if not original_block_directory.is_empty():
+		PlaceStore.BLOCK_CACHE_DIRECTORY = original_block_directory
 	push_error(reason)
 	quit(1)

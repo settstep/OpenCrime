@@ -31,8 +31,10 @@ static func is_valid(place: Dictionary) -> bool:
 		return false
 	if not place.origin is Array or place.origin.size() != 2 or not place.bounds is Array or place.bounds.size() != 4 or not place.ways is Array or not place.get("nodes", []) is Array:
 		return false
-	if place.has("block_data_version") and typeof(place.block_data_version) != TYPE_INT:
-		return false
+	if place.has("block_data_version"):
+		var version: Variant = place.block_data_version
+		if (typeof(version) != TYPE_INT and typeof(version) != TYPE_FLOAT) or not is_finite(float(version)) or float(version) < 1.0 or float(version) != floorf(float(version)):
+			return false
 	for value in place.origin + place.bounds:
 		if (typeof(value) != TYPE_INT and typeof(value) != TYPE_FLOAT) or not is_finite(float(value)):
 			return false

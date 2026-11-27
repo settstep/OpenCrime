@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.21.1
+- Gespeicherte Kartenblöcke werden nach dem Einlesen aus JSON wieder zuverlässig erkannt und ohne erneuten Download verwendet.
+
 ## 0.21.0
 - OSM-Kartenblöcke enthalten zusätzlich Verkehrssteuerung, Verkehrszeichen, Hydranten und Defibrillatoren.
 - Veraltete gecachte Blöcke können in der Ortsauswahl manuell aktualisiert werden; bisherige Cache-Daten bleiben bis zum erfolgreichen Download nutzbar.

@@ -26,3 +26,4 @@ mono_crash.*.json
 
 export/windows/opencrime.pck
 /OpenCrimeData/
+/.godot-local.cfg

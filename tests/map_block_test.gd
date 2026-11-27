@@ -72,6 +72,22 @@ func _test() -> void:
 	if not PlaceStore.is_valid(data) or data.ways.size() != 1:
 		_fail("Valid block OSM data was rejected.")
 		return
+	var json_data: Variant = JSON.parse_string(JSON.stringify(data))
+	if not json_data is Dictionary or not PlaceStore.is_valid(json_data) or PlaceStore.block_needs_refresh(json_data):
+		_fail("A current block became invalid or outdated after JSON serialization.")
+		return
+	for invalid_version in [0, -1, 1.5, "2", true, null]:
+		var invalid_data: Dictionary = data.duplicate(true)
+		invalid_data["block_data_version"] = invalid_version
+		if PlaceStore.is_valid(invalid_data):
+			_fail("An invalid block data version was accepted: %s" % str(invalid_version))
+			return
+	var legacy_data: Dictionary = data.duplicate(true)
+	legacy_data.erase("block_data_version")
+	legacy_data.erase("nodes")
+	if not PlaceStore.is_valid(legacy_data) or not PlaceStore.block_needs_refresh(legacy_data):
+		_fail("A legacy block was not readable and marked for refresh.")
+		return
 
 	var stream := MapBlockStream.new()
 	stream.base_place = {"id": "window_ready_test", "origin": origin}
