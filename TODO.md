@@ -16,6 +16,7 @@ Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenf
 - Erste-Hilfe-Paket in der Welt langsam rotieren und/oder auf und ab schweben lassen, damit es besser auffällt.
 - Den automatischen Aufnahmeradius des Erste-Hilfe-Pakets so verkleinern, dass der Spieler es deutlich berühren muss.
 - Offene Höhendaten importieren und auf das Gelände der Spielkarte anwenden.
+- Debug-Modus mit F3 ein- und ausschalten: Beim Überfahren eines OSM-Objekts mit der Maus eine Infobox mit Objekttyp, OSM-ID, Koordinaten und Tags anzeigen; auch dicht beieinanderliegende Objekte auswählbar machen.
 - Einen Karten-Editiermodus im Hauptmenü anbieten: Karte ohne Schaden begehen und befahren, OSM-Knoten als Kugeln und Pfade als Linien anzeigen und Knoten verschieben können.
 - Manuelle Kartenänderungen im OSM-Format speichern und bei erneuten OSM-Downloads anhand der OSM-IDs automatisch anwenden; auch neue Objekte, Gebäude und Routen (z. B. Schilder, Hydranten, Parkplätze und Bürgersteige) anlegen können.
 - Begehbare Gebäude und Innenräume umsetzen; der Editiermodus soll die dafür nötigen Gebäudeformen und Öffnungen unterstützen.
