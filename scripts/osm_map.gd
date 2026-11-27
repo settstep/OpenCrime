@@ -123,6 +123,94 @@ static func _populate_geometry(map: Node3D, place: Dictionary, map_scale: float)
 
 	_add_joints(map, "RoadJoints", road_joints, road_material)
 	_add_joints(map, "PathJoints", path_joints, pedestrian_material)
+	_add_point_features(map, place, map_scale)
+
+
+static func _add_point_features(map: Node3D, place: Dictionary, map_scale: float) -> void:
+	var points := _point_feature_positions(place, map_scale)
+	var posts: Array = []
+	for kind in ["Signal", "Stop", "GiveWay", "Sign", "Defibrillator"]:
+		posts.append_array(points[kind])
+	_add_point_mesh(map, "FeaturePosts", posts, Vector3(0.12, 2.1, 0.12), 1.05, Color(0.35, 0.35, 0.35), map_scale, 8)
+	_add_point_mesh(map, "Signal", points.Signal, Vector3(0.75, 0.7, 0.35), 2.45, Color(0.12, 0.12, 0.12), map_scale)
+	_add_point_mesh(map, "SignalRed", points.Signal, Vector3(0.16, 0.05, 0.16), 2.83, Color(0.9, 0.08, 0.08), map_scale, 12, -0.23)
+	_add_point_mesh(map, "SignalYellow", points.Signal, Vector3(0.16, 0.05, 0.16), 2.83, Color(0.95, 0.75, 0.05), map_scale, 12)
+	_add_point_mesh(map, "SignalGreen", points.Signal, Vector3(0.16, 0.05, 0.16), 2.83, Color(0.08, 0.7, 0.2), map_scale, 12, 0.23)
+	_add_point_mesh(map, "Stop", points.Stop, Vector3(0.8, 0.12, 0.8), 2.1, Color(0.8, 0.04, 0.04), map_scale, 8)
+	_add_point_mesh(map, "StopCenter", points.Stop, Vector3(0.52, 0.04, 0.52), 2.18, Color(1.0, 1.0, 1.0), map_scale, 8)
+	_add_point_mesh(map, "GiveWay", points.GiveWay, Vector3(0.9, 0.12, 0.9), 2.1, Color(0.8, 0.04, 0.04), map_scale, 3)
+	_add_point_mesh(map, "GiveWayCenter", points.GiveWay, Vector3(0.55, 0.04, 0.55), 2.18, Color(1.0, 1.0, 1.0), map_scale, 3)
+	_add_point_mesh(map, "Sign", points.Sign, Vector3(0.7, 0.12, 0.7), 2.1, Color(0.8, 0.8, 0.8), map_scale)
+	_add_point_mesh(map, "Crossing", points.Crossing, Vector3(0.8, 0.06, 0.8), 0.09, Color(0.95, 0.8, 0.1), map_scale)
+	_add_point_mesh(map, "Hydrant", points.Hydrant, Vector3(0.45, 0.85, 0.45), 0.425, Color(0.8, 0.08, 0.05), map_scale, 12)
+	_add_point_mesh(map, "UndergroundHydrant", points.UndergroundHydrant, Vector3(0.65, 0.06, 0.65), 0.09, Color(0.45, 0.45, 0.45), map_scale, 12)
+	_add_point_mesh(map, "Defibrillator", points.Defibrillator, Vector3(0.65, 0.55, 0.65), 1.4, Color(0.05, 0.55, 0.2), map_scale)
+	_add_point_mesh(map, "DefibrillatorCrossA", points.Defibrillator, Vector3(0.4, 0.04, 0.12), 1.7, Color.WHITE, map_scale)
+	_add_point_mesh(map, "DefibrillatorCrossB", points.Defibrillator, Vector3(0.12, 0.04, 0.4), 1.7, Color.WHITE, map_scale)
+
+
+static func _point_feature_positions(place: Dictionary, map_scale: float) -> Dictionary:
+	var points := {
+		"Signal": [], "Stop": [], "GiveWay": [], "Crossing": [],
+		"Sign": [], "Hydrant": [], "UndergroundHydrant": [], "Defibrillator": [],
+	}
+	var block := MapBlockGrid.block_at_origin(place.origin)
+	for node in place.get("nodes", []):
+		if MapBlockGrid.block_for_coordinate(node.location, place.origin) != block:
+			continue
+		var offset := _project(node.location, place.origin) * map_scale
+		var position := Vector3(offset.x, 0.0, offset.y)
+		var tags: Dictionary = node.tags
+		match tags.get("highway", ""):
+			"traffic_signals":
+				points.Signal.append(position)
+			"stop":
+				points.Stop.append(position)
+			"give_way":
+				points.GiveWay.append(position)
+			"crossing":
+				points.Crossing.append(position)
+			_:
+				if tags.has("traffic_sign"):
+					points.Sign.append(position)
+		match tags.get("emergency", ""):
+			"fire_hydrant":
+				if tags.get("fire_hydrant:type", "") == "underground":
+					points.UndergroundHydrant.append(position)
+				else:
+					points.Hydrant.append(position)
+			"defibrillator":
+				points.Defibrillator.append(position)
+	return points
+
+
+static func _add_point_mesh(map: Node3D, node_name: String, positions: Array, dimensions: Vector3, height: float, color: Color, map_scale: float, radial_segments: int = 0, offset_x: float = 0.0) -> void:
+	if positions.is_empty():
+		return
+	var mesh: PrimitiveMesh
+	if radial_segments > 0:
+		var cylinder := CylinderMesh.new()
+		cylinder.radial_segments = radial_segments
+		cylinder.top_radius = 0.5
+		cylinder.bottom_radius = 0.5
+		cylinder.height = 1.0
+		mesh = cylinder
+	else:
+		mesh = BoxMesh.new()
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	mesh.material = material
+	var instances := MultiMesh.new()
+	instances.transform_format = MultiMesh.TRANSFORM_3D
+	instances.mesh = mesh
+	instances.instance_count = positions.size()
+	for index in positions.size():
+		var position: Vector3 = positions[index]
+		instances.set_instance_transform(index, Transform3D(Basis.IDENTITY.scaled(dimensions * map_scale), position + Vector3(offset_x, height, 0.0) * map_scale))
+	var visual := MultiMeshInstance3D.new()
+	visual.name = node_name
+	visual.multimesh = instances
+	map.add_child(visual)
 
 
 static func _add_map_boundary(world: Node3D, extent: float) -> void:

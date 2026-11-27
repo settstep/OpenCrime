@@ -188,6 +188,16 @@ dargestellt. In Straßentags angegebene Gehwege werden nicht automatisch
 hinzuerfunden. Gebäudeformen und geschätzte Höhen bleiben vereinfacht; das
 Gelände ist eben und echte Höhendaten fehlen noch.
 
+Als OSM-Punkte erfasste Ampeln, Stoppschilder, Vorfahrt- und andere
+Verkehrszeichen, Fußgängerübergänge, Hydranten und Defibrillatoren erscheinen
+als vereinfachte 3D-Modelle beziehungsweise Markierungen. Unterirdische
+Hydranten werden als Bodenabdeckung dargestellt. Die Modelle sind rein
+dekorativ: Es gibt weder Ampelschaltungen noch Kollisionen oder Interaktionen.
+Auf Straßen-Ways hinterlegte Verkehrsregeln und Zeichen geben keine genaue
+Position eines Schildes an und erzeugen deshalb kein zusätzliches Modell.
+Alte Cacheblöcke müssen gegebenenfalls manuell aktualisiert werden, um
+punktförmige Verkehrs- und Notfallobjekte zu enthalten.
+
 Der mitgelieferte Thalhofen-Bereich umfasst 47.7735–47.7765° Nord und
 10.6013–10.6057° Ost (ungefähr 330 × 330 Meter). Wege können über diesen
 Bereich hinausragen. Bei Faktor 1,0 entspricht eine Godot-Einheit ungefähr
@@ -287,7 +297,7 @@ eigenen Pfad ausgeführt werden.
 
 Die aktuelle Spielversion steht als `config/version` im Abschnitt
 `[application]` der `project.godot` und wird im Hauptmenü angezeigt.
-Die aktuelle Version ist **0.21.1**. Bei einer neuen Version wird dieser Wert manuell
+Die aktuelle Version ist **0.22.0**. Bei einer neuen Version wird dieser Wert manuell
 angepasst; er folgt dem Schema `MAJOR.MINOR.PATCH`, zum Beispiel `0.2.0` für
 eine neue Funktion oder `0.1.1` für eine Fehlerkorrektur. Die Versionsnummer
 allein prüft noch nicht die Multiplayer-Kompatibilität.

@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.22.0
+- Als OSM-Punkte erfasste Ampeln, Verkehrszeichen, Übergänge, Hydranten und Defibrillatoren werden vereinfacht in der Spielwelt dargestellt.
+
 ## 0.21.1
 - Gespeicherte Kartenblöcke werden nach dem Einlesen aus JSON wieder zuverlässig erkannt und ohne erneuten Download verwendet.
 

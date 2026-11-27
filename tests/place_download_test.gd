@@ -3,6 +3,7 @@ extends SceneTree
 const Selection = preload("res://scenes/place_selection.tscn")
 const PlaceStore = preload("res://scripts/place_store.gd")
 const Grid = preload("res://scripts/map_block_grid.gd")
+const OSMMap = preload("res://scripts/osm_map.gd")
 
 var last_request := ""
 var original_places_directory := ""
@@ -93,8 +94,8 @@ func _test() -> void:
 		return
 	var response := {"elements": [
 		{"type": "way", "id": 123, "tags": {"highway": "residential"}, "geometry": [{"lat": latitude - 0.0005, "lon": longitude}, {"lat": latitude + 0.0005, "lon": longitude}]},
-		{"type": "node", "id": 125, "tags": {"highway": "traffic_signals"}, "lat": latitude + 0.0001, "lon": longitude + 0.0001},
-		{"type": "node", "id": 126, "tags": {"emergency": "fire_hydrant"}, "lat": latitude + 0.0002, "lon": longitude + 0.0002},
+		{"type": "node", "id": 125, "tags": {"highway": "traffic_signals"}, "lat": latitude, "lon": longitude},
+		{"type": "node", "id": 126, "tags": {"emergency": "fire_hydrant"}, "lat": latitude, "lon": longitude},
 		{"type": "way", "id": 124, "tags": {"amenity": "parking"}, "geometry": [
 			{"lat": latitude + 0.0005, "lon": longitude + 0.0005},
 			{"lat": latitude + 0.0006, "lon": longitude + 0.0005},
@@ -187,6 +188,13 @@ func _test() -> void:
 	if reopened_chosen.size() != 1 or reopened_selection.request.get_http_client_status() != HTTPClient.STATUS_DISCONNECTED:
 		_fail("The refreshed block did not allow starting without another download.")
 		return
+	var world_block := OSMMap.create_block(reopened_chosen[0], 1.0)
+	if world_block == null or not world_block.has_node("Signal") or not world_block.has_node("Hydrant"):
+		if world_block != null:
+			world_block.free()
+		_fail("Refreshed traffic and emergency points did not reach the rendered start block.")
+		return
+	world_block.free()
 	_cleanup(reopened_selection)
 	print("OSM traffic/emergency download, cache-version refresh, and direct cached start passed")
 	quit(0)

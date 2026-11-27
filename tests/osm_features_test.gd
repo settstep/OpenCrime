@@ -3,6 +3,7 @@ extends SceneTree
 const MainScene = preload("res://scenes/main.tscn")
 const OSMMap = preload("res://scripts/osm_map.gd")
 const PlaceStore = preload("res://scripts/place_store.gd")
+const Grid = preload("res://scripts/map_block_grid.gd")
 
 
 func _initialize() -> void:
@@ -133,6 +134,8 @@ func _test() -> void:
 			_fail("Parking surface faces away from the light.")
 			return
 		world.free()
+	if not _test_point_features():
+		return
 	var thalhofen := PlaceStore.find_by_id("thalhofen")
 	if not thalhofen.ways.any(func(way): return way.tags.get("amenity") == "parking"):
 		_fail("Bundled Thalhofen has no parking data.")
@@ -148,6 +151,64 @@ func _test() -> void:
 	ProjectSettings.set_setting(OSMMap.SCALE_SETTING, original)
 	print("OSM widths, heights, collisions, paths, parking and scaling passed")
 	quit(0)
+
+
+func _test_point_features() -> bool:
+	var reference := [47.7748417, 10.6034933]
+	var block := Grid.block_at_origin(reference)
+	var origin := Grid.block_origin(reference, block)
+	var projected := Grid.project(origin, Grid.zone_for_origin(origin), true)
+	var tags_list := [
+		{"highway": "traffic_signals"}, {"highway": "stop", "traffic_sign": "DE:206"}, {"highway": "give_way"},
+		{"highway": "crossing"}, {"traffic_sign": "DE:274-30"},
+		{"emergency": "fire_hydrant"}, {"emergency": "fire_hydrant", "fire_hydrant:type": "underground"},
+		{"emergency": "defibrillator"}, {"amenity": "bench"},
+	]
+	var nodes: Array = []
+	for index in tags_list.size():
+		nodes.append({
+			"id": index + 1,
+			"tags": tags_list[index],
+			"location": Grid.unproject([projected[0] + float(index) * 5.0, projected[1]], Grid.zone_for_origin(origin), true),
+		})
+	nodes.append({
+		"id": 100, "tags": {"emergency": "fire_hydrant"},
+		"location": Grid.block_origin(reference, block + Vector2i.RIGHT),
+	})
+	var place := {
+		"id": "point_test", "name": "Points", "origin": origin,
+		"bounds": Grid.block_bounds(reference, block), "ways": [], "nodes": nodes,
+	}
+	var map := OSMMap.create_block(place, 2.0)
+	if map == null:
+		_fail("A block containing OSM point features did not load.")
+		return false
+	for name in ["Signal", "Stop", "GiveWay", "Crossing", "Sign", "Hydrant", "UndergroundHydrant", "Defibrillator"]:
+		var visual := map.get_node_or_null(name) as MultiMeshInstance3D
+		if visual == null or visual.multimesh.instance_count != 1:
+			_fail("Missing or duplicated point-feature model: " + name)
+			map.free()
+			return false
+	for child in map.get_children():
+		if child is CollisionObject3D:
+			_fail("Decorative point features must not create collision obstacles.")
+			map.free()
+			return false
+	var positions := OSMMap._point_feature_positions(place, 2.0)
+	var actual: Vector3 = positions.Sign[0]
+	var expected := OSMMap._project(nodes[4].location, origin) * 2.0
+	if Vector2(actual.x, actual.z).distance_to(expected) > 0.01:
+		_fail("Point feature position or scaling is incorrect: actual=%s expected=%s" % [actual, expected])
+		map.free()
+		return false
+	var legacy: Dictionary = place.duplicate(true)
+	legacy.erase("nodes")
+	if not OSMMap.replace_block(map, legacy, 1.0) or map.has_node("Signal") or map.has_node("Hydrant"):
+		_fail("Replacing a block with legacy data left stale point features.")
+		map.free()
+		return false
+	map.free()
+	return true
 
 
 func _fail(reason: String) -> void:
