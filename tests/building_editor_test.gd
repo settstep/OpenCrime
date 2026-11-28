@@ -618,6 +618,44 @@ func _test() -> void:
 	if editor.message.text != world.BUILDING_WALL_CHANGE_SUCCESS or absf(float(edited_floor.walls[0].thicknesses[moved_piece_index]) - 0.6) > 0.001:
 		_fail("A split wall segment did not retain its own thickness: " + editor.message.text)
 		return
+	var shift_click := InputEventMouseButton.new()
+	shift_click.button_index = MOUSE_BUTTON_LEFT
+	shift_click.pressed = true
+	shift_click.shift_pressed = true
+	shift_click.position = camera.unproject_position(Vector3(-0.39, 7.8, -4.0))
+	root.push_input(shift_click, true)
+	if editor.secondary_wall.is_empty() or not editor.wall_merge.visible or not editor.secondary_wall.outside:
+		_fail("Shift-click did not add a second wall.")
+		return
+	var before_merge := JSON.stringify(world.building_edits.data())
+	editor.wall_merge.pressed.emit()
+	if editor.message.text != "Nur benachbarte Teilstücke derselben aufgeteilten Wand können verbunden werden." or JSON.stringify(world.building_edits.data()) != before_merge:
+		_fail("Unrelated walls were not rejected without changing saved data.")
+		return
+	merged_building = world.get_node("OSMMap/Building_1")
+	split_floor = merged_building.get_node("FloorPreview_2")
+	split_segments = split_floor.get_meta("wall_plans")[0].segments
+	var first_middle: Vector2 = (split_segments[moved_piece_index][0] + split_segments[moved_piece_index][1]) * 0.5
+	var other_middle: Vector2 = (split_segments[1 - moved_piece_index][0] + split_segments[1 - moved_piece_index][1]) * 0.5
+	var other_position := (other_middle + wall_origin) * wall_scale
+	shift_click.position = camera.unproject_position(merged_building.to_global(Vector3(other_position.x, 7.8, other_position.y)))
+	root.push_input(shift_click, true)
+	if editor.selected_segment != moved_piece_index or int(editor.secondary_wall.segment) == moved_piece_index or editor.dragging_wall:
+		_fail("Shift-click did not preserve the first wall selection.")
+		return
+	editor.wall_merge.pressed.emit()
+	await physics_frame
+	await physics_frame
+	edited_floor = world.building_edits.merges[0].hollow_floors[0]
+	if editor.message.text != world.BUILDING_WALL_MERGE_SUCCESS or edited_floor.walls[0].has("cuts") or absf(float(edited_floor.walls[0].thickness) - 0.6) > 0.001 or not editor.secondary_wall.is_empty() or editor.wall_merge.visible:
+		_fail("The selected wall pieces were not merged with the first piece's thickness: " + editor.message.text)
+		return
+	merged_building = world.get_node("OSMMap/Building_1")
+	split_floor = merged_building.get_node("FloorPreview_2")
+	var merged_segment: Array = split_floor.get_meta("wall_plans")[0].segments[0]
+	if first_middle.distance_to(Geometry2D.get_closest_point_to_segment(first_middle, merged_segment[0], merged_segment[1])) > 0.02:
+		_fail("The first selected wall piece moved when joining.")
+		return
 	editor._clear_wall_selection()
 	select_wall.position = camera.unproject_position(Vector3(-0.39, 7.8, -4.0))
 	root.push_input(select_wall, true)
@@ -652,6 +690,46 @@ func _test() -> void:
 	edited_floor = world.building_edits.merges[0].hollow_floors[0]
 	if editor.message.text != world.BUILDING_WALL_CHANGE_SUCCESS or absf(float(edited_floor.outer_splits[0].offsets[exterior_piece])) < 0.4:
 		_fail("An exterior wall segment did not move with its connector: " + editor.message.text)
+		return
+	var exterior_offset: float = edited_floor.outer_splits[0].offsets[exterior_piece]
+	merged_building = world.get_node("OSMMap/Building_1")
+	var exterior_preview: MeshInstance3D = merged_building.get_node("FloorPreview_2")
+	var outer_edges: Array = exterior_preview.get_meta("outer_edges")
+	var outer_outline: PackedVector2Array = exterior_preview.get_meta("local_outline")
+	var other_exterior := Vector2.ZERO
+	var found_other := false
+	for index in outer_edges.size():
+		if not outer_edges[index].connector and int(outer_edges[index].edge) == exterior_edge and int(outer_edges[index].segment) != exterior_piece:
+			var edge_start := outer_outline[index]
+			var edge_end := outer_outline[(index + 1) % outer_outline.size()]
+			other_exterior = (edge_start + edge_end) * 0.5
+			var inward := (outer_outline[(index + 1) % outer_outline.size()] - outer_outline[index]).normalized().orthogonal()
+			if not Geometry2D.is_point_in_polygon(other_exterior + inward * 0.01, outer_outline):
+				inward = -inward
+			for fraction in [0.15, 0.3, 0.5, 0.7, 0.85]:
+				var candidate: Vector2 = edge_start.lerp(edge_end, fraction) + inward * 0.2
+				var position := (candidate + wall_origin) * wall_scale
+				var screen := camera.unproject_position(merged_building.to_global(Vector3(position.x, 7.8, position.y)))
+				if not editor.wall_properties.get_global_rect().has_point(screen) and not editor.panel.get_global_rect().has_point(screen) and not editor.dimensions_panel.get_global_rect().has_point(screen):
+					other_exterior = candidate
+					found_other = true
+					break
+			break
+	if not found_other:
+		_fail("The other exterior wall piece was not found.")
+		return
+	other_position = (other_exterior + wall_origin) * wall_scale
+	shift_click.position = camera.unproject_position(merged_building.to_global(Vector3(other_position.x, 7.8, other_position.y)))
+	root.push_input(shift_click, true)
+	if editor.secondary_wall.is_empty() or not editor.secondary_wall.outside or not editor.wall_merge.visible:
+		_fail("Shift-click did not select the other exterior wall piece: %s %s %s %s" % [editor.secondary_wall, editor.message.text, shift_click.position, other_exterior])
+		return
+	editor.wall_merge.pressed.emit()
+	await physics_frame
+	await physics_frame
+	edited_floor = world.building_edits.merges[0].hollow_floors[0]
+	if editor.message.text != world.BUILDING_WALL_MERGE_SUCCESS or not edited_floor.outer_splits[0].cuts.is_empty() or absf(float(edited_floor.outer_splits[0].offsets[0]) - exterior_offset) > 0.001:
+		_fail("Exterior wall pieces were not merged at the first piece's position: " + editor.message.text)
 		return
 	editor._clear_wall_selection()
 	world.player.global_position = Vector3(-2, 0.9, -6.5)
@@ -736,7 +814,7 @@ func _test() -> void:
 		_fail("Level override was not restored after reopening the map.")
 		return
 	var restored_floor: Dictionary = reloaded.building_edits.merges[0].hollow_floors[0]
-	if not restored_floor.has("outline") or not is_equal_approx(float(restored_floor.wall_thickness), 0.4) or not is_equal_approx(float(restored_floor.walls[0].thickness), 0.5):
+	if not restored_floor.has("outline") or not is_equal_approx(float(restored_floor.wall_thickness), 0.4) or not is_equal_approx(float(restored_floor.walls[0].thickness), 0.6) or restored_floor.walls[0].has("cuts"):
 		_fail("Edited wall position or thickness was not restored after reopening the map.")
 		return
 	reloaded.set_process(false)

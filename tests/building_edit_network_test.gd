@@ -197,6 +197,16 @@ func _test() -> void:
 			_fail("Client did not receive the wall segment move.")
 			return
 		building = world.get_node("OSMMap/Building_1")
+		var joined_message: String = world._commit_building_wall_merge(building.get_meta("measurement_way"), 2, false, 0, 0, 1)
+		if joined_message != world.BUILDING_WALL_MERGE_SUCCESS:
+			_fail("Live server interior wall merge failed: " + joined_message)
+			return
+		while not FileAccess.file_exists(directory.path_join("wall_joined.flag")) and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not FileAccess.file_exists(directory.path_join("wall_joined.flag")):
+			_fail("Client did not receive the interior wall merge.")
+			return
+		building = world.get_node("OSMMap/Building_1")
 		var split_outer_message: String = world._commit_building_wall_split(building.get_meta("measurement_way"), 2, true, 0, -1)
 		if split_outer_message != world.BUILDING_WALL_SPLIT_SUCCESS:
 			_fail("Live server exterior wall split failed: " + split_outer_message)
@@ -215,6 +225,16 @@ func _test() -> void:
 			await process_frame
 		if not FileAccess.file_exists(directory.path_join("outer_piece_moved.flag")):
 			_fail("Client did not receive the exterior wall segment move.")
+			return
+		building = world.get_node("OSMMap/Building_1")
+		var joined_outer_message: String = world._commit_building_wall_merge(building.get_meta("measurement_way"), 2, true, 0, 0, 1)
+		if joined_outer_message != world.BUILDING_WALL_MERGE_SUCCESS:
+			_fail("Live server exterior wall merge failed: " + joined_outer_message)
+			return
+		while not FileAccess.file_exists(directory.path_join("outer_joined.flag")) and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not FileAccess.file_exists(directory.path_join("outer_joined.flag")):
+			_fail("Client did not receive the exterior wall merge.")
 			return
 		var changed: Dictionary = place.duplicate(true)
 		changed.ways[0].geometry[0][0] += 0.00001
@@ -352,6 +372,19 @@ func _test() -> void:
 			return
 		var piece_flag := FileAccess.open(directory.path_join("piece_moved.flag"), FileAccess.WRITE)
 		piece_flag.close()
+		hollow_building = world.get_node("OSMMap/Building_1")
+		if world._commit_building_wall_merge(hollow_building.get_meta("measurement_way"), 2, false, 0, 0, 1) != "Nur der Server-Host kann Gebäude bearbeiten.":
+			_fail("A client was allowed to merge wall pieces.")
+			return
+		while Time.get_ticks_msec() < deadline:
+			if not world.building_edits.merges[0].hollow_floors[0].walls[0].has("cuts"):
+				break
+			await process_frame
+		if world.building_edits.merges[0].hollow_floors[0].walls[0].has("cuts"):
+			_fail("The merged interior wall was not synchronized.")
+			return
+		var joined_flag := FileAccess.open(directory.path_join("wall_joined.flag"), FileAccess.WRITE)
+		joined_flag.close()
 		while Time.get_ticks_msec() < deadline:
 			if not world.building_edits.merges[0].hollow_floors[0].get("outer_splits", []).is_empty():
 				break
@@ -370,6 +403,16 @@ func _test() -> void:
 			return
 		var outer_piece_flag := FileAccess.open(directory.path_join("outer_piece_moved.flag"), FileAccess.WRITE)
 		outer_piece_flag.close()
+		while Time.get_ticks_msec() < deadline:
+			if world.building_edits.merges[0].hollow_floors[0].outer_splits[0].cuts.is_empty():
+				break
+			await process_frame
+		var joined_outer: Dictionary = world.building_edits.merges[0].hollow_floors[0].outer_splits[0]
+		if not joined_outer.cuts.is_empty() or absf(float(joined_outer.offsets[0]) + 0.3) > 0.01:
+			_fail("The merged exterior wall was not synchronized.")
+			return
+		var outer_joined_flag := FileAccess.open(directory.path_join("outer_joined.flag"), FileAccess.WRITE)
+		outer_joined_flag.close()
 		while world.building_edits.blocked_merges.is_empty() and Time.get_ticks_msec() < deadline:
 			await process_frame
 		if world.building_edits.blocked_merges.is_empty() or world.get_node_or_null("OSMMap/Building_2") == null or world.get_node_or_null("OSMMap/Building_3") == null:

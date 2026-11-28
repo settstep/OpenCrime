@@ -128,6 +128,11 @@ text = "cm speichern"
 layout_mode = 2
 text = "Wand aufteilen"
 
+[node name="MergeWalls" type="Button" parent="WallProperties/Layout"]
+visible = false
+layout_mode = 2
+text = "Wände verbinden"
+
 [node name="ConfirmSplit" type="Button" parent="WallProperties/Layout"]
 visible = false
 layout_mode = 2

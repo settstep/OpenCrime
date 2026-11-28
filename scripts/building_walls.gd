@@ -54,7 +54,7 @@ static func expand_outline(outline: PackedVector2Array, splits: Variant) -> Dict
 			return {"error": "Die Außenwandteilstücke sind ungültig."}
 		var cuts: Variant = item.get("cuts")
 		var offsets: Variant = item.get("offsets")
-		if not cuts is Array or not offsets is Array or cuts.is_empty() or cuts.size() > MAX_WALLS or offsets.size() != cuts.size() + 1:
+		if not cuts is Array or not offsets is Array or cuts.size() > MAX_WALLS or offsets.size() != cuts.size() + 1:
 			return {"error": "Die Außenwandteilstücke sind ungültig."}
 		var previous := 0.0
 		for cut in cuts:
@@ -427,6 +427,67 @@ static func split_wall(interior: PackedVector2Array, walls: Array, wall_index: i
 	if rebuilt.has("error"):
 		return rebuilt
 	return {"walls": result, "plans": rebuilt.plans, "polygons": rebuilt.walls, "regions": rebuilt.regions, "pieces": positions.size() + 1}
+
+
+static func merge_wall(interior: PackedVector2Array, walls: Array, wall_index: int, first: int, second: int) -> Dictionary:
+	var current := build(interior, walls)
+	if current.has("error"):
+		return current
+	if wall_index < 0 or wall_index >= walls.size() or first < 0 or second < 0 or absi(first - second) != 1:
+		return {"error": "Bitte zwei benachbarte Teilstücke derselben Wand auswählen."}
+	var wall: Dictionary = walls[wall_index]
+	var offsets: Array = wall.get("offsets", [])
+	if first >= offsets.size() or second >= offsets.size():
+		return {"error": "Die Wandteilstücke sind nicht mehr verfügbar."}
+	var widths: Array = wall.get("thicknesses", [])
+	var width: float = float(widths[first]) if not widths.is_empty() else float(wall.thickness)
+	var aligned := adjust_walls(interior, interior, walls, wall_index, float(offsets[first]) - float(offsets[second]), width, second)
+	if aligned.has("error"):
+		return aligned
+	var result: Array = aligned.walls
+	var joined: Dictionary = result[wall_index]
+	var cut := mini(first, second)
+	joined.cuts.remove_at(cut)
+	joined.offsets.remove_at(second)
+	if joined.has("thicknesses"):
+		joined.thicknesses.remove_at(second)
+	if joined.cuts.is_empty():
+		var plan: Dictionary = current.plans[wall_index]
+		var tangent: Vector2 = (plan.source[1] - plan.source[0]).normalized()
+		var cursor := Vector2(float(joined.cursor[0]), float(joined.cursor[1])) + tangent * float(joined.offsets[0])
+		joined.cursor = [cursor.x, cursor.y]
+		joined.thickness = width
+		joined.erase("cuts")
+		joined.erase("offsets")
+		joined.erase("thicknesses")
+	var rebuilt := build(interior, result)
+	if rebuilt.has("error"):
+		return rebuilt
+	for index in rebuilt.walls.size():
+		if not _same_polygon(aligned.polygons[index], rebuilt.walls[index]):
+			return {"error": "Die Wandverbindungen können beim Verbinden nicht zuverlässig erhalten werden."}
+	return {"walls": result, "segment": cut if joined.has("cuts") else -1}
+
+
+static func _polygon_area(polygon: PackedVector2Array) -> float:
+	var area := 0.0
+	for index in polygon.size():
+		area += (polygon[index] - polygon[0]).cross(polygon[(index + 1) % polygon.size()] - polygon[0])
+	return absf(area) * 0.5
+
+
+static func _same_polygon(first: PackedVector2Array, second: PackedVector2Array) -> bool:
+	var perimeter := 0.0
+	for index in first.size():
+		perimeter += first[index].distance_to(first[(index + 1) % first.size()])
+	var tolerance := maxf(EPSILON * EPSILON * 10.0, perimeter * EPSILON * 0.05)
+	for remainder in Geometry2D.clip_polygons(first, second):
+		if _polygon_area(remainder) > tolerance:
+			return false
+	for remainder in Geometry2D.clip_polygons(second, first):
+		if _polygon_area(remainder) > tolerance:
+			return false
+	return true
 
 
 static func split_exterior(outline: PackedVector2Array, splits: Array, plans: Array, wall_thickness: float, edge_index: int, segment_index: int) -> Dictionary:

@@ -466,6 +466,82 @@ func prepare_wall_split(way: Dictionary, floor_number: int, outside: bool, wall_
 	return {"error": "Bitte die Etage zuerst aushöhlen."}
 
 
+static func _floor_record(data: Dictionary, way_id: int, floor_number: int) -> Dictionary:
+	for merge in data.merges:
+		if int(merge.result.id) == way_id:
+			for floor_edit in merge.get("hollow_floors", []):
+				if int(floor_edit.floor) == floor_number:
+					return {"original": merge.result, "floor": floor_edit}
+	for edit in data.level_edits:
+		if int(edit.source.id) == way_id:
+			for floor_edit in edit.get("hollow_floors", []):
+				if int(floor_edit.floor) == floor_number:
+					return {"original": edit.source, "floor": floor_edit}
+	return {}
+
+
+func prepare_wall_merge(way: Dictionary, floor_number: int, outside: bool, wall_index: int, first: int, second: int) -> Dictionary:
+	if not _valid_way(way, false):
+		return {"error": "Bitte ein gültiges Gebäude auswählen."}
+	var levels := OSMMap._floor_count(way.tags)
+	if floor_number < 1 or floor_number > levels:
+		return {"error": "Bitte eine gültige Etage auswählen."}
+	if first < 0 or second < 0 or absi(first - second) != 1:
+		return {"error": "Bitte zwei benachbarte Teilstücke derselben Wand auswählen."}
+	var prepared := prepare_levels(way, levels)
+	if prepared.has("error"):
+		return prepared
+	var record := _floor_record(prepared.data, int(way.id), floor_number)
+	if record.is_empty():
+		return {"error": "Bitte die Etage zuerst aushöhlen."}
+	var floor_edit: Dictionary = record.floor
+	var original: Dictionary = record.original
+	var points := OSMMap._building_points(original, original.geometry[0])
+	var footprint := BuildingWalls.floor_outline(points, floor_edit)
+	if footprint.has("error"):
+		return footprint
+	var interior := OSMMap._building_interior(footprint.outline, float(floor_edit.wall_thickness))
+	if not outside:
+		var joined := BuildingWalls.merge_wall(interior, floor_edit.get("walls", []), wall_index, first, second)
+		if joined.has("error"):
+			return joined
+		floor_edit["walls"] = joined.walls
+		prepared["segment"] = joined.segment
+		return prepared
+	var split := {}
+	for item in floor_edit.get("outer_splits", []):
+		if int(item.edge) == wall_index:
+			split = item
+			break
+	if split.is_empty() or first >= split.offsets.size() or second >= split.offsets.size():
+		return {"error": "Die Außenwandteilstücke sind nicht mehr verfügbar."}
+	var distance: float = float(split.offsets[first]) - float(split.offsets[second])
+	var aligned := prepare_wall_change(way, floor_number, true, wall_index, distance, float(floor_edit.wall_thickness), second)
+	if aligned.has("error"):
+		return aligned
+	record = _floor_record(aligned.data, int(way.id), floor_number)
+	floor_edit = record.floor
+	var before := BuildingWalls.floor_outline(points, floor_edit)
+	for item in floor_edit.outer_splits:
+		if int(item.edge) == wall_index:
+			item.cuts.remove_at(mini(first, second))
+			item.offsets.remove_at(second)
+			split = item
+			break
+	var after := BuildingWalls.floor_outline(points, floor_edit)
+	if before.has("error") or after.has("error") or not BuildingWalls._same_polygon(before.outline, after.outline):
+		return {"error": "Die Außenwand kann nicht zuverlässig verbunden werden."}
+	var new_interior := OSMMap._building_interior(after.outline, float(floor_edit.wall_thickness))
+	if new_interior.is_empty():
+		return {"error": "Die Verbindung würde einen ungültigen Innenraum erzeugen."}
+	var updated := BuildingWalls.adjust_walls(OSMMap._building_interior(before.outline, float(floor_edit.wall_thickness)), new_interior, floor_edit.get("walls", []))
+	if updated.has("error"):
+		return updated
+	floor_edit["walls"] = updated.walls
+	aligned["segment"] = mini(first, second) if not split.cuts.is_empty() else -1
+	return aligned
+
+
 static func load_wall_thickness() -> Dictionary:
 	var path := DataPaths.path("config/building_editor.json")
 	var source := path if FileAccess.file_exists(path) else DEFAULT_CONFIG

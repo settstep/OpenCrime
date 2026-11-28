@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.32.0
+- Benachbarte Teilstücke derselben aufgeteilten Innen- oder Außenwand können mit Shift ausgewählt und wieder verbunden werden. Position und Dicke des ersten Stücks bleiben erhalten.
+
 ## 0.31.0
 - Bei ausgewählter Wand zeigen Maßlinien die Längen der Wand und ihrer Anschlüsse sowie die Innenmaße angrenzender Räume. Die Maße folgen auch der Verschiebevorschau.
 

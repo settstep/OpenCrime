@@ -252,6 +252,16 @@ Innenwandteilstücke können unterschiedliche Dicken haben. Für Außenwände
 gilt weiterhin eine gemeinsame Dicke pro Etage. Automatisch erzeugte
 Verbindungsstücke können derzeit nicht einzeln bearbeitet werden.
 
+Um eine Teilung rückgängig zu machen, wählt man ein Wandteilstück aus und
+klickt bei gedrückter **Shift-Taste** auf ein benachbartes Teilstück derselben
+Wand. Die erste Auswahl ist gelb, die zweite orange. **Wände verbinden**
+richtet das zweite Stück an der Position und Dicke des ersten aus und
+verbindet beide. Das funktioniert für Innen- und Außenwände; unabhängig
+erstellte Wände und nicht benachbarte Teilstücke können noch nicht verbunden
+werden. Änderungen, die bestehende Anschlüsse oder Räume ungültig machen
+würden, werden abgelehnt. Die Verbindung wird gespeichert und im Multiplayer
+vom Server synchronisiert.
+
 Die Standard-Wanddicke steht in
 `OpenCrimeData/config/building_editor.json` unter `wall_thickness_m` und
 beträgt 0,3 Meter vor Skalierung. Die Datei wird beim ersten Aushöhlen

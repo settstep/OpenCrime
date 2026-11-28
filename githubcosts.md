@@ -53,3 +53,4 @@
 | 28.11.2026 | 14:18 | 75      | add wall splitting                                          |
 | 28.11.2026 | 15:20 | 77      | highlight entire selected wall surfaces                     |
 | 28.11.2026 | 15:42 | 79      | show wall and room dimensions                               |
+| 28.11.2026 | 16:25 | 82      | merge adjacent wall segments                                |

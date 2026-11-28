@@ -29,6 +29,7 @@ const BUILDING_HOLLOW_SUCCESS := "Etage wurde ausgehöhlt und gespeichert."
 const BUILDING_WALL_SUCCESS := "Innenwand wurde gespeichert."
 const BUILDING_WALL_CHANGE_SUCCESS := "Wandänderung wurde gespeichert."
 const BUILDING_WALL_SPLIT_SUCCESS := "Wandteilung wurde gespeichert."
+const BUILDING_WALL_MERGE_SUCCESS := "Wände wurden verbunden und gespeichert."
 
 @onready var player: PlayerScript = $Player
 @onready var car: CarScript = $Car
@@ -638,6 +639,20 @@ func _commit_building_wall_split(way: Dictionary, floor_number: int, outside: bo
 		return building_edits.error
 	_refresh_building_edits()
 	return BUILDING_WALL_SPLIT_SUCCESS
+
+
+func _commit_building_wall_merge(way: Dictionary, floor_number: int, outside: bool, wall_index: int, first: int, second: int) -> String:
+	if building_edits == null:
+		return "Gebäudeänderungen sind nicht verfügbar."
+	if building_edits.load_failed:
+		return "Gebäudeänderungen sind nicht verfügbar: " + building_edits.error
+	var result: Dictionary = building_edits.prepare_wall_merge(way, floor_number, outside, wall_index, first, second)
+	if result.has("error"):
+		return result.error
+	if not building_edits.save(result.data):
+		return building_edits.error
+	_refresh_building_edits()
+	return BUILDING_WALL_MERGE_SUCCESS
 
 
 func _on_map_block_unloaded(block: Vector2i) -> void:

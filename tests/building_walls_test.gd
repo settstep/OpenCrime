@@ -98,6 +98,23 @@ func _test() -> void:
 	if attached_move.has("error"):
 		_fail("Moving a split wall segment lost its connected partition: %s" % attached_move)
 		return
+	var merge_source := [{"cursor": [3.0, 0.5], "thickness": 0.3, "cuts": [0.5], "offsets": [0.0, 1.0], "thicknesses": [0.3, 0.6]}]
+	var merged := BuildingWalls.merge_wall(room, merge_source, 0, 1, 0)
+	if merged.has("error") or merged.segment != -1 or merged.walls[0].has("cuts") or absf(float(merged.walls[0].thickness) - 0.6) > 0.001:
+		_fail("Merging two interior pieces did not retain the first piece's thickness: %s" % merged)
+		return
+	var merged_build := BuildingWalls.build(room, merged.walls)
+	if merged_build.has("error") or merged_build.plans[0].start.distance_to(Vector2(4, 0)) > 0.02 or merged_build.plans[0].end.distance_to(Vector2(4, 10)) > 0.02:
+		_fail("Merging did not retain the first interior piece's position: %s" % merged_build)
+		return
+	var merge_three := [{"cursor": [3.0, 0.5], "thickness": 0.3, "cuts": [0.25, 0.75], "offsets": [0.0, 1.0, 0.0]}]
+	var partial_merge := BuildingWalls.merge_wall(room, merge_three, 0, 0, 1)
+	if partial_merge.has("error") or partial_merge.walls[0].cuts.size() != 1 or partial_merge.segment != 0 or float(partial_merge.walls[0].offsets[0]) != 0.0:
+		_fail("Merging neighboring pieces did not preserve the remaining split: %s" % partial_merge)
+		return
+	if not BuildingWalls.merge_wall(room, merge_three, 0, 0, 2).has("error"):
+		_fail("Nonadjacent pieces were merged.")
+		return
 	var moved := BuildingWalls.adjust_walls(room, room, saved, 0, 2.0, 0.6)
 	if moved.has("error"):
 		_fail("Moving a partition with an attached wall failed: %s" % moved)
