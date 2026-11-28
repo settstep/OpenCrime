@@ -236,6 +236,16 @@ func _test() -> void:
 		if not FileAccess.file_exists(directory.path_join("outer_joined.flag")):
 			_fail("Client did not receive the exterior wall merge.")
 			return
+		building = world.get_node("OSMMap/Building_1")
+		var floor_reset_message: String = world._commit_building_reset_floor(building.get_meta("measurement_way"), 2)
+		if floor_reset_message != world.BUILDING_RESET_FLOOR_SUCCESS or world.get_node("OSMMap/Building_1").has_node("FloorPreview_2"):
+			_fail("Live server floor reset failed: " + floor_reset_message)
+			return
+		while not FileAccess.file_exists(directory.path_join("floor_reset.flag")) and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not FileAccess.file_exists(directory.path_join("floor_reset.flag")):
+			_fail("Client did not receive the floor reset.")
+			return
 		var changed: Dictionary = place.duplicate(true)
 		changed.ways[0].geometry[0][0] += 0.00001
 		changed.ways[0].geometry[-1][0] += 0.00001
@@ -249,6 +259,16 @@ func _test() -> void:
 			await process_frame
 		if not FileAccess.file_exists(directory.path_join("conflict.flag")):
 			_fail("Client did not receive the server's OSM conflict.")
+			return
+		var conflicted_source: StaticBody3D = world.get_node("OSMMap/Building_2")
+		var building_reset_message: String = world._commit_building_reset(conflicted_source.get_meta("measurement_way"))
+		if building_reset_message != world.BUILDING_RESET_SUCCESS or not world.building_edits.merges.is_empty() or not world.building_edits.blocked_merges.is_empty():
+			_fail("Live server conflicted building reset failed: " + building_reset_message)
+			return
+		while not FileAccess.file_exists(directory.path_join("building_reset.flag")) and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not FileAccess.file_exists(directory.path_join("building_reset.flag")):
+			_fail("Client did not receive the building reset.")
 			return
 	else:
 		while Time.get_ticks_msec() < deadline:
@@ -413,6 +433,17 @@ func _test() -> void:
 			return
 		var outer_joined_flag := FileAccess.open(directory.path_join("outer_joined.flag"), FileAccess.WRITE)
 		outer_joined_flag.close()
+		hollow_building = world.get_node("OSMMap/Building_1")
+		if world._commit_building_reset_floor(hollow_building.get_meta("measurement_way"), 2) != "Nur der Server-Host kann Gebäude bearbeiten." or world._commit_building_reset(hollow_building.get_meta("measurement_way")) != "Nur der Server-Host kann Gebäude bearbeiten.":
+			_fail("A client was allowed to reset a floor or building.")
+			return
+		while not world.building_edits.merges[0].hollow_floors.is_empty() and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not world.building_edits.merges[0].hollow_floors.is_empty() or world.get_node("OSMMap/Building_1").has_node("FloorPreview_2"):
+			_fail("The floor reset was not synchronized.")
+			return
+		var floor_reset_flag := FileAccess.open(directory.path_join("floor_reset.flag"), FileAccess.WRITE)
+		floor_reset_flag.close()
 		while world.building_edits.blocked_merges.is_empty() and Time.get_ticks_msec() < deadline:
 			await process_frame
 		if world.building_edits.blocked_merges.is_empty() or world.get_node_or_null("OSMMap/Building_2") == null or world.get_node_or_null("OSMMap/Building_3") == null:
@@ -420,6 +451,13 @@ func _test() -> void:
 			return
 		var conflict := FileAccess.open(directory.path_join("conflict.flag"), FileAccess.WRITE)
 		conflict.close()
+		while not world.building_edits.merges.is_empty() and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not world.building_edits.merges.is_empty() or not world.building_edits.blocked_merges.is_empty() or world.get_node_or_null("OSMMap/Building_1") == null or world.get_node_or_null("OSMMap/Building_2") == null or world.get_node_or_null("OSMMap/Building_3") == null:
+			_fail("The conflicted building reset was not synchronized.")
+			return
+		var building_reset_flag := FileAccess.open(directory.path_join("building_reset.flag"), FileAccess.WRITE)
+		building_reset_flag.close()
 	print("Building edit network test passed: " + role)
 	peer.close()
 	world.free()

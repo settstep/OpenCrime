@@ -30,6 +30,8 @@ const BUILDING_WALL_SUCCESS := "Innenwand wurde gespeichert."
 const BUILDING_WALL_CHANGE_SUCCESS := "Wandänderung wurde gespeichert."
 const BUILDING_WALL_SPLIT_SUCCESS := "Wandteilung wurde gespeichert."
 const BUILDING_WALL_MERGE_SUCCESS := "Wände wurden verbunden und gespeichert."
+const BUILDING_RESET_FLOOR_SUCCESS := "Etage wurde zurückgesetzt und gespeichert."
+const BUILDING_RESET_SUCCESS := "Gebäudeänderungen wurden zurückgesetzt und gespeichert."
 
 @onready var player: PlayerScript = $Player
 @onready var car: CarScript = $Car
@@ -552,6 +554,34 @@ func _check_building_conflicts() -> void:
 
 func _building_conflicts_changed() -> void:
 	pass
+
+
+func _commit_building_reset_floor(way: Dictionary, floor_number: int) -> String:
+	if building_edits == null:
+		return "Gebäudeänderungen sind nicht verfügbar."
+	if building_edits.load_failed:
+		return "Gebäudeänderungen sind nicht verfügbar: " + building_edits.error
+	var result: Dictionary = building_edits.prepare_reset_floor(way, floor_number)
+	if result.has("error"):
+		return result.error
+	if not building_edits.save(result.data):
+		return building_edits.error
+	_refresh_building_edits()
+	return BUILDING_RESET_FLOOR_SUCCESS
+
+
+func _commit_building_reset(way: Dictionary) -> String:
+	if building_edits == null:
+		return "Gebäudeänderungen sind nicht verfügbar."
+	if building_edits.load_failed:
+		return "Gebäudeänderungen sind nicht verfügbar: " + building_edits.error
+	var result: Dictionary = building_edits.prepare_reset_building(way)
+	if result.has("error"):
+		return result.error
+	if not building_edits.save(result.data):
+		return building_edits.error
+	_refresh_building_edits()
+	return BUILDING_RESET_SUCCESS
 
 
 func _commit_building_merge(ways: Array) -> String:

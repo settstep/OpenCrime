@@ -264,6 +264,63 @@ func _test() -> void:
 	if single.set_data(bad_data):
 		_fail("Invalid saved wall data was accepted.")
 		return
+	var reset_edits := BuildingEdits.new()
+	reset_edits.path = directory.path_join("reset.json")
+	if not reset_edits.set_data(single.data()):
+		_fail("Could not prepare floor reset tests.")
+		return
+	var other_floor := reset_edits.prepare_hollow(hollow_way, 1, 0.3)
+	if other_floor.has("error") or not reset_edits.set_data(other_floor.data):
+		_fail("Could not prepare another edited floor.")
+		return
+	var other_building := reset_edits.prepare_levels(c, 2)
+	if other_building.has("error") or not reset_edits.save(other_building.data):
+		_fail("Could not prepare another edited building.")
+		return
+	var before_reset := JSON.stringify(reset_edits.data())
+	var reset_floor := reset_edits.prepare_reset_floor(reset_edits.apply(place).ways[0], 2)
+	if reset_floor.has("error") or JSON.stringify(reset_edits.data()) != before_reset or not reset_edits.save(reset_floor.data) or not reset_edits.load_file():
+		_fail("Floor reset could not be saved and reloaded: %s" % reset_floor)
+		return
+	var after_floor := reset_edits.apply(place)
+	if after_floor.ways[0]._hollow_floors.size() != 1 or int(after_floor.ways[0]._hollow_floors[0].floor) != 1 or after_floor.ways[0].tags.get("building:levels") != "3" or after_floor.ways[2].tags.get("building:levels") != "2" or not reset_edits.prepare_reset_floor(after_floor.ways[0], 2).has("error"):
+		_fail("Floor reset changed another floor or building, or retained the reset floor.")
+		return
+	var reset_building := reset_edits.prepare_reset_building(after_floor.ways[0])
+	if reset_building.has("error") or not reset_edits.save(reset_building.data) or not reset_edits.load_file():
+		_fail("Individual building reset could not be saved and reloaded: %s" % reset_building)
+		return
+	var after_building := reset_edits.apply(place)
+	if after_building.ways[0] != a or after_building.ways[2].tags.get("building:levels") != "2" or reset_edits.has_building_edit(1) or not reset_edits.has_building_edit(3):
+		_fail("Building reset failed to restore OSM data or changed another building.")
+		return
+	if not reset_edits.prepare_reset_building(after_building.ways[0]).has("error"):
+		_fail("Resetting an unedited building was accepted.")
+		return
+	if not reset_edits.set_data(merged_with_levels.data):
+		_fail("Could not prepare merged building reset.")
+		return
+	var reset_merged_way: Dictionary = reset_edits.apply(place).ways[-1]
+	var merged_floor := reset_edits.prepare_hollow(reset_merged_way, 2, 0.3)
+	if merged_floor.has("error") or not reset_edits.set_data(merged_floor.data):
+		_fail("Could not prepare merged floor reset.")
+		return
+	reset_merged_way = reset_edits.apply(place).ways[-1]
+	var reset_merged_floor := reset_edits.prepare_reset_floor(reset_merged_way, 2)
+	if reset_merged_floor.has("error") or not reset_edits.set_data(reset_merged_floor.data) or reset_edits.merges.size() != 1 or not reset_edits.merges[0].hollow_floors.is_empty():
+		_fail("Resetting a merged floor changed the building merge.")
+		return
+	reset_edits.scan_conflicts([changed])
+	if not reset_edits.has_building_edit(2) or not reset_edits.prepare_reset_floor(reset_merged_way, 2).has("error"):
+		_fail("A conflicted merge was not detected or allowed a floor edit.")
+		return
+	var reset_conflict := reset_edits.prepare_reset_building(b)
+	if reset_conflict.has("error") or not reset_edits.save(reset_conflict.data) or not reset_edits.load_file() or reset_edits.apply(place).ways != place.ways:
+		_fail("Resetting a conflicted merge did not restore all original buildings.")
+		return
+	if DirAccess.remove_absolute(reset_edits.path) != OK:
+		_fail("Reset test file could not be cleaned up.")
+		return
 	single.scan_conflicts([changed])
 	if single.apply(place).ways[0].has("_hollow_floors"):
 		_fail("A conflicted hollow floor was applied.")

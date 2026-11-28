@@ -309,6 +309,26 @@ func _building_conflicts_changed() -> void:
 			_send_building_edits(peer_id)
 
 
+func _commit_building_reset_floor(way: Dictionary, floor_number: int) -> String:
+	if not multiplayer.is_server():
+		return "Nur der Server-Host kann Gebäude bearbeiten."
+	var result := super._commit_building_reset_floor(way, floor_number)
+	if result == BUILDING_RESET_FLOOR_SUCCESS:
+		for peer_id in multiplayer.get_peers():
+			_send_building_edits(peer_id)
+	return result
+
+
+func _commit_building_reset(way: Dictionary) -> String:
+	if not multiplayer.is_server():
+		return "Nur der Server-Host kann Gebäude bearbeiten."
+	var result := super._commit_building_reset(way)
+	if result == BUILDING_RESET_SUCCESS:
+		for peer_id in multiplayer.get_peers():
+			_send_building_edits(peer_id)
+	return result
+
+
 func _commit_building_merge(ways: Array) -> String:
 	if not multiplayer.is_server():
 		return "Nur der Server-Host kann Gebäude bearbeiten."

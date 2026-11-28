@@ -217,6 +217,54 @@ static func _set_levels(way: Dictionary, levels: int) -> void:
 	way.tags["building:levels"] = str(levels)
 
 
+func has_building_edit(id: int) -> bool:
+	for merge in merges:
+		for source in merge.sources:
+			if int(source.id) == id:
+				return true
+	for edit in level_edits:
+		if int(edit.source.id) == id:
+			return true
+	return false
+
+
+func prepare_reset_building(way: Dictionary) -> Dictionary:
+	if not _valid_way(way, false):
+		return {"error": "Bitte ein gültiges Gebäude auswählen."}
+	var id := int(way.id)
+	var next := data()
+	for index in next.merges.size():
+		var merge: Dictionary = next.merges[index]
+		for source in merge.sources:
+			if int(source.id) != id:
+				continue
+			if not blocked_merges.has(int(merge.result.id)) and (id != int(merge.result.id) or not way.has("_edit_sources")):
+				return {"error": "Die Gebäudeauswahl ist nicht mehr aktuell. Bitte erneut auswählen."}
+			next.merges.remove_at(index)
+			return {"data": next}
+	for index in next.level_edits.size():
+		var edit: Dictionary = next.level_edits[index]
+		if int(edit.source.id) == id:
+			if not blocked_merges.has(id) and not way.has("_edit_sources"):
+				return {"error": "Die Gebäudeauswahl ist nicht mehr aktuell. Bitte erneut auswählen."}
+			next.level_edits.remove_at(index)
+			return {"data": next}
+	return {"error": "Für dieses Gebäude sind keine Änderungen gespeichert."}
+
+
+func prepare_reset_floor(way: Dictionary, floor_number: int) -> Dictionary:
+	if not _valid_way(way, false) or floor_number < 1 or floor_number > OSMMap._floor_count(way.tags):
+		return {"error": "Bitte ein gültiges Gebäude und eine gültige Etage auswählen."}
+	var prepared := prepare_levels(way, OSMMap._floor_count(way.tags))
+	if prepared.has("error"):
+		return prepared
+	var record := _floor_record(prepared.data, int(way.id), floor_number)
+	if record.is_empty():
+		return {"error": "Für diese Etage sind keine Änderungen gespeichert."}
+	record.floors.erase(record.floor)
+	return prepared
+
+
 func prepare_levels(way: Dictionary, levels: int) -> Dictionary:
 	if not _valid_way(way, false) or not _valid_levels(levels):
 		return {"error": "Bitte ein gültiges Gebäude und eine Etagenzahl von 1 bis 1000 wählen."}
@@ -471,12 +519,12 @@ static func _floor_record(data: Dictionary, way_id: int, floor_number: int) -> D
 		if int(merge.result.id) == way_id:
 			for floor_edit in merge.get("hollow_floors", []):
 				if int(floor_edit.floor) == floor_number:
-					return {"original": merge.result, "floor": floor_edit}
+					return {"original": merge.result, "floor": floor_edit, "floors": merge.hollow_floors}
 	for edit in data.level_edits:
 		if int(edit.source.id) == way_id:
 			for floor_edit in edit.get("hollow_floors", []):
 				if int(floor_edit.floor) == floor_number:
-					return {"original": edit.source, "floor": floor_edit}
+					return {"original": edit.source, "floor": floor_edit, "floors": edit.hollow_floors}
 	return {}
 
 

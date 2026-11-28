@@ -905,6 +905,62 @@ func _test() -> void:
 	if reloaded_editor.selected.size() != 1 or reloaded_editor.selected[0] != rebuilt_neighbor or not rebuilt_neighbor.get_node("FloorPreview_1").visible:
 		_fail("A hollowed floor in a streamed block lost its selection or preview.")
 		return
+	var before_reset := JSON.stringify(reloaded.building_edits.data())
+	reloaded_editor.reset_floor_button.pressed.emit()
+	if not reloaded_editor.reset_confirmation.visible:
+		_fail("Resetting a floor did not request confirmation.")
+		return
+	reloaded_editor.reset_confirmation.canceled.emit()
+	if reloaded_editor.reset_confirmation.visible or JSON.stringify(reloaded.building_edits.data()) != before_reset:
+		_fail("Cancelling a floor reset changed saved edits.")
+		return
+	reloaded_editor.reset_floor_button.pressed.emit()
+	reloaded_editor.floor_number.value = 2
+	reloaded_editor.reset_confirmation.confirmed.emit()
+	if JSON.stringify(reloaded.building_edits.data()) != before_reset or not reloaded_editor.message.text.contains("Auswahl hat sich geändert"):
+		_fail("A floor reset affected a different selection after confirmation.")
+		return
+	reloaded_editor.floor_number.value = 1
+	reloaded_editor.reset_floor_button.pressed.emit()
+	var block_entry: Dictionary = reloaded.map_block_stream.loaded_blocks[other_block]
+	var original_block: Node3D = block_entry.node
+	block_entry.node = reloaded.get_node("OSMMap")
+	reloaded_editor.reset_confirmation.confirmed.emit()
+	block_entry.node = original_block
+	if JSON.stringify(reloaded.building_edits.data()) != before_reset or not reloaded_editor.message.text.contains("Auswahl hat sich geändert"):
+		_fail("A floor reset accepted a selection from a replaced block.")
+		return
+	reloaded_editor.reset_floor_button.pressed.emit()
+	reloaded_editor.reset_confirmation.confirmed.emit()
+	await process_frame
+	await process_frame
+	rebuilt_neighbor = reloaded.map_block_stream.loaded_blocks[other_block].node.get_node("Building_1")
+	if reloaded_editor.message.text != reloaded.BUILDING_RESET_FLOOR_SUCCESS or reloaded_editor.selected.size() != 1 or reloaded_editor.selected[0] != rebuilt_neighbor or reloaded_editor.floor_number.value != 1 or rebuilt_neighbor.has_node("FloorPreview_1") or not rebuilt_neighbor.get_node("Segment_1").visible or not rebuilt_neighbor.has_node("FloorPreview_2") or not rebuilt_neighbor.has_node("FloorPreview_4") or reloaded_editor.reset_floor_button.disabled == false:
+		_fail("Floor reset did not restore a solid floor while preserving other floors and the selection.")
+		return
+	before_reset = JSON.stringify(reloaded.building_edits.data())
+	reloaded_editor.reset_building_button.pressed.emit()
+	if not reloaded_editor.reset_confirmation.visible or not reloaded_editor.reset_confirmation.dialog_text.contains("Zusammengefasste Gebäude"):
+		_fail("Building reset did not explain and request confirmation.")
+		return
+	reloaded_editor.reset_confirmation.canceled.emit()
+	if JSON.stringify(reloaded.building_edits.data()) != before_reset:
+		_fail("Cancelling building reset changed saved edits.")
+		return
+	reloaded_editor.reset_building_button.pressed.emit()
+	reloaded_editor.reset_confirmation.confirmed.emit()
+	await process_frame
+	await process_frame
+	var original_a: StaticBody3D = reloaded.get_node_or_null("OSMMap/Building_1")
+	var original_b: StaticBody3D = reloaded.get_node_or_null("OSMMap/Building_2")
+	if reloaded_editor.message.text != reloaded.BUILDING_RESET_SUCCESS or original_a == null or original_b == null or original_a.get_meta("measurement_way") != a or original_b.get_meta("measurement_way") != b or not reloaded.building_edits.merges.is_empty():
+		_fail("Building reset did not restore the original OSM buildings.")
+		return
+	var reset_reloaded := BuildingEditor.BuildingEdits.new()
+	reset_reloaded.path = reloaded.building_edits.path
+	if not reset_reloaded.load_file() or not reset_reloaded.merges.is_empty():
+		_fail("Building reset did not survive reloading.")
+		return
 	reloaded_editor.close_editor()
 	reloaded.free()
 	var config_path: String = directory.path_join("config/building_editor.json")

@@ -8,7 +8,7 @@ const DataPaths = preload("res://scripts/data_paths.gd")
 const PlaceStore = preload("res://scripts/place_store.gd")
 const MapBlockGrid = preload("res://scripts/map_block_grid.gd")
 const FALLBACK_CACHE_SECONDS := 604800
-const USER_AGENT := "OpenCrime/0.32.1 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.33.0 (+https://github.com/settstep/OpenCrime)"
 
 var CACHE_DIRECTORY := DataPaths.path("tile_cache")
 var BLOCK_CACHE_DIRECTORY := PlaceStore.BLOCK_CACHE_DIRECTORY

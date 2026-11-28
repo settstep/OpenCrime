@@ -88,9 +88,24 @@ layout_mode = 2
 disabled = true
 text = "Wand hinzufügen"
 
+[node name="ResetFloor" type="Button" parent="Panel/Layout"]
+layout_mode = 2
+disabled = true
+text = "Etage zurücksetzen"
+
+[node name="ResetBuilding" type="Button" parent="Panel/Layout"]
+layout_mode = 2
+disabled = true
+text = "Gebäude zurücksetzen"
+
 [node name="Message" type="Label" parent="Panel/Layout"]
 layout_mode = 2
 autowrap_mode = 2
+
+[node name="ResetConfirmation" type="ConfirmationDialog" parent="."]
+title = "Änderungen zurücksetzen"
+ok_button_text = "Zurücksetzen"
+cancel_button_text = "Abbrechen"
 
 [node name="WallProperties" type="PanelContainer" parent="."]
 visible = false

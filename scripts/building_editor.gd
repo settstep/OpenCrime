@@ -15,6 +15,9 @@ const BuildingWalls = preload("res://scripts/building_walls.gd")
 @onready var floor_number: SpinBox = $Panel/Layout/Floor/Number
 @onready var hollow_button: Button = $Panel/Layout/Floor/Hollow
 @onready var wall_button: Button = $Panel/Layout/Wall
+@onready var reset_floor_button: Button = $Panel/Layout/ResetFloor
+@onready var reset_building_button: Button = $Panel/Layout/ResetBuilding
+@onready var reset_confirmation: ConfirmationDialog = $ResetConfirmation
 @onready var message: Label = $Panel/Layout/Message
 @onready var wall_properties: PanelContainer = $WallProperties
 @onready var dimensions_panel: PanelContainer = $DimensionsPanel
@@ -48,6 +51,8 @@ var drag_axis := Vector2.ZERO
 var drag_distance := 0.0
 var drag_result := {}
 var dimensions := {}
+var reset_building: StaticBody3D
+var reset_floor := 0
 
 
 func _ready() -> void:
@@ -56,6 +61,10 @@ func _ready() -> void:
 	floor_number.value_changed.connect(_floor_changed)
 	hollow_button.pressed.connect(_hollow_floor)
 	wall_button.pressed.connect(_toggle_wall_mode)
+	reset_floor_button.pressed.connect(_request_floor_reset)
+	reset_building_button.pressed.connect(_request_building_reset)
+	reset_confirmation.confirmed.connect(_confirm_reset)
+	reset_confirmation.canceled.connect(_cancel_reset)
 	wall_apply.pressed.connect(_apply_wall_thickness)
 	wall_split.pressed.connect(_preview_wall_split)
 	wall_merge.pressed.connect(_merge_walls)
@@ -66,6 +75,8 @@ func _ready() -> void:
 
 func _input(event: InputEvent) -> void:
 	if not measurement._can_interact():
+		return
+	if reset_confirmation.visible:
 		return
 	if active and not split_preview.is_empty():
 		if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE):
@@ -115,6 +126,8 @@ func _input(event: InputEvent) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not measurement._can_interact():
+		return
+	if reset_confirmation.visible:
 		return
 	if active and wall_mode and event is InputEventMouseMotion:
 		_update_wall_cursor(event.position)
@@ -179,6 +192,7 @@ func _process(_delta: float) -> void:
 func close_editor() -> void:
 	active = false
 	pending_click = false
+	_cancel_reset()
 	levels_input.release_focus()
 	floor_number.get_line_edit().release_focus()
 	_clear_selection()
@@ -205,8 +219,11 @@ func _update_selection() -> void:
 	floor_number.editable = false
 	hollow_button.disabled = true
 	wall_button.disabled = true
+	reset_floor_button.disabled = true
+	reset_building_button.disabled = true
 	if selected.size() == 1 and is_instance_valid(selected[0]):
 		var way: Dictionary = selected[0].get_meta("measurement_way")
+		reset_building_button.disabled = not world.building_edits.has_building_edit(int(way.id))
 		var levels := str(way.tags.get("building:levels", "")).strip_edges()
 		if levels.is_valid_int() and levels.to_int() >= 1 and levels.to_int() <= 1000:
 			levels_input.text = levels
@@ -241,6 +258,7 @@ func _update_floor_preview() -> void:
 	_restore_preview()
 	hollow_button.disabled = true
 	wall_button.disabled = true
+	reset_floor_button.disabled = true
 	if selected.size() != 1 or not is_instance_valid(selected[0]) or not floor_number.editable:
 		return
 	var building := selected[0]
@@ -251,6 +269,7 @@ func _update_floor_preview() -> void:
 		hollow = hollow or int(edit.floor) == floor_index
 	hollow_button.disabled = hollow
 	wall_button.disabled = not hollow
+	reset_floor_button.disabled = not hollow
 	for child in building.get_children():
 		if child is MeshInstance3D and child.name.begins_with("Segment_"):
 			var number := int(child.get_meta("floor_number", 0))
@@ -306,7 +325,7 @@ func _selected_block_key(building: StaticBody3D) -> Variant:
 	return block_key
 
 
-func _restore_building_selection(block_key: Variant, id: int, chosen_floor: int) -> bool:
+func _restore_building_selection(block_key: Variant, id: int, chosen_floor: int, require_hollow := true) -> bool:
 	_clear_selection()
 	if block_key == null or not world.map_block_stream.loaded_blocks.has(block_key):
 		message.text = "Änderung gespeichert, aber das Gebäude ist nicht mehr geladen. Bitte erneut auswählen."
@@ -320,11 +339,60 @@ func _restore_building_selection(block_key: Variant, id: int, chosen_floor: int)
 	replacement.tree_exiting.connect(_clear_selection)
 	floor_number.set_value_no_signal(chosen_floor)
 	_update_selection()
-	if int(floor_number.value) != chosen_floor or _selected_floor_edit().is_empty() or not replacement.has_node("FloorPreview_%d" % chosen_floor):
+	if not floor_number.editable or int(floor_number.value) != chosen_floor or (require_hollow and (_selected_floor_edit().is_empty() or not replacement.has_node("FloorPreview_%d" % chosen_floor))):
 		_clear_selection()
 		message.text = "Änderung gespeichert, aber die bearbeitete Etage ist nicht verfügbar. Bitte Gebäude und Etage erneut auswählen."
 		return false
 	return true
+
+
+func _request_floor_reset() -> void:
+	_request_reset(true)
+
+
+func _request_building_reset() -> void:
+	_request_reset(false)
+
+
+func _request_reset(floor_only: bool) -> void:
+	if selected.size() != 1 or not is_instance_valid(selected[0]) or not selected[0].is_inside_tree() or _selected_block_key(selected[0]) == null:
+		message.text = "Bitte genau ein geladenes Gebäude auswählen."
+		return
+	if (floor_only and reset_floor_button.disabled) or (not floor_only and reset_building_button.disabled):
+		message.text = "Für diese Auswahl sind keine entsprechenden Änderungen gespeichert."
+		return
+	reset_building = selected[0]
+	reset_floor = int(floor_number.value) if floor_only else 0
+	if floor_only:
+		reset_confirmation.dialog_text = "Alle Änderungen an Etage %d dauerhaft entfernen? Die Etage wird wieder ein massiver Block. Andere Etagen bleiben erhalten." % reset_floor
+	else:
+		reset_confirmation.dialog_text = "Alle Änderungen an diesem Gebäude dauerhaft entfernen? Etagenzahl und alle Etagenbearbeitungen werden zurückgesetzt. Zusammengefasste Gebäude werden in ihre ursprünglichen OSM-Gebäude aufgelöst."
+	reset_confirmation.popup_centered()
+
+
+func _cancel_reset() -> void:
+	reset_confirmation.hide()
+	reset_building = null
+	reset_floor = 0
+
+
+func _confirm_reset() -> void:
+	var building := reset_building
+	var chosen_floor := reset_floor
+	_cancel_reset()
+	if not active or not is_instance_valid(building) or not building.is_inside_tree() or selected.size() != 1 or selected[0] != building or _selected_block_key(building) == null or (chosen_floor > 0 and int(floor_number.value) != chosen_floor):
+		message.text = "Die Auswahl hat sich geändert. Bitte erneut auswählen und bestätigen."
+		return
+	var way: Dictionary = building.get_meta("measurement_way")
+	if chosen_floor > 0:
+		var id := int(building.get_meta("measurement_osm_id"))
+		var block_key: Variant = _selected_block_key(building)
+		var result: String = world.call("_commit_building_reset_floor", way, chosen_floor)
+		message.text = result
+		if result == world.BUILDING_RESET_FLOOR_SUCCESS:
+			_restore_building_selection(block_key, id, chosen_floor, false)
+	else:
+		message.text = world.call("_commit_building_reset", way)
 
 
 func _toggle_wall_mode() -> void:

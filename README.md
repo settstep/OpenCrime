@@ -216,6 +216,16 @@ ausgehöhlten Etage und darüberliegende Etagen nur im Editor aus; beim Verlasse
 erscheint das Gebäude wieder geschlossen. Türen, Fenster und ein Betreten
 des Raumes sind noch nicht implementiert.
 
+**Etage zurücksetzen** entfernt nach Bestätigung sämtliche Änderungen an der
+gewählten Etage und macht sie wieder zu einem massiven Block. Andere Etagen und
+die Etagenzahl bleiben erhalten. **Gebäude zurücksetzen** entfernt nach
+Bestätigung sämtliche lokalen Änderungen am ausgewählten Gebäude, einschließlich
+Etagenzahl und aller Etagenbearbeitungen. Zusammengefasste Gebäude werden in
+ihre ursprünglichen OSM-Gebäude aufgelöst. Das funktioniert auch bei einem
+OSM-Konflikt über ein betroffenes ursprüngliches Gebäude. Beide Aktionen werden
+gespeichert und im Multiplayer vom Server synchronisiert; sie sind nicht
+schrittweise rückgängig zu machen.
+
 Für eine ausgehöhlte Etage aktiviert **Wand hinzufügen** den Wandmodus.
 Die Maus positioniert eine Vorschau rechtwinklig zur nächsten Raumwand;
 ein Klick setzt die Wand bis zur ersten gegenüberliegenden Außen- oder
