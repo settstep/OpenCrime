@@ -472,6 +472,7 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 						"interior": interior,
 						"outer": floor_points,
 						"local_outline": footprint.outline,
+						"outer_edges": footprint.edges,
 					}
 			if hollow_meshes.has(index + 1):
 				floor_mesh = hollow_meshes[index + 1].mesh
@@ -499,6 +500,7 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 			preview.set_meta("interior_points", hollow_meshes[index + 1].interior)
 			preview.set_meta("outer_points", hollow_meshes[index + 1].outer)
 			preview.set_meta("local_outline", hollow_meshes[index + 1].local_outline)
+			preview.set_meta("outer_edges", hollow_meshes[index + 1].outer_edges)
 			var floor_edit: Dictionary = floor_edits[index + 1]
 			var local_interior := _building_interior(hollow_meshes[index + 1].local_outline, float(floor_edit.wall_thickness))
 			var wall_data := BuildingWalls.build(local_interior, floor_edit.get("walls", []))

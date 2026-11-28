@@ -13,6 +13,10 @@ func _test() -> void:
 	if moved_outer.has("error") or moved_outer.outline[0].distance_to(Vector2(0, 2)) > 0.01 or moved_outer.outline[1].distance_to(Vector2(10, 2)) > 0.01:
 		_fail("The exterior wall did not move along its adjoining walls: %s" % moved_outer)
 		return
+	var exterior_parts := BuildingWalls.floor_outline(room, {"outer_splits": [{"edge": 0, "cuts": [0.5], "offsets": [0.0, -1.0]}]})
+	if exterior_parts.has("error") or exterior_parts.outline.size() != 6 or exterior_parts.edges.size() != 6 or exterior_parts.outline[1].distance_to(Vector2(5, 0)) > 0.01 or exterior_parts.outline[2].distance_to(Vector2(5, -1)) > 0.01 or exterior_parts.outline[3].distance_to(Vector2(10, -1)) > 0.01:
+		_fail("A split exterior wall did not produce a connected stepped outline: %s" % exterior_parts)
+		return
 	if not BuildingWalls.move_outline_edge(room, 0, 10.1).has("error") or room[0] != Vector2.ZERO:
 		_fail("A move past adjoining walls was accepted or modified the original outline.")
 		return
@@ -37,6 +41,62 @@ func _test() -> void:
 	var rebuilt := BuildingWalls.build(room, saved)
 	if rebuilt.has("error") or rebuilt.regions.size() != 3 or rebuilt.walls.size() != 2 or rebuilt.walls[1] != second.polygon:
 		_fail("Saved walls did not reconstruct the same rooms: %s" % rebuilt)
+		return
+	var exterior_split := BuildingWalls.split_exterior(room, [], rebuilt.plans, 0.3, 0, -1)
+	if exterior_split.has("error") or exterior_split.pieces != 2 or absf(float(exterior_split.splits[0].cuts[0]) - 0.3) > 0.01:
+		_fail("The exterior wall was not split where the partition touches it: %s" % exterior_split)
+		return
+	var exterior_midpoint := BuildingWalls.split_exterior(room, [], [], 0.3, 0, -1)
+	if exterior_midpoint.has("error") or absf(float(exterior_midpoint.splits[0].cuts[0]) - 0.5) > 0.01:
+		_fail("An exterior wall without contacts was not split in the middle: %s" % exterior_midpoint)
+		return
+	var split_at_connection := BuildingWalls.split_wall(room, saved, 0, 0)
+	if split_at_connection.has("error") or split_at_connection.pieces != 2 or absf(float(split_at_connection.walls[0].cuts[0]) - 0.5) > 0.01:
+		_fail("A wall was not split at the attached partition: %s" % split_at_connection)
+		return
+	var multiple_contacts := [
+		saved[0],
+		{"cursor": [0.5, 2.0], "thickness": 0.3},
+		{"cursor": [0.5, 7.0], "thickness": 0.3},
+		{"cursor": [9.5, 2.0], "thickness": 0.3},
+	]
+	var split_multiple := BuildingWalls.split_wall(room, multiple_contacts, 0, 0)
+	if split_multiple.has("error") or split_multiple.pieces != 3 or absf(float(split_multiple.walls[0].cuts[0]) - 0.2) > 0.01 or absf(float(split_multiple.walls[0].cuts[1]) - 0.7) > 0.01:
+		_fail("Multiple contacts on both sides did not produce three distinct pieces: %s" % split_multiple)
+		return
+	var resplit := BuildingWalls.split_wall(room, split_multiple.walls, 0, 1)
+	if resplit.has("error") or resplit.walls[0].cuts.size() != 3 or absf(float(resplit.walls[0].cuts[1]) - 0.45) > 0.01:
+		_fail("Splitting an existing piece did not split that piece in its middle: %s" % resplit)
+		return
+	var multiple_plans := BuildingWalls.build(room, multiple_contacts)
+	var split_outer_multiple := BuildingWalls.split_exterior(room, [], multiple_plans.plans, 0.3, 3, -1)
+	if split_outer_multiple.has("error") or split_outer_multiple.pieces != 3 or split_outer_multiple.splits[0].cuts.size() != 2:
+		_fail("Multiple exterior wall contacts did not produce three pieces: %s" % split_outer_multiple)
+		return
+	var split_at_midpoint := BuildingWalls.split_wall(room, saved, 1, 0)
+	if split_at_midpoint.has("error") or split_at_midpoint.pieces != 2 or absf(float(split_at_midpoint.walls[1].cuts[0]) - 0.5) > 0.01:
+		_fail("A wall without additional contacts was not split in the middle: %s" % split_at_midpoint)
+		return
+	var stepped := BuildingWalls.build(room, [{"cursor": [3.0, 0.5], "thickness": 0.3, "cuts": [0.5], "offsets": [0.0, 1.0]}])
+	if stepped.has("error"):
+		_fail("A split wall with a connecting section could not be built: %s" % stepped)
+		return
+	if not Geometry2D.is_point_in_polygon(Vector2(3.0, 2.0), stepped.walls[0]) or not Geometry2D.is_point_in_polygon(Vector2(4.0, 8.0), stepped.walls[0]) or not Geometry2D.is_point_in_polygon(Vector2(3.5, 5.0), stepped.walls[0]) or Geometry2D.is_point_in_polygon(Vector2(3.0, 8.0), stepped.walls[0]):
+		_fail("The moved segment or its connecting wall has incorrect geometry: %s" % stepped)
+		return
+	if not BuildingWalls.build(room, [{"cursor": [3.0, 0.5], "thickness": 0.3, "cuts": [0.5], "offsets": [0.0, 8.0]}]).has("error"):
+		_fail("A split segment was allowed to leave its supporting wall.")
+		return
+	var split_saved := [{"cursor": [3.0, 0.5], "thickness": 0.3, "cuts": [0.5], "offsets": [0.0, 0.0]}]
+	var split_move := BuildingWalls.adjust_walls(room, room, split_saved, 0, 1.0, 0.3, 1)
+	if split_move.has("error") or not is_equal_approx(float(split_move.walls[0].offsets[1]), 1.0) or not Geometry2D.is_point_in_polygon(Vector2(3.5, 5), split_move.polygons[0]):
+		_fail("Moving a selected wall segment did not add its connecting wall: %s" % split_move)
+		return
+	var split_attached := split_saved.duplicate(true)
+	split_attached.append(saved[1])
+	var attached_move := BuildingWalls.adjust_walls(room, room, split_attached, 0, 1.0, 0.3, 1)
+	if attached_move.has("error"):
+		_fail("Moving a split wall segment lost its connected partition: %s" % attached_move)
 		return
 	var moved := BuildingWalls.adjust_walls(room, room, saved, 0, 2.0, 0.6)
 	if moved.has("error"):
@@ -86,6 +146,19 @@ func _test() -> void:
 	var rotated_move := BuildingWalls.adjust_walls(rotated, rotated, rotated_saved, 0, 1.0, 0.3)
 	if rotated_move.has("error") or BuildingWalls.build(rotated, rotated_move.walls).plans[0].start.distance_to(Vector2(4, 0).rotated(0.6)) > 0.03:
 		_fail("A partition in a rotated room did not move sideways: %s" % rotated_move)
+		return
+	var rotated_contacts := []
+	for wall in multiple_contacts:
+		var point := Vector2(wall.cursor[0], wall.cursor[1]).rotated(0.6)
+		rotated_contacts.append({"cursor": [point.x, point.y], "thickness": 0.3})
+	var rotated_split := BuildingWalls.split_wall(rotated, rotated_contacts, 0, 0)
+	if rotated_split.has("error") or rotated_split.pieces != 3:
+		_fail("Wall splitting did not work in a rotated room: %s" % rotated_split)
+		return
+	rotated.reverse()
+	var reversed_split := BuildingWalls.split_wall(rotated, rotated_contacts, 0, 0)
+	if reversed_split.has("error") or reversed_split.pieces != 3:
+		_fail("Reversing the room outline changed the wall split: %s" % reversed_split)
 		return
 	var concave := PackedVector2Array([Vector2(0, 0), Vector2(10, 0), Vector2(10, 3), Vector2(4, 3), Vector2(4, 8), Vector2(0, 8)])
 	var concave_wall := BuildingWalls.plan_wall([concave], Vector2(2, 0.5), 0.3)

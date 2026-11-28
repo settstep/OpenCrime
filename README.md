@@ -234,6 +234,16 @@ ungültige Räume erzeugen würden, werden mit einer Meldung abgelehnt.
 Bei komplexen Grundrissen kann auch eine Änderung abgelehnt werden, wenn
 die bestehenden Wandverbindungen nicht eindeutig zugeordnet werden können.
 
+Mit **Wand aufteilen** wird eine ausgewählte Innen- oder Außenwand an
+zusätzlichen Wandanschlüssen geteilt, andernfalls in der Mitte. Farbige
+Linien zeigen die geplanten Teilstücke. **Teilung bestätigen** speichert sie;
+**Teilung abbrechen**, Rechtsklick oder **Escape** verwirft die Vorschau.
+Auch einzelne Teilstücke lassen sich auswählen und seitlich verschieben;
+entstehende Lücken werden automatisch durch Wandstücke verbunden.
+Innenwandteilstücke können unterschiedliche Dicken haben. Für Außenwände
+gilt weiterhin eine gemeinsame Dicke pro Etage. Automatisch erzeugte
+Verbindungsstücke können derzeit nicht einzeln bearbeitet werden.
+
 Die Standard-Wanddicke steht in
 `OpenCrimeData/config/building_editor.json` unter `wall_thickness_m` und
 beträgt 0,3 Meter vor Skalierung. Die Datei wird beim ersten Aushöhlen

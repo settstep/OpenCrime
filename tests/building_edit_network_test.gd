@@ -176,6 +176,46 @@ func _test() -> void:
 		if not FileAccess.file_exists(directory.path_join("outer_changed.flag")):
 			_fail("Client did not receive the changed exterior wall.")
 			return
+		building = world.get_node("OSMMap/Building_1")
+		var split_message: String = world._commit_building_wall_split(building.get_meta("measurement_way"), 2, false, 0, 0)
+		if split_message != world.BUILDING_WALL_SPLIT_SUCCESS:
+			_fail("Live server interior wall split failed: " + split_message)
+			return
+		while not FileAccess.file_exists(directory.path_join("split.flag")) and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not FileAccess.file_exists(directory.path_join("split.flag")):
+			_fail("Client did not receive the interior wall split.")
+			return
+		building = world.get_node("OSMMap/Building_1")
+		var moved_piece_message: String = world._commit_building_wall_change(building.get_meta("measurement_way"), 2, false, 0, 0.5, 0.5, 1)
+		if moved_piece_message != world.BUILDING_WALL_CHANGE_SUCCESS:
+			_fail("Live server wall segment move failed: " + moved_piece_message)
+			return
+		while not FileAccess.file_exists(directory.path_join("piece_moved.flag")) and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not FileAccess.file_exists(directory.path_join("piece_moved.flag")):
+			_fail("Client did not receive the wall segment move.")
+			return
+		building = world.get_node("OSMMap/Building_1")
+		var split_outer_message: String = world._commit_building_wall_split(building.get_meta("measurement_way"), 2, true, 0, -1)
+		if split_outer_message != world.BUILDING_WALL_SPLIT_SUCCESS:
+			_fail("Live server exterior wall split failed: " + split_outer_message)
+			return
+		while not FileAccess.file_exists(directory.path_join("outer_split.flag")) and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not FileAccess.file_exists(directory.path_join("outer_split.flag")):
+			_fail("Client did not receive the exterior wall split.")
+			return
+		building = world.get_node("OSMMap/Building_1")
+		var moved_outer_piece: String = world._commit_building_wall_change(building.get_meta("measurement_way"), 2, true, 0, -0.3, 0.4, 0)
+		if moved_outer_piece != world.BUILDING_WALL_CHANGE_SUCCESS:
+			_fail("Live server exterior wall segment move failed: " + moved_outer_piece)
+			return
+		while not FileAccess.file_exists(directory.path_join("outer_piece_moved.flag")) and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not FileAccess.file_exists(directory.path_join("outer_piece_moved.flag")):
+			_fail("Client did not receive the exterior wall segment move.")
+			return
 		var changed: Dictionary = place.duplicate(true)
 		changed.ways[0].geometry[0][0] += 0.00001
 		changed.ways[0].geometry[-1][0] += 0.00001
@@ -292,6 +332,44 @@ func _test() -> void:
 			return
 		var outer_changed := FileAccess.open(directory.path_join("outer_changed.flag"), FileAccess.WRITE)
 		outer_changed.close()
+		while Time.get_ticks_msec() < deadline:
+			if world.building_edits.merges[0].hollow_floors[0].walls[0].has("cuts"):
+				break
+			await process_frame
+		edited_floor = world.building_edits.merges[0].hollow_floors[0]
+		hollow_building = world.get_node("OSMMap/Building_1")
+		if edited_floor.walls[0].get("cuts", []).size() != 1 or world._commit_building_wall_split(hollow_building.get_meta("measurement_way"), 2, false, 0, 0) != "Nur der Server-Host kann Gebäude bearbeiten.":
+			_fail("Interior split was not synchronized or the client was allowed to split.")
+			return
+		var split_flag := FileAccess.open(directory.path_join("split.flag"), FileAccess.WRITE)
+		split_flag.close()
+		while Time.get_ticks_msec() < deadline:
+			if absf(float(world.building_edits.merges[0].hollow_floors[0].walls[0].offsets[1])) > 0.4:
+				break
+			await process_frame
+		if absf(float(world.building_edits.merges[0].hollow_floors[0].walls[0].offsets[1])) < 0.4:
+			_fail("The moved interior piece was not synchronized.")
+			return
+		var piece_flag := FileAccess.open(directory.path_join("piece_moved.flag"), FileAccess.WRITE)
+		piece_flag.close()
+		while Time.get_ticks_msec() < deadline:
+			if not world.building_edits.merges[0].hollow_floors[0].get("outer_splits", []).is_empty():
+				break
+			await process_frame
+		if world.building_edits.merges[0].hollow_floors[0].get("outer_splits", []).is_empty():
+			_fail("The exterior split was not synchronized.")
+			return
+		var outer_split_flag := FileAccess.open(directory.path_join("outer_split.flag"), FileAccess.WRITE)
+		outer_split_flag.close()
+		while Time.get_ticks_msec() < deadline:
+			if absf(float(world.building_edits.merges[0].hollow_floors[0].outer_splits[0].offsets[0])) > 0.2:
+				break
+			await process_frame
+		if absf(float(world.building_edits.merges[0].hollow_floors[0].outer_splits[0].offsets[0])) < 0.2:
+			_fail("The moved exterior piece was not synchronized.")
+			return
+		var outer_piece_flag := FileAccess.open(directory.path_join("outer_piece_moved.flag"), FileAccess.WRITE)
+		outer_piece_flag.close()
 		while world.building_edits.blocked_merges.is_empty() and Time.get_ticks_msec() < deadline:
 			await process_frame
 		if world.building_edits.blocked_merges.is_empty() or world.get_node_or_null("OSMMap/Building_2") == null or world.get_node_or_null("OSMMap/Building_3") == null:

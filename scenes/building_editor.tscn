@@ -124,6 +124,20 @@ placeholder_text = "Dicke in cm"
 layout_mode = 2
 text = "cm speichern"
 
+[node name="Split" type="Button" parent="WallProperties/Layout"]
+layout_mode = 2
+text = "Wand aufteilen"
+
+[node name="ConfirmSplit" type="Button" parent="WallProperties/Layout"]
+visible = false
+layout_mode = 2
+text = "Teilung bestätigen"
+
+[node name="CancelSplit" type="Button" parent="WallProperties/Layout"]
+visible = false
+layout_mode = 2
+text = "Teilung abbrechen"
+
 [node name="Close" type="Button" parent="WallProperties/Layout"]
 layout_mode = 2
 text = "Schließen"

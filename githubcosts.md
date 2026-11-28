@@ -50,3 +50,4 @@
 | 27.11.2026 | 22:40 | 66      | add interior wall editor                                    |
 | 28.11.2026 | 09:09 | 67      | refine player character todo                                |
 | 28.11.2026 | 09:38 | 70      | add wall selection and editing                              |
+| 28.11.2026 | 14:18 | 75      | add wall splitting                                          |

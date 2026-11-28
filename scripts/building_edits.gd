@@ -338,7 +338,7 @@ func prepare_wall(way: Dictionary, floor_number: int, cursor: Vector2, thickness
 	return {"error": "Bitte die Etage zuerst aushöhlen."}
 
 
-func prepare_wall_change(way: Dictionary, floor_number: int, outside: bool, wall_index: int, distance: float, thickness: float) -> Dictionary:
+func prepare_wall_change(way: Dictionary, floor_number: int, outside: bool, wall_index: int, distance: float, thickness: float, segment_index := -1) -> Dictionary:
 	if not _valid_way(way, false) or not is_finite(distance) or not is_finite(thickness) or thickness <= 0.0 or thickness > 1000.0:
 		return {"error": "Ungültige Wandposition oder Wanddicke."}
 	var levels := OSMMap._floor_count(way.tags)
@@ -369,31 +369,99 @@ func prepare_wall_change(way: Dictionary, floor_number: int, outside: bool, wall
 		var footprint := BuildingWalls.floor_outline(points, floor_edit)
 		if footprint.has("error"):
 			return footprint
-		var old_outline: PackedVector2Array = footprint.outline
-		var old_interior := OSMMap._building_interior(old_outline, float(floor_edit.wall_thickness))
-		var new_outline := old_outline
-		var encoded := []
+		var old_interior := OSMMap._building_interior(footprint.outline, float(floor_edit.wall_thickness))
 		if outside:
-			var shifted := BuildingWalls.move_outline_edge(old_outline, wall_index, distance)
-			if shifted.has("error"):
-				return shifted
-			new_outline = shifted.outline
-			for point in new_outline:
-				encoded.append([point.x, point.y])
-			var valid_outline := BuildingWalls.floor_outline(points, {"outline": encoded})
-			if valid_outline.has("error"):
-				return valid_outline
-		var new_interior := OSMMap._building_interior(new_outline, thickness if outside else float(floor_edit.wall_thickness))
+			if segment_index >= 0:
+				var matched := false
+				for split in floor_edit.get("outer_splits", []):
+					if int(split.edge) == wall_index and segment_index < split.offsets.size():
+						split.offsets[segment_index] = float(split.offsets[segment_index]) + distance
+						matched = true
+						break
+				if not matched:
+					return {"error": "Das Außenwandteilstück ist nicht mehr verfügbar."}
+			else:
+				var shifted := BuildingWalls.move_outline_edge(footprint.base, wall_index, distance)
+				if shifted.has("error"):
+					return shifted
+				var encoded := []
+				for point in shifted.outline:
+					encoded.append([point.x, point.y])
+				floor_edit["outline"] = encoded
+			floor_edit.wall_thickness = thickness
+		var next_footprint := BuildingWalls.floor_outline(points, floor_edit)
+		if next_footprint.has("error"):
+			return next_footprint
+		var new_interior := OSMMap._building_interior(next_footprint.outline, float(floor_edit.wall_thickness))
 		if new_interior.is_empty():
 			return {"error": "Die Änderung würde einen ungültigen Innenraum erzeugen."}
 		var walls: Array = floor_edit.get("walls", [])
-		var updated := BuildingWalls.adjust_walls(old_interior, new_interior, walls, -1 if outside else wall_index, 0.0 if outside else distance, -1.0 if outside else thickness)
+		var updated := BuildingWalls.adjust_walls(old_interior, new_interior, walls, -1 if outside else wall_index, 0.0 if outside else distance, -1.0 if outside else thickness, -1 if outside else segment_index)
 		if updated.has("error"):
 			return updated
-		if outside:
-			floor_edit["outline"] = encoded
-			floor_edit.wall_thickness = thickness
 		floor_edit["walls"] = updated.walls
+		return prepared
+	return {"error": "Bitte die Etage zuerst aushöhlen."}
+
+
+func prepare_wall_split(way: Dictionary, floor_number: int, outside: bool, wall_index: int, segment_index: int) -> Dictionary:
+	if not _valid_way(way, false):
+		return {"error": "Bitte ein gültiges Gebäude auswählen."}
+	var levels := OSMMap._floor_count(way.tags)
+	if floor_number < 1 or floor_number > levels:
+		return {"error": "Bitte eine gültige Etage auswählen."}
+	var prepared := prepare_levels(way, levels)
+	if prepared.has("error"):
+		return prepared
+	var target: Dictionary = {}
+	var original: Dictionary = {}
+	for merge in prepared.data.merges:
+		if int(merge.result.id) == int(way.id):
+			target = merge
+			original = merge.result
+			break
+	if target.is_empty():
+		for edit in prepared.data.level_edits:
+			if int(edit.source.id) == int(way.id):
+				target = edit
+				original = edit.source
+				break
+	if target.is_empty():
+		return {"error": "Die Etage konnte nicht zugeordnet werden."}
+	for floor_edit in target.get("hollow_floors", []):
+		if int(floor_edit.floor) != floor_number:
+			continue
+		var points := OSMMap._building_points(original, original.geometry[0])
+		var footprint := BuildingWalls.floor_outline(points, floor_edit)
+		if footprint.has("error"):
+			return footprint
+		var interior := OSMMap._building_interior(footprint.outline, float(floor_edit.wall_thickness))
+		var walls: Array = floor_edit.get("walls", [])
+		var current := BuildingWalls.build(interior, walls)
+		if current.has("error"):
+			return current
+		var preview := []
+		var first := maxi(segment_index, 0)
+		if outside:
+			var result := BuildingWalls.split_exterior(footprint.base, floor_edit.get("outer_splits", []), current.plans, float(floor_edit.wall_thickness), wall_index, segment_index)
+			if result.has("error"):
+				return result
+			floor_edit["outer_splits"] = result.splits
+			for index in result.edges.size():
+				var edge: Dictionary = result.edges[index]
+				if not edge.connector and int(edge.edge) == wall_index and int(edge.segment) >= first and int(edge.segment) < first + result.pieces:
+					preview.append([result.outline[index], result.outline[(index + 1) % result.outline.size()]])
+		else:
+			var result := BuildingWalls.split_wall(interior, walls, wall_index, first)
+			if result.has("error"):
+				return result
+			floor_edit["walls"] = result.walls
+			var segments: Array = result.plans[wall_index].segments
+			for index in range(first, first + int(result.pieces)):
+				preview.append(segments[index])
+		if preview.size() < 2:
+			return {"error": "Die Wandteilung konnte nicht dargestellt werden."}
+		prepared["preview"] = preview
 		return prepared
 	return {"error": "Bitte die Etage zuerst aushöhlen."}
 

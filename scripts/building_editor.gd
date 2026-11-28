@@ -19,6 +19,9 @@ const BuildingWalls = preload("res://scripts/building_walls.gd")
 @onready var wall_properties: PanelContainer = $WallProperties
 @onready var wall_thickness_input: LineEdit = $WallProperties/Layout/Thickness/Input
 @onready var wall_apply: Button = $WallProperties/Layout/Thickness/Apply
+@onready var wall_split: Button = $WallProperties/Layout/Split
+@onready var wall_split_confirm: Button = $WallProperties/Layout/ConfirmSplit
+@onready var wall_split_cancel: Button = $WallProperties/Layout/CancelSplit
 @onready var wall_close: Button = $WallProperties/Layout/Close
 
 var active := false
@@ -33,6 +36,8 @@ var wall_camera_transform := Transform3D.IDENTITY
 var wall_camera_size := 0.0
 var selected_wall := -1
 var selected_wall_outside := false
+var selected_segment := -1
+var split_preview := {}
 var dragging_wall := false
 var drag_start := Vector2.ZERO
 var drag_axis := Vector2.ZERO
@@ -47,12 +52,26 @@ func _ready() -> void:
 	hollow_button.pressed.connect(_hollow_floor)
 	wall_button.pressed.connect(_toggle_wall_mode)
 	wall_apply.pressed.connect(_apply_wall_thickness)
+	wall_split.pressed.connect(_preview_wall_split)
+	wall_split_confirm.pressed.connect(_confirm_wall_split)
+	wall_split_cancel.pressed.connect(_cancel_wall_split)
 	wall_close.pressed.connect(_clear_wall_selection)
 
 
 func _input(event: InputEvent) -> void:
 	if not measurement._can_interact():
 		return
+	if active and not split_preview.is_empty():
+		if event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE):
+			_cancel_wall_split()
+			message.text = "Wandteilung abgebrochen."
+			get_viewport().set_input_as_handled()
+			return
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+			_cancel_wall_split()
+			message.text = "Wandteilung abgebrochen."
+			get_viewport().set_input_as_handled()
+			return
 	if active and dragging_wall and event is InputEventMouseMotion:
 		_update_wall_drag(event.position)
 		get_viewport().set_input_as_handled()
@@ -95,6 +114,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		_update_wall_cursor(event.position)
 		return
 	if active and event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if not split_preview.is_empty():
+			get_viewport().set_input_as_handled()
+			return
 		if wall_mode:
 			_place_wall(event.position)
 			get_viewport().set_input_as_handled()
@@ -319,7 +341,9 @@ func _cancel_wall_mode() -> void:
 
 
 func _clear_wall_selection() -> void:
+	_cancel_wall_split()
 	selected_wall = -1
+	selected_segment = -1
 	dragging_wall = false
 	drag_result.clear()
 	if is_instance_valid(wall_thickness_input):
@@ -364,6 +388,7 @@ func _select_wall(screen_position: Vector2) -> bool:
 	var polygons: Array = preview.get_meta("wall_polygons")
 	var wall := -1
 	var outside := false
+	var piece := -1
 	for index in polygons.size():
 		if Geometry2D.is_point_in_polygon(cursor, polygons[index]):
 			wall = index
@@ -381,20 +406,48 @@ func _select_wall(screen_position: Vector2) -> bool:
 		outside = wall >= 0
 	if wall < 0:
 		return false
+	if outside:
+		var edge_map: Array = preview.get_meta("outer_edges")
+		var edge: Dictionary = edge_map[wall]
+		if edge.connector:
+			message.text = "Automatische Verbindungswände können derzeit nicht einzeln bearbeitet werden."
+			return true
+		wall = int(edge.edge)
+		piece = int(edge.segment)
+	else:
+		var plans: Array = preview.get_meta("wall_plans")
+		var segments: Array = plans[wall].segments
+		if segments.size() > 1:
+			var closest := INF
+			for index in segments.size():
+				var projected := Geometry2D.get_closest_point_to_segment(cursor, segments[index][0], segments[index][1])
+				var distance: float = cursor.distance_squared_to(projected)
+				if distance < closest:
+					closest = distance
+					piece = index
+			var widths: Array = floor_edit.walls[wall].get("thicknesses", [])
+			var width: float = float(widths[piece]) if not widths.is_empty() else float(floor_edit.walls[wall].thickness)
+			if closest > pow(width * 0.5 + 0.02, 2):
+				message.text = "Automatische Verbindungswände können derzeit nicht einzeln bearbeitet werden."
+				return true
 	selected_wall = wall
 	selected_wall_outside = outside
+	selected_segment = piece
 	dragging_wall = true
 	drag_start = cursor
 	drag_distance = 0.0
 	drag_result.clear()
 	if outside:
-		var tangent := (outline[(wall + 1) % outline.size()] - outline[wall]).normalized()
+		var base: PackedVector2Array = BuildingWalls.floor_outline(OSMMap._building_points(building.get_meta("measurement_way"), building.get_meta("measurement_way").geometry[0]), floor_edit).base
+		var tangent := (base[(wall + 1) % base.size()] - base[wall]).normalized()
 		drag_axis = Vector2(-tangent.y, tangent.x)
 		wall_thickness_input.text = str(float(floor_edit.wall_thickness) * 100.0)
 	else:
 		var plans: Array = preview.get_meta("wall_plans")
 		drag_axis = (plans[wall].source[1] - plans[wall].source[0]).normalized()
-		wall_thickness_input.text = str(float(floor_edit.walls[wall].thickness) * 100.0)
+		var widths: Array = floor_edit.walls[wall].get("thicknesses", [])
+		var width: float = float(widths[piece]) if piece >= 0 and not widths.is_empty() else float(floor_edit.walls[wall].thickness)
+		wall_thickness_input.text = str(width * 100.0)
 	wall_properties.show()
 	queue_redraw()
 	return true
@@ -412,8 +465,8 @@ func _update_wall_drag(screen_position: Vector2) -> void:
 		return
 	drag_distance = (cursor - drag_start).dot(drag_axis)
 	var floor_edit := _selected_floor_edit()
-	var thickness: float = floor_edit.wall_thickness if selected_wall_outside else floor_edit.walls[selected_wall].thickness
-	drag_result = world.building_edits.prepare_wall_change(building.get_meta("measurement_way"), int(floor_number.value), selected_wall_outside, selected_wall, drag_distance, thickness)
+	var thickness := _selected_wall_thickness(floor_edit)
+	drag_result = world.building_edits.prepare_wall_change(building.get_meta("measurement_way"), int(floor_number.value), selected_wall_outside, selected_wall, drag_distance, thickness, selected_segment)
 	if drag_result.has("error"):
 		message.text = drag_result.error
 	queue_redraw()
@@ -427,8 +480,74 @@ func _finish_wall_drag(screen_position: Vector2) -> void:
 		queue_redraw()
 		return
 	var floor_edit := _selected_floor_edit()
-	var thickness: float = floor_edit.wall_thickness if selected_wall_outside else floor_edit.walls[selected_wall].thickness
+	var thickness := _selected_wall_thickness(floor_edit)
 	_commit_wall_change(drag_distance, thickness)
+
+
+func _selected_wall_thickness(floor_edit: Dictionary) -> float:
+	if selected_wall_outside:
+		return float(floor_edit.wall_thickness)
+	var wall: Dictionary = floor_edit.walls[selected_wall]
+	var widths: Array = wall.get("thicknesses", [])
+	if selected_segment >= 0 and not widths.is_empty():
+		return float(widths[selected_segment])
+	return float(wall.thickness)
+
+
+func _preview_wall_split() -> void:
+	if selected_wall < 0 or selected.size() != 1 or not is_instance_valid(selected[0]):
+		message.text = "Bitte eine geladene Wand auswählen."
+		return
+	dragging_wall = false
+	var building := selected[0]
+	var result: Dictionary = world.building_edits.prepare_wall_split(building.get_meta("measurement_way"), int(floor_number.value), selected_wall_outside, selected_wall, selected_segment)
+	if result.has("error"):
+		message.text = result.error
+		return
+	split_preview = result
+	wall_split.disabled = true
+	wall_apply.disabled = true
+	wall_thickness_input.editable = false
+	wall_split_confirm.show()
+	wall_split_cancel.show()
+	message.text = "Wandteilung prüfen und bestätigen; Rechtsklick oder Esc bricht ab."
+	queue_redraw()
+
+
+func _cancel_wall_split() -> void:
+	split_preview.clear()
+	if is_instance_valid(wall_split):
+		wall_split.disabled = false
+		wall_apply.disabled = false
+		wall_thickness_input.editable = true
+		wall_split_confirm.hide()
+		wall_split_cancel.hide()
+	queue_redraw()
+
+
+func _confirm_wall_split() -> void:
+	if split_preview.is_empty() or selected_wall < 0 or selected.size() != 1 or not is_instance_valid(selected[0]):
+		_cancel_wall_split()
+		message.text = "Bitte eine geladene Wand auswählen."
+		return
+	var building := selected[0]
+	var id := int(building.get_meta("measurement_osm_id"))
+	var chosen_floor := int(floor_number.value)
+	var block_key: Variant = _selected_block_key(building)
+	var wall := selected_wall
+	var outside := selected_wall_outside
+	var piece := selected_segment
+	var result: String = world.call("_commit_building_wall_split", building.get_meta("measurement_way"), chosen_floor, outside, wall, piece)
+	message.text = result
+	if result == world.BUILDING_WALL_SPLIT_SUCCESS and _restore_building_selection(block_key, id, chosen_floor):
+		selected_wall = wall
+		selected_wall_outside = outside
+		selected_segment = maxi(piece, 0)
+		wall_thickness_input.text = str(_selected_wall_thickness(_selected_floor_edit()) * 100.0)
+		wall_properties.show()
+	else:
+		_cancel_wall_split()
+	queue_redraw()
 
 
 func _apply_wall_thickness() -> void:
@@ -450,12 +569,14 @@ func _commit_wall_change(distance: float, thickness: float) -> void:
 	var block_key: Variant = _selected_block_key(building)
 	var wall := selected_wall
 	var outside := selected_wall_outside
-	var result: String = world.call("_commit_building_wall_change", building.get_meta("measurement_way"), chosen_floor, outside, wall, distance, thickness)
+	var piece := selected_segment
+	var result: String = world.call("_commit_building_wall_change", building.get_meta("measurement_way"), chosen_floor, outside, wall, distance, thickness, piece)
 	message.text = result
 	drag_result.clear()
 	if result == world.BUILDING_WALL_CHANGE_SUCCESS and _restore_building_selection(block_key, id, chosen_floor):
 		selected_wall = wall
 		selected_wall_outside = outside
+		selected_segment = piece
 		wall_thickness_input.text = str(thickness * 100.0)
 		wall_properties.show()
 	queue_redraw()
@@ -543,6 +664,8 @@ func _draw() -> void:
 				points = preview.get_meta("outer_points", points)
 				var offset: Vector2 = preview.get_meta("wall_origin", Vector2.ZERO)
 				var polygons: Array = preview.get_meta("wall_polygons", [])
+				var plans: Array = preview.get_meta("wall_plans", [])
+				var outer_edges: Array = preview.get_meta("outer_edges", [])
 				var drag_edit := _drag_floor_edit(building) if dragging_wall else {}
 				if not drag_edit.is_empty():
 					var way: Dictionary = building.get_meta("measurement_way")
@@ -559,6 +682,8 @@ func _draw() -> void:
 							for point in drag_inner:
 								inner.append(point + offset)
 							polygons = drag_walls.walls
+							plans = drag_walls.plans
+							outer_edges = footprint.edges
 				var outer_screen := PackedVector2Array()
 				var inner_screen := PackedVector2Array()
 				var visible := true
@@ -578,9 +703,22 @@ func _draw() -> void:
 						var polygon: PackedVector2Array = polygons[index]
 						var wall_screen := _screen_polygon(building, polygon, offset, factor, height)
 						if wall_screen.size() >= 3:
-							draw_colored_polygon(wall_screen, Color.YELLOW if not selected_wall_outside and selected_wall == index else Color(0.31, 0.24, 0.17))
-					if selected_wall_outside and selected_wall >= 0 and selected_wall < points.size():
-						draw_line(outer_screen[selected_wall], outer_screen[(selected_wall + 1) % points.size()], Color.YELLOW, 5.0)
+							draw_colored_polygon(wall_screen, Color.YELLOW if not selected_wall_outside and selected_wall == index and selected_segment < 0 else Color(0.31, 0.24, 0.17))
+					if not selected_wall_outside and selected_segment >= 0 and selected_wall >= 0 and selected_wall < plans.size() and selected_segment < plans[selected_wall].segments.size():
+						var selected_line := _screen_polygon(building, PackedVector2Array(plans[selected_wall].segments[selected_segment]), offset, factor, height)
+						if selected_line.size() == 2:
+							draw_line(selected_line[0], selected_line[1], Color.YELLOW, 5.0)
+					if selected_wall_outside and selected_wall >= 0:
+						for index in outer_edges.size():
+							var edge: Dictionary = outer_edges[index]
+							if not edge.connector and int(edge.edge) == selected_wall and int(edge.segment) == selected_segment:
+								draw_line(outer_screen[index], outer_screen[(index + 1) % points.size()], Color.YELLOW, 5.0)
+					if not split_preview.is_empty():
+						var colors := [Color.CORNFLOWER_BLUE, Color.ORANGE, Color.LIME_GREEN, Color.MEDIUM_PURPLE]
+						for index in split_preview.preview.size():
+							var piece := _screen_polygon(building, PackedVector2Array(split_preview.preview[index]), offset, factor, height)
+							if piece.size() == 2:
+								draw_line(piece[0], piece[1], colors[index % colors.size()], 6.0)
 					if wall_mode and not wall_preview.is_empty() and not wall_preview.has("error"):
 						var candidate := _screen_polygon(building, wall_preview.polygon, offset, factor, height)
 						if candidate.size() >= 3:

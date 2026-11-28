@@ -374,6 +374,114 @@ func _test() -> void:
 		_fail("The moved exterior wall did not rebuild its collision: %s" % moved_outer_hit)
 		return
 	editor._clear_wall_selection()
+	select_wall.position = camera.unproject_position(Vector3(11.7, 7.8, -5.0))
+	root.push_input(select_wall, true)
+	release_wall.position = select_wall.position
+	root.push_input(release_wall, true)
+	if editor.selected_wall != 0 or editor.selected_wall_outside:
+		_fail("Could not select the partition for splitting.")
+		return
+	var before_split := JSON.stringify(world.building_edits.data())
+	editor.wall_split.pressed.emit()
+	if editor.split_preview.is_empty() or editor.split_preview.preview.size() != 2 or JSON.stringify(world.building_edits.data()) != before_split:
+		_fail("The split preview was missing or changed saved data.")
+		return
+	var right_click := InputEventMouseButton.new()
+	right_click.button_index = MOUSE_BUTTON_RIGHT
+	right_click.pressed = true
+	root.push_input(right_click, true)
+	if not editor.split_preview.is_empty() or JSON.stringify(world.building_edits.data()) != before_split:
+		_fail("Right-click did not cancel the split preview without changes.")
+		return
+	editor.wall_split.pressed.emit()
+	root.push_input(cancel, true)
+	if not editor.split_preview.is_empty() or JSON.stringify(world.building_edits.data()) != before_split or world.menu_open:
+		_fail("Escape did not cancel the split preview without changes.")
+		return
+	editor.wall_split.pressed.emit()
+	editor.wall_split_confirm.pressed.emit()
+	await physics_frame
+	await physics_frame
+	edited_floor = world.building_edits.merges[0].hollow_floors[0]
+	if editor.message.text != world.BUILDING_WALL_SPLIT_SUCCESS or edited_floor.walls[0].get("cuts", []).size() != 1 or editor.selected_segment != 0:
+		_fail("The confirmed wall split was not persisted: " + editor.message.text)
+		return
+	select_wall.position = camera.unproject_position(Vector3(11.7, 7.8, -5.0))
+	root.push_input(select_wall, true)
+	if editor.selected_segment < 0:
+		_fail("An interior wall segment could not be selected.")
+		return
+	var moved_piece_index: int = editor.selected_segment
+	move.position = camera.unproject_position(Vector3(12.35, 7.8, -5.0))
+	root.push_input(move, true)
+	release_wall.position = move.position
+	root.push_input(release_wall, true)
+	await physics_frame
+	await physics_frame
+	edited_floor = world.building_edits.merges[0].hollow_floors[0]
+	if editor.message.text != world.BUILDING_WALL_CHANGE_SUCCESS or absf(float(edited_floor.walls[0].offsets[moved_piece_index])) < 0.4:
+		_fail("A split wall segment did not move with its connector: " + editor.message.text)
+		return
+	merged_building = world.get_node("OSMMap/Building_1")
+	var split_floor: MeshInstance3D = merged_building.get_node("FloorPreview_2")
+	var split_segments: Array = split_floor.get_meta("wall_plans")[0].segments
+	var connector_start: Vector2 = split_segments[0][1]
+	var connector_end: Vector2 = split_segments[1][0]
+	var connector_middle := (connector_start + connector_end) * 0.5
+	var connector_normal := (connector_end - connector_start).normalized().orthogonal()
+	var wall_origin: Vector2 = split_floor.get_meta("wall_origin")
+	var wall_scale: float = merged_building.get_meta("measurement_scale")
+	var connector_from := connector_middle + connector_normal + wall_origin
+	var connector_to := connector_middle - connector_normal + wall_origin
+	var connector_query := PhysicsRayQueryParameters3D.create(merged_building.to_global(Vector3(connector_from.x * wall_scale, 5.85, connector_from.y * wall_scale)), merged_building.to_global(Vector3(connector_to.x * wall_scale, 5.85, connector_to.y * wall_scale)), OSMMap.BUILDING_PICK_LAYER)
+	var connector_hit := world.get_world_3d().direct_space_state.intersect_ray(connector_query)
+	if connector_start.distance_to(connector_end) < 0.4 or connector_hit.is_empty():
+		_fail("The automatic connecting wall did not have collision: %s" % connector_hit)
+		return
+	editor.wall_thickness_input.text = "60"
+	editor.wall_apply.pressed.emit()
+	await physics_frame
+	await physics_frame
+	edited_floor = world.building_edits.merges[0].hollow_floors[0]
+	if editor.message.text != world.BUILDING_WALL_CHANGE_SUCCESS or absf(float(edited_floor.walls[0].thicknesses[moved_piece_index]) - 0.6) > 0.001:
+		_fail("A split wall segment did not retain its own thickness: " + editor.message.text)
+		return
+	editor._clear_wall_selection()
+	select_wall.position = camera.unproject_position(Vector3(-0.39, 7.8, -4.0))
+	root.push_input(select_wall, true)
+	release_wall.position = select_wall.position
+	root.push_input(release_wall, true)
+	if editor.selected_wall < 0 or not editor.selected_wall_outside:
+		_fail("Could not select the exterior wall for splitting.")
+		return
+	var exterior_edge: int = editor.selected_wall
+	editor.wall_split.pressed.emit()
+	if editor.split_preview.is_empty() or editor.split_preview.preview.size() != 2:
+		_fail("The exterior wall split preview was not shown: " + editor.message.text)
+		return
+	editor.wall_split_confirm.pressed.emit()
+	await physics_frame
+	await physics_frame
+	if editor.message.text != world.BUILDING_WALL_SPLIT_SUCCESS:
+		_fail("The exterior wall split was not persisted: " + editor.message.text)
+		return
+	select_wall.position = camera.unproject_position(Vector3(-0.39, 7.8, -4.0))
+	root.push_input(select_wall, true)
+	if not editor.selected_wall_outside or editor.selected_wall != exterior_edge or editor.selected_segment < 0:
+		_fail("A split exterior wall segment could not be selected.")
+		return
+	var exterior_piece: int = editor.selected_segment
+	move.position = camera.unproject_position(Vector3(-1.04, 7.8, -4.0))
+	root.push_input(move, true)
+	release_wall.position = move.position
+	root.push_input(release_wall, true)
+	await physics_frame
+	await physics_frame
+	edited_floor = world.building_edits.merges[0].hollow_floors[0]
+	if editor.message.text != world.BUILDING_WALL_CHANGE_SUCCESS or absf(float(edited_floor.outer_splits[0].offsets[exterior_piece])) < 0.4:
+		_fail("An exterior wall segment did not move with its connector: " + editor.message.text)
+		return
+	editor._clear_wall_selection()
 	world.player.global_position = Vector3(-2, 0.9, -6.5)
 	world.player.velocity = Vector3.ZERO
 	var settings_file := FileAccess.open(directory.path_join("config/building_editor.json"), FileAccess.WRITE)

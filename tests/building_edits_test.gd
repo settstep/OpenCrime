@@ -198,6 +198,32 @@ func _test() -> void:
 	if not hollow_way._hollow_floors[0].has("outline") or not is_equal_approx(float(hollow_way._hollow_floors[0].wall_thickness), 0.4):
 		_fail("The per-floor exterior change was not preserved.")
 		return
+	var split_inner := single.prepare_wall_split(hollow_way, 2, false, 0, -1)
+	if split_inner.has("error") or split_inner.preview.size() != 2 or not single.save(split_inner.data) or not single.load_file():
+		_fail("An interior wall split could not be saved and loaded: %s" % split_inner)
+		return
+	hollow_way = single.apply(place).ways[0]
+	var move_piece := single.prepare_wall_change(hollow_way, 2, false, 0, 0.5, 0.6, 1)
+	if move_piece.has("error") or not single.save(move_piece.data) or not single.load_file():
+		_fail("An interior wall segment could not be moved and saved: %s" % move_piece)
+		return
+	hollow_way = single.apply(place).ways[0]
+	if not is_equal_approx(float(hollow_way._hollow_floors[0].walls[0].offsets[1]), 0.5) or not is_equal_approx(float(hollow_way._hollow_floors[0].walls[0].thicknesses[1]), 0.6):
+		_fail("The moved segment and its thickness did not survive reloading.")
+		return
+	var split_outer := single.prepare_wall_split(hollow_way, 2, true, 0, -1)
+	if split_outer.has("error") or split_outer.preview.size() != 2 or not single.save(split_outer.data) or not single.load_file():
+		_fail("An exterior wall split could not be saved and loaded: %s" % split_outer)
+		return
+	hollow_way = single.apply(place).ways[0]
+	var move_outer_piece := single.prepare_wall_change(hollow_way, 2, true, 0, -0.5, 0.4, 1)
+	if move_outer_piece.has("error") or not single.save(move_outer_piece.data) or not single.load_file():
+		_fail("An exterior wall segment could not be moved and saved: %s" % move_outer_piece)
+		return
+	hollow_way = single.apply(place).ways[0]
+	if not is_equal_approx(float(hollow_way._hollow_floors[0].outer_splits[0].offsets[1]), -0.5):
+		_fail("The exterior wall segment movement did not survive reloading.")
+		return
 	var bad_data := single.data()
 	bad_data.level_edits[0].hollow_floors[0].walls[0].thickness = -1
 	if single.set_data(bad_data):

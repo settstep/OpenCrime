@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.30.0
+- Ausgewählte Innen- und Außenwände lassen sich an zusätzlichen Wandanschlüssen oder mittig teilen. Eine farbige Vorschau kann bestätigt oder abgebrochen werden.
+- Wandteilstücke lassen sich verschieben; erforderliche Verbindungsstücke entstehen automatisch. Die Änderungen werden gespeichert und im Multiplayer synchronisiert.
+
 ## 0.29.0
 - Innen- und Außenwände ausgehöhlter Etagen lassen sich auswählen, seitlich verschieben und in ihrer Dicke bearbeiten. Angeschlossene Wände werden angepasst; ungültige Verbindungen werden abgelehnt.
 - Außenwandänderungen gelten pro Etage; Gebäudeänderungen werden weiterhin getrennt von OSM gespeichert und im Multiplayer synchronisiert.
