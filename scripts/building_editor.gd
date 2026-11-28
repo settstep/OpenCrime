@@ -3,6 +3,9 @@ extends Control
 const OSMMap = preload("res://scripts/osm_map.gd")
 const BuildingEdits = preload("res://scripts/building_edits.gd")
 const BuildingWalls = preload("res://scripts/building_walls.gd")
+const ERROR_FLASH_ON_MS := 300
+const ERROR_FLASH_CYCLE_MS := 600
+const ERROR_FLASH_COUNT := 3
 
 @onready var world: Node3D = get_parent().get_parent()
 @onready var camera: Camera3D = world.get_node("Camera3D")
@@ -18,6 +21,7 @@ const BuildingWalls = preload("res://scripts/building_walls.gd")
 @onready var reset_floor_button: Button = $Panel/Layout/ResetFloor
 @onready var reset_building_button: Button = $Panel/Layout/ResetBuilding
 @onready var reset_confirmation: ConfirmationDialog = $ResetConfirmation
+@onready var error_overlay: Control = $ErrorOverlay
 @onready var message: Label = $Panel/Layout/Message
 @onready var wall_properties: PanelContainer = $WallProperties
 @onready var dimensions_panel: PanelContainer = $DimensionsPanel
@@ -53,6 +57,10 @@ var drag_result := {}
 var dimensions := {}
 var reset_building: StaticBody3D
 var reset_floor := 0
+var error_points := PackedVector2Array()
+var error_building: StaticBody3D
+var error_floor := 0
+var error_flash_started_ms := 0
 
 
 func _ready() -> void:
@@ -65,6 +73,7 @@ func _ready() -> void:
 	reset_building_button.pressed.connect(_request_building_reset)
 	reset_confirmation.confirmed.connect(_confirm_reset)
 	reset_confirmation.canceled.connect(_cancel_reset)
+	error_overlay.draw.connect(_draw_error_location)
 	wall_apply.pressed.connect(_apply_wall_thickness)
 	wall_split.pressed.connect(_preview_wall_split)
 	wall_merge.pressed.connect(_merge_walls)
@@ -181,6 +190,10 @@ func _process(_delta: float) -> void:
 	panel.visible = active and measurement._can_interact()
 	wall_properties.visible = active and selected_wall >= 0 and measurement._can_interact()
 	dimensions_panel.visible = wall_properties.visible
+	if not error_points.is_empty() and (not active or selected.size() != 1 or not is_instance_valid(error_building) or selected[0] != error_building or not error_building.is_inside_tree() or int(floor_number.value) != error_floor or Time.get_ticks_msec() - error_flash_started_ms >= ERROR_FLASH_CYCLE_MS * ERROR_FLASH_COUNT):
+		_clear_error_location()
+	if not error_points.is_empty():
+		error_overlay.queue_redraw()
 	if active:
 		if wall_mode and (camera.global_transform != wall_camera_transform or camera.size != wall_camera_size):
 			_update_wall_cursor(wall_screen_position)
@@ -418,12 +431,14 @@ func _toggle_wall_mode() -> void:
 func _cancel_wall_mode() -> void:
 	wall_mode = false
 	wall_preview.clear()
+	_clear_error_location()
 	if is_instance_valid(wall_button):
 		wall_button.text = "Wand hinzufügen"
 	queue_redraw()
 
 
 func _clear_wall_selection() -> void:
+	_clear_error_location()
 	_cancel_wall_split()
 	_clear_secondary_wall()
 	selected_wall = -1
@@ -503,6 +518,7 @@ func _select_wall(screen_position: Vector2, add_selection := false) -> bool:
 		outside = wall >= 0
 	if wall < 0:
 		return false
+	_clear_error_location()
 	if outside:
 		var edge_map: Array = preview.get_meta("outer_edges")
 		var edge: Dictionary = edge_map[wall]
@@ -580,7 +596,9 @@ func _merge_walls() -> void:
 	var prepared: Dictionary = world.building_edits.prepare_wall_merge(way, chosen_floor, selected_wall_outside, selected_wall, selected_segment, int(secondary_wall.segment))
 	if prepared.has("error"):
 		message.text = prepared.error
+		_show_error_location(prepared, building)
 		return
+	_clear_error_location()
 	var id := int(building.get_meta("measurement_osm_id"))
 	var block_key: Variant = _selected_block_key(building)
 	var wall := selected_wall
@@ -640,6 +658,8 @@ func _finish_wall_drag(screen_position: Vector2) -> void:
 		return
 	dragging_wall = false
 	if absf(drag_distance) < 0.01 or drag_result.is_empty() or drag_result.has("error"):
+		if drag_result.has("error") and selected.size() == 1 and is_instance_valid(selected[0]):
+			_show_error_location(drag_result, selected[0])
 		drag_result.clear()
 		queue_redraw()
 		return
@@ -685,7 +705,9 @@ func _preview_wall_split() -> void:
 	var result: Dictionary = world.building_edits.prepare_wall_split(building.get_meta("measurement_way"), int(floor_number.value), selected_wall_outside, selected_wall, selected_segment)
 	if result.has("error"):
 		message.text = result.error
+		_show_error_location(result, building)
 		return
+	_clear_error_location()
 	split_preview = result
 	wall_split.disabled = true
 	wall_apply.disabled = true
@@ -799,7 +821,10 @@ func _place_wall(screen_position: Vector2) -> void:
 	_update_wall_cursor(screen_position)
 	if wall_preview.is_empty() or wall_preview.has("error"):
 		message.text = wall_preview.get("error", "An dieser Position ist keine Wand möglich.")
+		if selected.size() == 1 and is_instance_valid(selected[0]):
+			_show_error_location(wall_preview, selected[0])
 		return
+	_clear_error_location()
 	if selected.size() != 1 or not is_instance_valid(selected[0]):
 		_cancel_wall_mode()
 		message.text = "Das Gebäude ist nicht mehr geladen."
@@ -1158,6 +1183,44 @@ func _draw() -> void:
 				var offset: Vector2 = preview.get_meta("wall_origin", Vector2.ZERO)
 				_draw_dimensions(building, dimensions.get("walls", []), offset, factor, height, "W", Color.ORANGE)
 				_draw_dimensions(building, dimensions.get("rooms", []), offset, factor, height, "R", Color.CYAN)
+
+
+func _draw_error_location() -> void:
+	if not active or not measurement._can_interact() or not is_instance_valid(error_building) or not error_building.is_inside_tree() or error_points.is_empty() or not _error_flash_visible(Time.get_ticks_msec() - error_flash_started_ms):
+		return
+	var preview := error_building.get_node_or_null("FloorPreview_%d" % error_floor) as MeshInstance3D
+	if preview == null:
+		return
+	var factor: float = error_building.get_meta("measurement_scale")
+	var height := float(error_floor) * OSMMap.LEVEL_HEIGHT * factor
+	var positions := _screen_polygon(error_building, error_points, preview.get_meta("wall_origin", Vector2.ZERO), factor, height)
+	for position in positions:
+		error_overlay.draw_arc(position, 15.0, 0.0, TAU, 32, Color.BLACK, 7.0, true)
+		error_overlay.draw_arc(position, 15.0, 0.0, TAU, 32, Color.RED, 4.0, true)
+
+
+func _show_error_location(result: Dictionary, building: StaticBody3D) -> void:
+	_clear_error_location()
+	var points: Variant = result.get("error_points")
+	if not points is PackedVector2Array or points.is_empty():
+		return
+	error_points = points.duplicate()
+	error_building = building
+	error_floor = int(floor_number.value)
+	error_flash_started_ms = Time.get_ticks_msec()
+	error_overlay.queue_redraw()
+
+
+func _clear_error_location() -> void:
+	error_points.clear()
+	error_building = null
+	error_floor = 0
+	if is_instance_valid(error_overlay):
+		error_overlay.queue_redraw()
+
+
+static func _error_flash_visible(elapsed_ms: int) -> bool:
+	return elapsed_ms >= 0 and elapsed_ms < ERROR_FLASH_CYCLE_MS * ERROR_FLASH_COUNT and elapsed_ms % ERROR_FLASH_CYCLE_MS < ERROR_FLASH_ON_MS
 
 
 func _draw_dimensions(building: StaticBody3D, lines: Array, offset: Vector2, factor: float, height: float, prefix: String, color: Color) -> void:

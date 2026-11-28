@@ -42,6 +42,23 @@ func _test() -> void:
 	if rebuilt.has("error") or rebuilt.regions.size() != 3 or rebuilt.walls.size() != 2 or rebuilt.walls[1] != second.polygon:
 		_fail("Saved walls did not reconstruct the same rooms: %s" % rebuilt)
 		return
+	var corner_error := BuildingWalls.plan_wall([room], Vector2(0.05, 0.05), 0.3)
+	if corner_error.get("error", "") != "Bitte etwas Abstand zur Wandecke halten." or corner_error.get("error_points", PackedVector2Array()).size() != 1 or corner_error.error_points[0].distance_to(Vector2.ZERO) > 0.001:
+		_fail("A corner clearance error did not identify the actual corner: %s" % corner_error)
+		return
+	var irregular := PackedVector2Array()
+	for point in [Vector2(0, 0), Vector2(9, -0.02), Vector2(20, 0.02), Vector2(30, 0), Vector2(30, 20), Vector2(0, 20)]:
+		irregular.append(point.rotated(1.25456857681274))
+	var nested_walls := [
+		{"cursor": [-13.9793672561646, 10.4174308776855], "thickness": 0.3},
+		{"cursor": [-10.6502370834351, 24.9536247253418], "thickness": 0.3},
+		{"cursor": [1.19478273391724, 17.5766506195068], "thickness": 0.3},
+		{"cursor": [0.391252994537354, 8.08173561096191], "thickness": 0.3},
+	]
+	var nested_split := BuildingWalls.split_wall(irregular, nested_walls, 1, 0)
+	if nested_split.has("error") and (nested_split.error != "Bitte etwas Abstand zur Wandecke halten." or nested_split.get("error_points", PackedVector2Array()).size() != 1 or nested_split.error_points[0].distance_to(Vector2(2.325523, 20.55003)) > 0.01):
+		_fail("A rejected split did not retain the actual corner from rebuilding nested walls: %s" % nested_split)
+		return
 	var exterior_split := BuildingWalls.split_exterior(room, [], rebuilt.plans, 0.3, 0, -1)
 	if exterior_split.has("error") or exterior_split.pieces != 2 or absf(float(exterior_split.splits[0].cuts[0]) - 0.3) > 0.01:
 		_fail("The exterior wall was not split where the partition touches it: %s" % exterior_split)

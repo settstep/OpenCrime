@@ -590,8 +590,14 @@ static func plan_wall(regions: Array[PackedVector2Array], cursor: Vector2, thick
 	var region := regions[chosen_region]
 	var start_a := region[chosen_edge]
 	var start_b := region[(chosen_edge + 1) % region.size()]
-	if not allow_junction and (nearest.distance_to(start_a) <= thickness * 0.5 + EPSILON or nearest.distance_to(start_b) <= thickness * 0.5 + EPSILON):
-		return {"error": "Bitte etwas Abstand zur Wandecke halten."}
+	if not allow_junction:
+		var corners := PackedVector2Array()
+		if nearest.distance_to(start_a) <= thickness * 0.5 + EPSILON:
+			corners.append(start_a)
+		if nearest.distance_to(start_b) <= thickness * 0.5 + EPSILON:
+			corners.append(start_b)
+		if not corners.is_empty():
+			return {"error": "Bitte etwas Abstand zur Wandecke halten.", "error_points": corners}
 	var tangent := (start_b - start_a).normalized()
 	var normal := Vector2(-tangent.y, tangent.x)
 	var middle := (start_a + start_b) * 0.5

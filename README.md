@@ -233,6 +233,9 @@ Innenwand. So lassen sich weitere Räume unterteilen. Mit **Escape** oder
 erneutem Klick auf den Knopf wird der Wandmodus beendet. An ungeeigneten
 Stellen, etwa zu nah an einer Ecke oder wenn der Raum nicht eindeutig in
 zwei Räume geteilt werden kann, wird keine Wand gesetzt.
+Bei der Meldung **„Bitte etwas Abstand zur Wandecke halten“** blinkt die
+betroffene Ecke dreimal rot. Das gilt auch, wenn die Prüfung beim Teilen,
+Verschieben oder Verbinden von Wänden auftritt.
 
 Nach Beenden des Wandmodus lässt sich eine Innen- oder Außenwand mit der
 linken Maustaste auswählen und seitlich ziehen. Die ausgewählte Wandfläche

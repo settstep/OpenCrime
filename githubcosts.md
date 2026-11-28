@@ -56,3 +56,4 @@
 | 28.11.2026 | 16:25 | 82      | merge adjacent wall segments                                |
 | 28.11.2026 | 16:46 | 83      | cancel wall drag when selection becomes invalid             |
 | 28.11.2026 | 17:51 | 85      | reset floor and building edits                              |
+| 28.11.2026 | 18:23 | 88      | highlight wall corner errors                                |

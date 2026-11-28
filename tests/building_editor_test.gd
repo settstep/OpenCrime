@@ -66,7 +66,69 @@ func _has_dimension(lines: Array, length: float) -> bool:
 	return false
 
 
+func _split_error_marker(origin: Array) -> bool:
+	var inner := PackedVector2Array()
+	for point in [Vector2(0, 0), Vector2(9, -0.02), Vector2(20, 0.02), Vector2(30, 0), Vector2(30, 20), Vector2(0, 20)]:
+		inner.append(point.rotated(1.25456857681274))
+	var outer: PackedVector2Array = Geometry2D.offset_polygon(inner, 0.3)[0]
+	var base := outer[0]
+	var zone := Grid.zone_for_origin(origin)
+	var projected := Grid.project(origin, zone, true)
+	var geometry := []
+	for point in outer:
+		var local := point - base
+		geometry.append(Grid.unproject([projected[0] + local.x, projected[1] - local.y], zone, true))
+	geometry.append(geometry[0].duplicate())
+	var way := {"id": 88, "tags": {"building": "yes", "height": "5"}, "geometry": geometry}
+	var walls := []
+	for position in [Vector2(-13.9793672561646, 10.4174308776855), Vector2(-10.6502370834351, 24.9536247253418), Vector2(1.19478273391724, 17.5766506195068), Vector2(0.391252994537354, 8.08173561096191)]:
+		position -= base
+		walls.append({"cursor": [position.x, position.y], "thickness": 0.3})
+	var edits := {"format": 1, "merges": [], "level_edits": [{"source": way, "levels": 1, "hollow_floors": [{"floor": 1, "wall_thickness": 0.3, "walls": walls}]}]}
+	var place := {"id": "test", "name": "Test", "origin": origin, "bounds": [47.77, 10.60, 47.78, 10.61], "ways": [way]}
+	var world: Node3D = MainScene.instantiate()
+	if not OSMMap.populate(world, place):
+		world.free()
+		return false
+	root.add_child(world)
+	world.set_process(false)
+	world.map_block_stream.set_process(false)
+	if not world.building_edits.set_data(edits):
+		world.free()
+		return false
+	world._refresh_building_edits()
+	var building: StaticBody3D = world.get_node("OSMMap/Building_88")
+	var editor: Control = world.get_node("HUD/BuildingEditor")
+	editor.active = true
+	editor.selected.append(building)
+	building.tree_exiting.connect(editor._clear_selection)
+	editor._update_selection()
+	editor.floor_number.value = 1
+	editor.selected_wall = 1
+	editor.selected_wall_outside = false
+	editor.selected_segment = -1
+	var prepared: Dictionary = world.building_edits.prepare_wall_split(building.get_meta("measurement_way"), 1, false, 1, -1)
+	var before := JSON.stringify(world.building_edits.data())
+	editor.wall_split.pressed.emit()
+	var valid: bool = prepared.has("error_points") and editor.message.text == prepared.error and editor.error_points == prepared.error_points and editor.error_building == building and editor.error_floor == 1 and editor.split_preview.is_empty() and JSON.stringify(world.building_edits.data()) == before
+	if not prepared.has("error"):
+		valid = not editor.split_preview.is_empty() and editor.error_points.is_empty() and JSON.stringify(world.building_edits.data()) == before
+	editor._clear_wall_selection()
+	valid = valid and editor.error_points.is_empty()
+	editor.close_editor()
+	world.free()
+	return valid
+
+
 func _test() -> void:
+	for elapsed in [0, 299, 600, 899, 1200, 1499]:
+		if not BuildingEditor._error_flash_visible(elapsed):
+			_fail("The corner marker did not light up during each of its three flashes.")
+			return
+	for elapsed in [-1, 300, 599, 900, 1199, 1500, 1800]:
+		if BuildingEditor._error_flash_visible(elapsed):
+			_fail("The corner marker remained lit between or after its three flashes.")
+			return
 	var outline := PackedVector2Array([Vector2(0, 0), Vector2(10, 0), Vector2(10, 10), Vector2(0, 10)])
 	var interior := OSMMap._building_interior(outline, 0.3)
 	var outer_geometry := BuildingWalls.floor_outline(outline, {})
@@ -349,6 +411,27 @@ func _test() -> void:
 	editor.wall_button.pressed.emit()
 	if not editor.wall_mode:
 		_fail("Wall mode could not be started on a hollow floor.")
+		return
+	var floor_preview: MeshInstance3D = merged_building.get_node("FloorPreview_2")
+	var inner_points: PackedVector2Array = floor_preview.get_meta("interior_points")
+	var corner := inner_points[0]
+	var center := Vector2.ZERO
+	for point in inner_points:
+		center += point
+	center /= inner_points.size()
+	var near_corner := corner + (center - corner).normalized() * 0.04
+	var scale_factor: float = merged_building.get_meta("measurement_scale")
+	var corner_screen := camera.unproject_position(merged_building.to_global(Vector3(near_corner.x * scale_factor, 7.8, near_corner.y * scale_factor)))
+	var edits_before_corner := JSON.stringify(world.building_edits.data())
+	editor._place_wall(corner_screen)
+	if editor.message.text != "Bitte etwas Abstand zur Wandecke halten." or editor.error_points.size() != 1 or editor.error_points[0].distance_to(corner - floor_preview.get_meta("wall_origin")) > 0.02 or editor.error_building != merged_building or editor.error_floor != 2 or JSON.stringify(world.building_edits.data()) != edits_before_corner:
+		_fail("A rejected wall did not mark its actual corner without saving changes.")
+		return
+	await process_frame
+	editor.error_flash_started_ms -= 1800
+	editor._process(0.0)
+	if not editor.error_points.is_empty():
+		_fail("The corner marker did not disappear after three flashes.")
 		return
 	var first_wall_position := camera.unproject_position(Vector3(10.4, 7.8, -12.2))
 	var move := InputEventMouseMotion.new()
@@ -963,6 +1046,9 @@ func _test() -> void:
 		return
 	reloaded_editor.close_editor()
 	reloaded.free()
+	if not _split_error_marker(origin):
+		_fail("A rejected wall split did not flash the actual corner or clear its marker.")
+		return
 	var config_path: String = directory.path_join("config/building_editor.json")
 	if DirAccess.remove_absolute(config_path) != OK or DirAccess.remove_absolute(config_path.get_base_dir()) != OK or DirAccess.remove_absolute(path) != OK or DirAccess.remove_absolute(path.get_base_dir()) != OK or DirAccess.remove_absolute(directory) != OK:
 		_fail("Could not clean up editor test files.")

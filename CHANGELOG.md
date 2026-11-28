@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.34.0
+- Bei einem zu geringen Abstand zur Wandecke markiert der Gebäudeeditor die betroffene Stelle dreimal rot, auch wenn der Fehler beim Aufteilen einer Wand entsteht.
+
 ## 0.33.0
 - Im Gebäudeeditor lassen sich die Änderungen einer Etage oder eines ganzen Gebäudes nach Bestätigung zurücksetzen. Etagen werden wieder massiv; zusammengefasste Gebäude werden in die ursprünglichen OSM-Gebäude aufgelöst. Die Änderung wird gespeichert und im Multiplayer synchronisiert.
 
