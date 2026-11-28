@@ -9,7 +9,7 @@ const PlaceStore = preload("res://scripts/place_store.gd")
 const GameLog = preload("res://scripts/game_log.gd")
 
 var CACHE_DIRECTORY := PlaceStore.BLOCK_CACHE_DIRECTORY
-const USER_AGENT := "OpenCrime/0.28.0 (+https://github.com/settstep/OpenCrime)"
+const USER_AGENT := "OpenCrime/0.29.0 (+https://github.com/settstep/OpenCrime)"
 const MAX_RESPONSE_BYTES := 8 * 1024 * 1024
 const MAX_CONCURRENT_DOWNLOADS := 1
 const MIN_REQUEST_INTERVAL_MS := 1000

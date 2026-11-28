@@ -182,6 +182,22 @@ func _test() -> void:
 	if hollow_way._hollow_floors[0].get("walls", []).size() != 1 or single.prepare_levels(hollow_way, 4).data.level_edits[0].hollow_floors[0].walls.size() != 1:
 		_fail("The saved wall was lost when applying or changing the floor count.")
 		return
+	var moved_wall := single.prepare_wall_change(hollow_way, 2, false, 0, 1.0, 0.5)
+	if moved_wall.has("error") or not single.save(moved_wall.data) or not single.load_file():
+		_fail("An interior wall change could not be saved and loaded: %s" % moved_wall)
+		return
+	hollow_way = single.apply(place).ways[0]
+	if not is_equal_approx(float(hollow_way._hollow_floors[0].walls[0].thickness), 0.5):
+		_fail("The edited interior wall thickness was not preserved.")
+		return
+	var moved_outer := single.prepare_wall_change(hollow_way, 2, true, 0, -0.5, 0.4)
+	if moved_outer.has("error") or not single.save(moved_outer.data) or not single.load_file():
+		_fail("An exterior wall change could not be saved and loaded: %s" % moved_outer)
+		return
+	hollow_way = single.apply(place).ways[0]
+	if not hollow_way._hollow_floors[0].has("outline") or not is_equal_approx(float(hollow_way._hollow_floors[0].wall_thickness), 0.4):
+		_fail("The per-floor exterior change was not preserved.")
+		return
 	var bad_data := single.data()
 	bad_data.level_edits[0].hollow_floors[0].walls[0].thickness = -1
 	if single.set_data(bad_data):

@@ -298,6 +298,82 @@ func _test() -> void:
 	if absf(partition_wall.x - 9.805) > 0.1 or partition_slide.z < partition_wall.z + 0.8 or world.player.global_position.x > partition_slide.x - 1.0:
 		_fail("Player could not slide and move away from the new wall: %s -> %s -> %s" % [partition_wall, partition_slide, world.player.global_position])
 		return
+	var select_wall := InputEventMouseButton.new()
+	select_wall.button_index = MOUSE_BUTTON_LEFT
+	select_wall.pressed = true
+	select_wall.position = camera.unproject_position(Vector3(10.4, 7.8, -6.0))
+	root.push_input(select_wall, true)
+	if editor.selected_wall != 0 or editor.selected_wall_outside or not editor.wall_properties.visible:
+		_fail("Clicking the interior wall did not select it and show its properties.")
+		return
+	move.position = camera.unproject_position(Vector3(11.7, 7.8, -6.0))
+	root.push_input(move, true)
+	if editor.drag_result.has("error") or editor.drag_result.is_empty():
+		_fail("Dragging the interior wall did not produce a valid preview: %s; positions %s -> %s; dragging %s" % [editor.drag_result, select_wall.position, move.position, editor.dragging_wall])
+		return
+	var release_wall := InputEventMouseButton.new()
+	release_wall.button_index = MOUSE_BUTTON_LEFT
+	release_wall.pressed = false
+	release_wall.position = move.position
+	root.push_input(release_wall, true)
+	await physics_frame
+	await physics_frame
+	merged_building = world.get_node("OSMMap/Building_1")
+	if editor.message.text != world.BUILDING_WALL_CHANGE_SUCCESS or editor.selected_wall != 0:
+		_fail("The wall drag was not saved: " + editor.message.text)
+		return
+	editor.wall_thickness_input.text = "0"
+	editor.wall_apply.pressed.emit()
+	if not editor.message.text.contains("gültige Wanddicke") or not is_equal_approx(float(world.building_edits.merges[0].hollow_floors[0].walls[0].thickness), 0.3):
+		_fail("An invalid thickness was not rejected without changing the saved wall.")
+		return
+	editor.wall_thickness_input.text = "50"
+	editor.wall_apply.pressed.emit()
+	await physics_frame
+	await physics_frame
+	merged_building = world.get_node("OSMMap/Building_1")
+	var edited_floor: Dictionary = world.building_edits.merges[0].hollow_floors[0]
+	if editor.message.text != world.BUILDING_WALL_CHANGE_SUCCESS or absf(float(edited_floor.walls[0].thickness) - 0.5) > 0.001:
+		_fail("The wall thickness was not saved from the popup: " + editor.message.text)
+		return
+	var moved_query := PhysicsRayQueryParameters3D.create(Vector3(2, 5.85, -6), Vector3(14, 5.85, -6), OSMMap.BUILDING_PICK_LAYER)
+	var moved_hit := world.get_world_3d().direct_space_state.intersect_ray(moved_query)
+	if moved_hit.is_empty() or absf(moved_hit.position.x - 11.375) > 0.06:
+		_fail("The edited wall collision was not rebuilt: %s" % moved_hit)
+		return
+	select_wall.position = camera.unproject_position(Vector3(0.195, 7.8, -4.0))
+	root.push_input(select_wall, true)
+	if editor.selected_wall < 0 or not editor.selected_wall_outside:
+		_fail("Clicking an exterior wall did not open its properties.")
+		return
+	editor.wall_thickness_input.text = "40"
+	editor.wall_apply.pressed.emit()
+	await physics_frame
+	await physics_frame
+	edited_floor = world.building_edits.merges[0].hollow_floors[0]
+	if editor.message.text != world.BUILDING_WALL_CHANGE_SUCCESS or absf(float(edited_floor.wall_thickness) - 0.4) > 0.001:
+		_fail("The exterior wall thickness was not saved for the floor: " + editor.message.text)
+		return
+	select_wall.position = camera.unproject_position(Vector3(0.26, 7.8, -4.0))
+	root.push_input(select_wall, true)
+	move.position = camera.unproject_position(Vector3(-0.39, 7.8, -4.0))
+	root.push_input(move, true)
+	if editor.drag_result.has("error") or editor.drag_result.is_empty():
+		_fail("Dragging the exterior wall did not produce a valid preview: %s" % editor.drag_result)
+		return
+	release_wall.position = move.position
+	root.push_input(release_wall, true)
+	await physics_frame
+	await physics_frame
+	if editor.message.text != world.BUILDING_WALL_CHANGE_SUCCESS:
+		_fail("The exterior wall drag was not saved: " + editor.message.text)
+		return
+	var moved_outer_query := PhysicsRayQueryParameters3D.create(Vector3(3, 5.85, -4), Vector3(-2, 5.85, -4), OSMMap.BUILDING_PICK_LAYER)
+	var moved_outer_hit := world.get_world_3d().direct_space_state.intersect_ray(moved_outer_query)
+	if moved_outer_hit.is_empty() or absf(moved_outer_hit.position.x + 0.13) > 0.06:
+		_fail("The moved exterior wall did not rebuild its collision: %s" % moved_outer_hit)
+		return
+	editor._clear_wall_selection()
 	world.player.global_position = Vector3(-2, 0.9, -6.5)
 	world.player.velocity = Vector3.ZERO
 	var settings_file := FileAccess.open(directory.path_join("config/building_editor.json"), FileAccess.WRITE)
@@ -315,7 +391,7 @@ func _test() -> void:
 		_fail("A second floor could not be hollowed independently.")
 		return
 	var both_floors: Array = world.building_edits.merges[0].hollow_floors
-	if both_floors.size() != 2 or not is_equal_approx(float(both_floors[0].wall_thickness), 0.3) or not is_equal_approx(float(both_floors[1].wall_thickness), 0.6):
+	if both_floors.size() != 2 or not is_equal_approx(float(both_floors[0].wall_thickness), 0.4) or not is_equal_approx(float(both_floors[1].wall_thickness), 0.6):
 		_fail("Changed settings did not apply only to the newly hollowed floor.")
 		return
 	var upper_wall_query := PhysicsRayQueryParameters3D.create(Vector3(6.5, 14.0, -6.5), Vector3(-2, 14.0, -6.5), OSMMap.BUILDING_PICK_LAYER)
@@ -378,6 +454,10 @@ func _test() -> void:
 		return
 	if absf(float(reloaded.get_node("OSMMap/Building_1").get_meta("measurement_height")) - 15.6) > 0.01 or not _has_floors(reloaded.get_node("OSMMap/Building_1"), 4, 1.3) or not reloaded.get_node("OSMMap/Building_1").has_node("FloorPreview_2") or not reloaded.get_node("OSMMap/Building_1").has_node("FloorPreview_4") or not reloaded.get_node("OSMMap/Building_1").has_node("InteriorWall_2_2"):
 		_fail("Level override was not restored after reopening the map.")
+		return
+	var restored_floor: Dictionary = reloaded.building_edits.merges[0].hollow_floors[0]
+	if not restored_floor.has("outline") or not is_equal_approx(float(restored_floor.wall_thickness), 0.4) or not is_equal_approx(float(restored_floor.walls[0].thickness), 0.5):
+		_fail("Edited wall position or thickness was not restored after reopening the map.")
 		return
 	reloaded.set_process(false)
 	reloaded.map_block_stream.set_process(false)

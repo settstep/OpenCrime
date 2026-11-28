@@ -91,3 +91,39 @@ text = "Wand hinzufügen"
 [node name="Message" type="Label" parent="Panel/Layout"]
 layout_mode = 2
 autowrap_mode = 2
+
+[node name="WallProperties" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 430.0
+offset_top = 90.0
+offset_right = 690.0
+offset_bottom = 200.0
+
+[node name="Layout" type="VBoxContainer" parent="WallProperties"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="WallProperties/Layout"]
+layout_mode = 2
+text = "Wandeigenschaften"
+
+[node name="Info" type="Label" parent="WallProperties/Layout"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Wand seitlich ziehen. Außenwanddicke gilt für die gesamte Etage."
+
+[node name="Thickness" type="HBoxContainer" parent="WallProperties/Layout"]
+layout_mode = 2
+
+[node name="Input" type="LineEdit" parent="WallProperties/Layout/Thickness"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Dicke in cm"
+
+[node name="Apply" type="Button" parent="WallProperties/Layout/Thickness"]
+layout_mode = 2
+text = "cm speichern"
+
+[node name="Close" type="Button" parent="WallProperties/Layout"]
+layout_mode = 2
+text = "Schließen"

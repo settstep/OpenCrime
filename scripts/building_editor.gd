@@ -16,6 +16,10 @@ const BuildingWalls = preload("res://scripts/building_walls.gd")
 @onready var hollow_button: Button = $Panel/Layout/Floor/Hollow
 @onready var wall_button: Button = $Panel/Layout/Wall
 @onready var message: Label = $Panel/Layout/Message
+@onready var wall_properties: PanelContainer = $WallProperties
+@onready var wall_thickness_input: LineEdit = $WallProperties/Layout/Thickness/Input
+@onready var wall_apply: Button = $WallProperties/Layout/Thickness/Apply
+@onready var wall_close: Button = $WallProperties/Layout/Close
 
 var active := false
 var selected: Array[StaticBody3D] = []
@@ -27,6 +31,13 @@ var wall_preview := {}
 var wall_screen_position := Vector2.ZERO
 var wall_camera_transform := Transform3D.IDENTITY
 var wall_camera_size := 0.0
+var selected_wall := -1
+var selected_wall_outside := false
+var dragging_wall := false
+var drag_start := Vector2.ZERO
+var drag_axis := Vector2.ZERO
+var drag_distance := 0.0
+var drag_result := {}
 
 
 func _ready() -> void:
@@ -35,15 +46,29 @@ func _ready() -> void:
 	floor_number.value_changed.connect(_floor_changed)
 	hollow_button.pressed.connect(_hollow_floor)
 	wall_button.pressed.connect(_toggle_wall_mode)
+	wall_apply.pressed.connect(_apply_wall_thickness)
+	wall_close.pressed.connect(_clear_wall_selection)
 
 
 func _input(event: InputEvent) -> void:
 	if not measurement._can_interact():
 		return
+	if active and dragging_wall and event is InputEventMouseMotion:
+		_update_wall_drag(event.position)
+		get_viewport().set_input_as_handled()
+		return
+	if active and dragging_wall and event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		_finish_wall_drag(event.position)
+		get_viewport().set_input_as_handled()
+		return
 	if active and wall_mode and event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE):
 		get_viewport().set_input_as_handled()
 		_cancel_wall_mode()
 		message.text = "Wandmodus beendet."
+		return
+	if active and selected_wall >= 0 and event is InputEventKey and event.pressed and not event.echo and (event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE):
+		get_viewport().set_input_as_handled()
+		_clear_wall_selection()
 		return
 	if event is InputEventKey and event.pressed and not event.echo and not event.alt_pressed and (event.keycode == KEY_F5 or event.physical_keycode == KEY_F5):
 		get_viewport().set_input_as_handled()
@@ -74,6 +99,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			_place_wall(event.position)
 			get_viewport().set_input_as_handled()
 			return
+		if _select_wall(event.position):
+			get_viewport().set_input_as_handled()
+			return
+		_clear_wall_selection()
 		click_position = event.position
 		pending_click = true
 		get_viewport().set_input_as_handled()
@@ -109,6 +138,7 @@ func _physics_process(_delta: float) -> void:
 
 func _process(_delta: float) -> void:
 	panel.visible = active and measurement._can_interact()
+	wall_properties.visible = active and selected_wall >= 0 and measurement._can_interact()
 	if active:
 		if wall_mode and (camera.global_transform != wall_camera_transform or camera.size != wall_camera_size):
 			_update_wall_cursor(wall_screen_position)
@@ -126,6 +156,7 @@ func close_editor() -> void:
 
 func _clear_selection() -> void:
 	_cancel_wall_mode()
+	_clear_wall_selection()
 	_restore_preview()
 	for building in selected:
 		if is_instance_valid(building) and building.tree_exiting.is_connected(_clear_selection):
@@ -170,6 +201,7 @@ func _restore_preview() -> void:
 
 func _floor_changed(_value: float) -> void:
 	_cancel_wall_mode()
+	_clear_wall_selection()
 	_update_floor_preview()
 	queue_redraw()
 
@@ -270,6 +302,7 @@ func _toggle_wall_mode() -> void:
 	if settings.has("error"):
 		message.text = settings.error
 		return
+	_clear_wall_selection()
 	wall_thickness = settings.thickness
 	wall_mode = true
 	wall_button.text = "Wandmodus beenden"
@@ -282,6 +315,149 @@ func _cancel_wall_mode() -> void:
 	wall_preview.clear()
 	if is_instance_valid(wall_button):
 		wall_button.text = "Wand hinzufügen"
+	queue_redraw()
+
+
+func _clear_wall_selection() -> void:
+	selected_wall = -1
+	dragging_wall = false
+	drag_result.clear()
+	if is_instance_valid(wall_thickness_input):
+		wall_thickness_input.release_focus()
+	queue_redraw()
+
+
+func _floor_cursor(screen_position: Vector2, building: StaticBody3D, preview: MeshInstance3D) -> Variant:
+	var scale_factor: float = building.get_meta("measurement_scale")
+	var height := floor_number.value * OSMMap.LEVEL_HEIGHT * scale_factor
+	var plane := Plane(Vector3.UP, building.to_global(Vector3(0, height, 0)).y)
+	var position: Variant = plane.intersects_ray(camera.project_ray_origin(screen_position), camera.project_ray_normal(screen_position))
+	if position == null:
+		return null
+	var local := building.to_local(position)
+	return Vector2(local.x, local.z) / scale_factor - preview.get_meta("wall_origin")
+
+
+func _selected_floor_edit() -> Dictionary:
+	if selected.size() != 1 or not is_instance_valid(selected[0]):
+		return {}
+	var way: Dictionary = selected[0].get_meta("measurement_way")
+	for edit in way.get("_hollow_floors", []):
+		if int(edit.floor) == int(floor_number.value):
+			return edit
+	return {}
+
+
+func _select_wall(screen_position: Vector2) -> bool:
+	if selected.size() != 1 or not is_instance_valid(selected[0]) or not floor_number.editable:
+		return false
+	var building := selected[0]
+	var preview := building.get_node_or_null("FloorPreview_%d" % int(floor_number.value)) as MeshInstance3D
+	if preview == null or not preview.has_meta("wall_polygons"):
+		return false
+	var cursor: Variant = _floor_cursor(screen_position, building, preview)
+	if cursor == null:
+		return false
+	var floor_edit := _selected_floor_edit()
+	if floor_edit.is_empty():
+		return false
+	var polygons: Array = preview.get_meta("wall_polygons")
+	var wall := -1
+	var outside := false
+	for index in polygons.size():
+		if Geometry2D.is_point_in_polygon(cursor, polygons[index]):
+			wall = index
+			break
+	var outline: PackedVector2Array = preview.get_meta("local_outline")
+	var interior := OSMMap._building_interior(outline, float(floor_edit.wall_thickness))
+	if wall < 0 and Geometry2D.is_point_in_polygon(cursor, outline) and not Geometry2D.is_point_in_polygon(cursor, interior):
+		var closest := INF
+		for index in outline.size():
+			var point := Geometry2D.get_closest_point_to_segment(cursor, outline[index], outline[(index + 1) % outline.size()])
+			var distance: float = cursor.distance_squared_to(point)
+			if distance < closest:
+				closest = distance
+				wall = index
+		outside = wall >= 0
+	if wall < 0:
+		return false
+	selected_wall = wall
+	selected_wall_outside = outside
+	dragging_wall = true
+	drag_start = cursor
+	drag_distance = 0.0
+	drag_result.clear()
+	if outside:
+		var tangent := (outline[(wall + 1) % outline.size()] - outline[wall]).normalized()
+		drag_axis = Vector2(-tangent.y, tangent.x)
+		wall_thickness_input.text = str(float(floor_edit.wall_thickness) * 100.0)
+	else:
+		var plans: Array = preview.get_meta("wall_plans")
+		drag_axis = (plans[wall].source[1] - plans[wall].source[0]).normalized()
+		wall_thickness_input.text = str(float(floor_edit.walls[wall].thickness) * 100.0)
+	wall_properties.show()
+	queue_redraw()
+	return true
+
+
+func _update_wall_drag(screen_position: Vector2) -> void:
+	if not dragging_wall or selected.size() != 1 or not is_instance_valid(selected[0]):
+		return
+	var building := selected[0]
+	var preview := building.get_node_or_null("FloorPreview_%d" % int(floor_number.value)) as MeshInstance3D
+	if preview == null:
+		return
+	var cursor: Variant = _floor_cursor(screen_position, building, preview)
+	if cursor == null:
+		return
+	drag_distance = (cursor - drag_start).dot(drag_axis)
+	var floor_edit := _selected_floor_edit()
+	var thickness: float = floor_edit.wall_thickness if selected_wall_outside else floor_edit.walls[selected_wall].thickness
+	drag_result = world.building_edits.prepare_wall_change(building.get_meta("measurement_way"), int(floor_number.value), selected_wall_outside, selected_wall, drag_distance, thickness)
+	if drag_result.has("error"):
+		message.text = drag_result.error
+	queue_redraw()
+
+
+func _finish_wall_drag(screen_position: Vector2) -> void:
+	_update_wall_drag(screen_position)
+	dragging_wall = false
+	if absf(drag_distance) < 0.01 or drag_result.is_empty() or drag_result.has("error"):
+		drag_result.clear()
+		queue_redraw()
+		return
+	var floor_edit := _selected_floor_edit()
+	var thickness: float = floor_edit.wall_thickness if selected_wall_outside else floor_edit.walls[selected_wall].thickness
+	_commit_wall_change(drag_distance, thickness)
+
+
+func _apply_wall_thickness() -> void:
+	var value := wall_thickness_input.text.strip_edges()
+	if not value.is_valid_float() or not is_finite(value.to_float()) or value.to_float() <= 0.0 or value.to_float() > 100000.0:
+		message.text = "Bitte eine gültige Wanddicke in Zentimetern eingeben."
+		return
+	_commit_wall_change(0.0, value.to_float() / 100.0)
+
+
+func _commit_wall_change(distance: float, thickness: float) -> void:
+	if selected_wall < 0 or selected.size() != 1 or not is_instance_valid(selected[0]):
+		_clear_wall_selection()
+		message.text = "Bitte eine geladene Wand auswählen."
+		return
+	var building := selected[0]
+	var id := int(building.get_meta("measurement_osm_id"))
+	var chosen_floor := int(floor_number.value)
+	var block_key: Variant = _selected_block_key(building)
+	var wall := selected_wall
+	var outside := selected_wall_outside
+	var result: String = world.call("_commit_building_wall_change", building.get_meta("measurement_way"), chosen_floor, outside, wall, distance, thickness)
+	message.text = result
+	drag_result.clear()
+	if result == world.BUILDING_WALL_CHANGE_SUCCESS and _restore_building_selection(block_key, id, chosen_floor):
+		selected_wall = wall
+		selected_wall_outside = outside
+		wall_thickness_input.text = str(thickness * 100.0)
+		wall_properties.show()
 	queue_redraw()
 
 
@@ -333,6 +509,23 @@ func _place_wall(screen_position: Vector2) -> void:
 		_update_wall_cursor(screen_position)
 
 
+func _drag_floor_edit(building: StaticBody3D) -> Dictionary:
+	if not drag_result.has("data"):
+		return {}
+	var id := int(building.get_meta("measurement_osm_id"))
+	for merge in drag_result.data.merges:
+		if int(merge.result.id) == id:
+			for edit in merge.get("hollow_floors", []):
+				if int(edit.floor) == int(floor_number.value):
+					return edit
+	for entry in drag_result.data.level_edits:
+		if int(entry.source.id) == id:
+			for edit in entry.get("hollow_floors", []):
+				if int(edit.floor) == int(floor_number.value):
+					return edit
+	return {}
+
+
 func _draw() -> void:
 	if not active or not measurement._can_interact():
 		return
@@ -347,6 +540,25 @@ func _draw() -> void:
 			var preview := building.get_node_or_null("FloorPreview_%d" % int(floor_number.value)) as MeshInstance3D
 			if preview != null:
 				var inner: PackedVector2Array = preview.get_meta("interior_points")
+				points = preview.get_meta("outer_points", points)
+				var offset: Vector2 = preview.get_meta("wall_origin", Vector2.ZERO)
+				var polygons: Array = preview.get_meta("wall_polygons", [])
+				var drag_edit := _drag_floor_edit(building) if dragging_wall else {}
+				if not drag_edit.is_empty():
+					var way: Dictionary = building.get_meta("measurement_way")
+					var original := OSMMap._building_points(way, way.geometry[0])
+					var footprint := BuildingWalls.floor_outline(original, drag_edit)
+					if not footprint.has("error"):
+						var drag_inner := OSMMap._building_interior(footprint.outline, float(drag_edit.wall_thickness))
+						var drag_walls := BuildingWalls.build(drag_inner, drag_edit.get("walls", []))
+						if not drag_walls.has("error"):
+							points = PackedVector2Array()
+							inner = PackedVector2Array()
+							for point in footprint.outline:
+								points.append(point + offset)
+							for point in drag_inner:
+								inner.append(point + offset)
+							polygons = drag_walls.walls
 				var outer_screen := PackedVector2Array()
 				var inner_screen := PackedVector2Array()
 				var visible := true
@@ -362,11 +574,13 @@ func _draw() -> void:
 				if visible and inner_screen.size() >= 3:
 					draw_colored_polygon(outer_screen, Color(0.31, 0.24, 0.17))
 					draw_colored_polygon(inner_screen, Color(0.78, 0.74, 0.66))
-					var offset: Vector2 = preview.get_meta("wall_origin", Vector2.ZERO)
-					for polygon in preview.get_meta("wall_polygons", []):
+					for index in polygons.size():
+						var polygon: PackedVector2Array = polygons[index]
 						var wall_screen := _screen_polygon(building, polygon, offset, factor, height)
 						if wall_screen.size() >= 3:
-							draw_colored_polygon(wall_screen, Color(0.31, 0.24, 0.17))
+							draw_colored_polygon(wall_screen, Color.YELLOW if not selected_wall_outside and selected_wall == index else Color(0.31, 0.24, 0.17))
+					if selected_wall_outside and selected_wall >= 0 and selected_wall < points.size():
+						draw_line(outer_screen[selected_wall], outer_screen[(selected_wall + 1) % points.size()], Color.YELLOW, 5.0)
 					if wall_mode and not wall_preview.is_empty() and not wall_preview.has("error"):
 						var candidate := _screen_polygon(building, wall_preview.polygon, offset, factor, height)
 						if candidate.size() >= 3:

@@ -6,7 +6,7 @@ Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenf
 - Tastenbelegung im Hauptmenü unter „Optionen“ einstellbar machen.
 - Grafikeinstellungen unter „Optionen“ anbieten, mindestens Vollbild- und Fenstermodus.
 - Lokalisierung und Auswahl weiterer Sprachen unterstützen.
-- Detailliertere Spielerfiguren und Animationen.
+- Menschlich aussehende Spielfigur aus eckigen Grundformen gestalten (ähnlich Minecraft, Roblox oder Lego); Animationen ergänzen.
 - NPCs und deren Verhalten.
 - Bessere Fahrzeugmodelle.
 - Begehbare Gebäude und Innenräume.
@@ -20,6 +20,7 @@ Diese Liste sammelt Ideen für spätere Entwicklungsschritte, ohne feste Reihenf
 - Einen Karten-Editiermodus im Hauptmenü anbieten: Karte ohne Schaden begehen und befahren, OSM-Knoten als Kugeln und Pfade als Linien anzeigen und Knoten verschieben können.
 - Weitere manuelle Kartenänderungen anhand von OSM-IDs unterstützen und Änderungen exportieren; auch neue Objekte, Gebäude und Routen (z. B. Schilder, Hydranten, Parkplätze und Bürgersteige) anlegen können. Gebäudezusammenfassungen werden bereits lokal gespeichert.
 - Begehbare Gebäude und Innenräume umsetzen; der Editiermodus soll die dafür nötigen Gebäudeformen und Öffnungen unterstützen.
+- Das Layout einer bearbeiteten Etage auf ausgewählte andere Etagen übernehmen können.
 - Gespeicherte Ortsliste in der Ortsauswahl durch rasterbasierte Auswahl ersetzen; mitgelieferte Offline-Orte und Serverstart-Kompatibilität dabei bewahren.
 - Für den ausgewählten Kartenblock verfügbare Inhalte anzeigen (Aufträge, Erste-Hilfe-/Essensorte, Apotheken, Geschäfte und kaufbare Immobilien) und passende Symbole auf der Karte darstellen.
 - Windows-x64-Builds als GitHub Release anbieten (Godot-Export mit EXE und PCK, Versionshinweisen und kurzer Testanleitung).

@@ -117,7 +117,6 @@ static func _valid_floor_edits(edits: Variant, way: Dictionary, levels: int) -> 
 	if not edits is Array or edits.size() > levels:
 		return false
 	var seen := {}
-	var checked_thickness := {}
 	var points := OSMMap._building_points(way, way.geometry[0])
 	for edit in edits:
 		if not edit is Dictionary or not _valid_levels(edit.get("floor")) or int(edit.floor) > levels or seen.has(int(edit.floor)):
@@ -125,15 +124,16 @@ static func _valid_floor_edits(edits: Variant, way: Dictionary, levels: int) -> 
 		var thickness: Variant = edit.get("wall_thickness")
 		if not (thickness is int or thickness is float) or not is_finite(float(thickness)) or float(thickness) <= 0.0 or float(thickness) > 1000.0:
 			return false
-		if not checked_thickness.has(float(thickness)):
-			if OSMMap._building_interior(points, float(thickness)).is_empty():
-				return false
-			checked_thickness[float(thickness)] = true
+		var footprint := BuildingWalls.floor_outline(points, edit)
+		if footprint.has("error"):
+			return false
+		var interior := OSMMap._building_interior(footprint.outline, float(thickness))
+		if interior.is_empty():
+			return false
 		var walls: Variant = edit.get("walls", [])
 		if not walls is Array:
 			return false
 		if not walls.is_empty():
-			var interior := OSMMap._building_interior(points, float(thickness))
 			if BuildingWalls.build(interior, walls).has("error"):
 				return false
 		seen[int(edit.floor)] = true
@@ -322,7 +322,10 @@ func prepare_wall(way: Dictionary, floor_number: int, cursor: Vector2, thickness
 		if walls.size() >= BuildingWalls.MAX_WALLS:
 			return {"error": "Auf dieser Etage können keine weiteren Wände gespeichert werden."}
 		var points := OSMMap._building_points(original, original.geometry[0])
-		var interior := OSMMap._building_interior(points, float(floor_edit.wall_thickness))
+		var footprint := BuildingWalls.floor_outline(points, floor_edit)
+		if footprint.has("error"):
+			return footprint
+		var interior := OSMMap._building_interior(footprint.outline, float(floor_edit.wall_thickness))
 		var existing := BuildingWalls.build(interior, walls)
 		if existing.has("error"):
 			return existing
@@ -331,6 +334,66 @@ func prepare_wall(way: Dictionary, floor_number: int, cursor: Vector2, thickness
 			return plan
 		walls.append({"cursor": [cursor.x, cursor.y], "thickness": thickness})
 		floor_edit["walls"] = walls
+		return prepared
+	return {"error": "Bitte die Etage zuerst aushöhlen."}
+
+
+func prepare_wall_change(way: Dictionary, floor_number: int, outside: bool, wall_index: int, distance: float, thickness: float) -> Dictionary:
+	if not _valid_way(way, false) or not is_finite(distance) or not is_finite(thickness) or thickness <= 0.0 or thickness > 1000.0:
+		return {"error": "Ungültige Wandposition oder Wanddicke."}
+	var levels := OSMMap._floor_count(way.tags)
+	if floor_number < 1 or floor_number > levels:
+		return {"error": "Bitte eine gültige Etage auswählen."}
+	var prepared := prepare_levels(way, levels)
+	if prepared.has("error"):
+		return prepared
+	var target: Dictionary = {}
+	var original: Dictionary = {}
+	for merge in prepared.data.merges:
+		if int(merge.result.id) == int(way.id):
+			target = merge
+			original = merge.result
+			break
+	if target.is_empty():
+		for edit in prepared.data.level_edits:
+			if int(edit.source.id) == int(way.id):
+				target = edit
+				original = edit.source
+				break
+	if target.is_empty():
+		return {"error": "Die Etage konnte nicht zugeordnet werden."}
+	for floor_edit in target.get("hollow_floors", []):
+		if int(floor_edit.floor) != floor_number:
+			continue
+		var points := OSMMap._building_points(original, original.geometry[0])
+		var footprint := BuildingWalls.floor_outline(points, floor_edit)
+		if footprint.has("error"):
+			return footprint
+		var old_outline: PackedVector2Array = footprint.outline
+		var old_interior := OSMMap._building_interior(old_outline, float(floor_edit.wall_thickness))
+		var new_outline := old_outline
+		var encoded := []
+		if outside:
+			var shifted := BuildingWalls.move_outline_edge(old_outline, wall_index, distance)
+			if shifted.has("error"):
+				return shifted
+			new_outline = shifted.outline
+			for point in new_outline:
+				encoded.append([point.x, point.y])
+			var valid_outline := BuildingWalls.floor_outline(points, {"outline": encoded})
+			if valid_outline.has("error"):
+				return valid_outline
+		var new_interior := OSMMap._building_interior(new_outline, thickness if outside else float(floor_edit.wall_thickness))
+		if new_interior.is_empty():
+			return {"error": "Die Änderung würde einen ungültigen Innenraum erzeugen."}
+		var walls: Array = floor_edit.get("walls", [])
+		var updated := BuildingWalls.adjust_walls(old_interior, new_interior, walls, -1 if outside else wall_index, 0.0 if outside else distance, -1.0 if outside else thickness)
+		if updated.has("error"):
+			return updated
+		if outside:
+			floor_edit["outline"] = encoded
+			floor_edit.wall_thickness = thickness
+		floor_edit["walls"] = updated.walls
 		return prepared
 	return {"error": "Bitte die Etage zuerst aushöhlen."}
 

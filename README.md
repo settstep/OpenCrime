@@ -224,6 +224,16 @@ erneutem Klick auf den Knopf wird der Wandmodus beendet. An ungeeigneten
 Stellen, etwa zu nah an einer Ecke oder wenn der Raum nicht eindeutig in
 zwei Räume geteilt werden kann, wird keine Wand gesetzt.
 
+Nach Beenden des Wandmodus lässt sich eine Innen- oder Außenwand mit der
+linken Maustaste auswählen und seitlich ziehen. Beim Loslassen wird die
+gültige Position gespeichert; angeschlossene Wände werden dabei angepasst.
+Die Wandeigenschaften erlauben die Eingabe der Dicke in Zentimetern.
+Bei Außenwänden gilt diese Dicke für den gesamten Außenwandring der gewählten
+Etage, nicht für andere Etagen. Änderungen, die Verbindungen lösen oder
+ungültige Räume erzeugen würden, werden mit einer Meldung abgelehnt.
+Bei komplexen Grundrissen kann auch eine Änderung abgelehnt werden, wenn
+die bestehenden Wandverbindungen nicht eindeutig zugeordnet werden können.
+
 Die Standard-Wanddicke steht in
 `OpenCrimeData/config/building_editor.json` unter `wall_thickness_m` und
 beträgt 0,3 Meter vor Skalierung. Die Datei wird beim ersten Aushöhlen

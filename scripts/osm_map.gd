@@ -441,6 +441,7 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 	var floor_thickness := {}
 	var floor_edits := {}
 	var hollow_meshes := {}
+	var local_points := _building_points(way, way.geometry[0])
 	for edit in hollow_floors:
 		floor_thickness[int(edit.floor)] = float(edit.wall_thickness)
 		floor_edits[int(edit.floor)] = edit
@@ -450,23 +451,32 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 		var preview_mesh: ArrayMesh
 		if floor_thickness.has(index + 1):
 			var thickness: float = floor_thickness[index + 1]
-			if not hollow_meshes.has(thickness):
-				var interior := _building_interior(points, thickness)
-				if interior.is_empty():
+			var footprint := BuildingWalls.floor_outline(local_points, floor_edits[index + 1])
+			if footprint.has("error"):
+				push_error("Grundriss von Gebäude %s, Etage %d konnte nicht aufgebaut werden: %s" % [str(way.id), index + 1, footprint.error])
+			else:
+				var floor_points := PackedVector2Array()
+				for point in footprint.outline:
+					floor_points.append(point + points[0])
+				var floor_triangles := Geometry2D.triangulate_polygon(floor_points)
+				var interior := _building_interior(floor_points, thickness)
+				if interior.is_empty() or floor_triangles.is_empty():
 					push_error("Innenraum von Gebäude %s, Etage %d konnte nicht aufgebaut werden." % [str(way.id), index + 1])
 				else:
-					var hollow_mesh := _building_segment_mesh(points, triangles, material, map_scale, segment_height, true, interior)
-					var collision_mesh := _building_segment_mesh(points, triangles, material, map_scale, segment_height, true, interior, false, true)
-					hollow_meshes[thickness] = {
+					var hollow_mesh := _building_segment_mesh(floor_points, floor_triangles, material, map_scale, segment_height, true, interior)
+					var collision_mesh := _building_segment_mesh(floor_points, floor_triangles, material, map_scale, segment_height, true, interior, false, true)
+					hollow_meshes[index + 1] = {
 						"mesh": hollow_mesh,
 						"shape": collision_mesh.create_trimesh_shape(),
-						"preview": _building_segment_mesh(points, triangles, material, map_scale, segment_height, true, interior, true),
+						"preview": _building_segment_mesh(floor_points, floor_triangles, material, map_scale, segment_height, true, interior, true),
 						"interior": interior,
+						"outer": floor_points,
+						"local_outline": footprint.outline,
 					}
-			if hollow_meshes.has(thickness):
-				floor_mesh = hollow_meshes[thickness].mesh
-				floor_shape = hollow_meshes[thickness].shape
-				preview_mesh = hollow_meshes[thickness].preview
+			if hollow_meshes.has(index + 1):
+				floor_mesh = hollow_meshes[index + 1].mesh
+				floor_shape = hollow_meshes[index + 1].shape
+				preview_mesh = hollow_meshes[index + 1].preview
 		var visual := MeshInstance3D.new()
 		visual.name = "Segment_%d" % (index + 1)
 		visual.mesh = floor_mesh
@@ -486,10 +496,11 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 			preview.mesh = preview_mesh
 			preview.position.y = visual.position.y
 			preview.visible = false
-			preview.set_meta("interior_points", hollow_meshes[floor_thickness[index + 1]].interior)
+			preview.set_meta("interior_points", hollow_meshes[index + 1].interior)
+			preview.set_meta("outer_points", hollow_meshes[index + 1].outer)
+			preview.set_meta("local_outline", hollow_meshes[index + 1].local_outline)
 			var floor_edit: Dictionary = floor_edits[index + 1]
-			var local_points := _building_points(way, way.geometry[0])
-			var local_interior := _building_interior(local_points, float(floor_edit.wall_thickness))
+			var local_interior := _building_interior(hollow_meshes[index + 1].local_outline, float(floor_edit.wall_thickness))
 			var wall_data := BuildingWalls.build(local_interior, floor_edit.get("walls", []))
 			if wall_data.has("error"):
 				push_error("Innenwände von Gebäude %s, Etage %d konnten nicht aufgebaut werden: %s" % [str(way.id), index + 1, wall_data.error])
@@ -497,6 +508,7 @@ static func _add_building(map: Node3D, way: Dictionary, material: Material, map_
 				preview.set_meta("wall_origin", points[0])
 				preview.set_meta("wall_regions", wall_data.regions)
 				preview.set_meta("wall_polygons", wall_data.walls)
+				preview.set_meta("wall_plans", wall_data.plans)
 			body.add_child(preview)
 			if not wall_data.has("error"):
 				for wall_index in wall_data.walls.size():

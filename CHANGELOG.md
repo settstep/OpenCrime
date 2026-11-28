@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.29.0
+- Innen- und Außenwände ausgehöhlter Etagen lassen sich auswählen, seitlich verschieben und in ihrer Dicke bearbeiten. Angeschlossene Wände werden angepasst; ungültige Verbindungen werden abgelehnt.
+- Außenwandänderungen gelten pro Etage; Gebäudeänderungen werden weiterhin getrennt von OSM gespeichert und im Multiplayer synchronisiert.
+
 ## 0.28.0
 - Im Gebäudeeditor können ausgehöhlte Etagen mit rechtwinklig einrastenden Innenwänden unterteilt werden. Vorschau, Speicherung und Multiplayer-Synchronisierung sind enthalten.
 

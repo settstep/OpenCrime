@@ -349,6 +349,16 @@ func _commit_building_wall(way: Dictionary, floor_number: int, cursor: Vector2, 
 	return result
 
 
+func _commit_building_wall_change(way: Dictionary, floor_number: int, outside: bool, wall_index: int, distance: float, thickness: float) -> String:
+	if not multiplayer.is_server():
+		return "Nur der Server-Host kann Gebäude bearbeiten."
+	var result := super._commit_building_wall_change(way, floor_number, outside, wall_index, distance, thickness)
+	if result == BUILDING_WALL_CHANGE_SUCCESS:
+		for peer_id in multiplayer.get_peers():
+			_send_building_edits(peer_id)
+	return result
+
+
 @rpc("authority", "call_remote", "reliable")
 func _receive_building_edits(compressed: PackedByteArray) -> void:
 	if multiplayer.is_server() or not connected:

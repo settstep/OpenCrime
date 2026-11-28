@@ -48,3 +48,5 @@
 | 27.11.2026 | 17:58 | 61      | build separate blocks for building floors                   |
 | 27.11.2026 | 19:23 | 63      | add hollow building floors                                  |
 | 27.11.2026 | 22:40 | 66      | add interior wall editor                                    |
+| 28.11.2026 | 09:09 | 67      | refine player character todo                                |
+| 28.11.2026 | 09:38 | 70      | add wall selection and editing                              |

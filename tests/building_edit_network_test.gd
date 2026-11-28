@@ -156,6 +156,26 @@ func _test() -> void:
 		if not FileAccess.file_exists(directory.path_join("wall.flag")):
 			_fail("Client did not receive the interior wall.")
 			return
+		building = world.get_node("OSMMap/Building_1")
+		var changed_wall_message: String = world._commit_building_wall_change(building.get_meta("measurement_way"), 2, false, 0, 1.0, 0.5)
+		if changed_wall_message != world.BUILDING_WALL_CHANGE_SUCCESS:
+			_fail("Live server wall change failed: " + changed_wall_message)
+			return
+		while not FileAccess.file_exists(directory.path_join("wall_changed.flag")) and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not FileAccess.file_exists(directory.path_join("wall_changed.flag")):
+			_fail("Client did not receive the changed interior wall.")
+			return
+		building = world.get_node("OSMMap/Building_1")
+		var changed_outer_message: String = world._commit_building_wall_change(building.get_meta("measurement_way"), 2, true, 0, -0.5, 0.4)
+		if changed_outer_message != world.BUILDING_WALL_CHANGE_SUCCESS:
+			_fail("Live server exterior wall change failed: %s; points: %s" % [changed_outer_message, OSMMap._building_points(building.get_meta("measurement_way"), building.get_meta("measurement_way").geometry[0])])
+			return
+		while not FileAccess.file_exists(directory.path_join("outer_changed.flag")) and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if not FileAccess.file_exists(directory.path_join("outer_changed.flag")):
+			_fail("Client did not receive the changed exterior wall.")
+			return
 		var changed: Dictionary = place.duplicate(true)
 		changed.ways[0].geometry[0][0] += 0.00001
 		changed.ways[0].geometry[-1][0] += 0.00001
@@ -252,6 +272,26 @@ func _test() -> void:
 			return
 		var wall_flag := FileAccess.open(directory.path_join("wall.flag"), FileAccess.WRITE)
 		wall_flag.close()
+		while Time.get_ticks_msec() < deadline:
+			if is_equal_approx(float(world.building_edits.merges[0].hollow_floors[0].walls[0].thickness), 0.5):
+				break
+			await process_frame
+		hollow_building = world.get_node("OSMMap/Building_1")
+		if not is_equal_approx(float(world.building_edits.merges[0].hollow_floors[0].walls[0].thickness), 0.5) or world._commit_building_wall_change(hollow_building.get_meta("measurement_way"), 2, false, 0, 0.0, 0.4) != "Nur der Server-Host kann Gebäude bearbeiten.":
+			_fail("The changed wall was not synchronized or a client was allowed to edit.")
+			return
+		var wall_changed := FileAccess.open(directory.path_join("wall_changed.flag"), FileAccess.WRITE)
+		wall_changed.close()
+		while Time.get_ticks_msec() < deadline:
+			if world.building_edits.merges[0].hollow_floors[0].has("outline"):
+				break
+			await process_frame
+		var edited_floor: Dictionary = world.building_edits.merges[0].hollow_floors[0]
+		if not edited_floor.has("outline") or not is_equal_approx(float(edited_floor.wall_thickness), 0.4) or not world.get_node("OSMMap/Building_1/FloorPreview_2").has_meta("local_outline"):
+			_fail("The changed exterior wall was not synchronized.")
+			return
+		var outer_changed := FileAccess.open(directory.path_join("outer_changed.flag"), FileAccess.WRITE)
+		outer_changed.close()
 		while world.building_edits.blocked_merges.is_empty() and Time.get_ticks_msec() < deadline:
 			await process_frame
 		if world.building_edits.blocked_merges.is_empty() or world.get_node_or_null("OSMMap/Building_2") == null or world.get_node_or_null("OSMMap/Building_3") == null:
