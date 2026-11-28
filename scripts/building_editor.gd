@@ -17,6 +17,8 @@ const BuildingWalls = preload("res://scripts/building_walls.gd")
 @onready var wall_button: Button = $Panel/Layout/Wall
 @onready var message: Label = $Panel/Layout/Message
 @onready var wall_properties: PanelContainer = $WallProperties
+@onready var dimensions_panel: PanelContainer = $DimensionsPanel
+@onready var wall_dimensions: Label = $DimensionsPanel/Layout/Scroll/Dimensions
 @onready var wall_thickness_input: LineEdit = $WallProperties/Layout/Thickness/Input
 @onready var wall_apply: Button = $WallProperties/Layout/Thickness/Apply
 @onready var wall_split: Button = $WallProperties/Layout/Split
@@ -43,6 +45,7 @@ var drag_start := Vector2.ZERO
 var drag_axis := Vector2.ZERO
 var drag_distance := 0.0
 var drag_result := {}
+var dimensions := {}
 
 
 func _ready() -> void:
@@ -161,9 +164,12 @@ func _physics_process(_delta: float) -> void:
 func _process(_delta: float) -> void:
 	panel.visible = active and measurement._can_interact()
 	wall_properties.visible = active and selected_wall >= 0 and measurement._can_interact()
+	dimensions_panel.visible = wall_properties.visible
 	if active:
 		if wall_mode and (camera.global_transform != wall_camera_transform or camera.size != wall_camera_size):
 			_update_wall_cursor(wall_screen_position)
+		if dimensions.is_empty():
+			_update_dimensions()
 		queue_redraw()
 
 
@@ -346,6 +352,9 @@ func _clear_wall_selection() -> void:
 	selected_segment = -1
 	dragging_wall = false
 	drag_result.clear()
+	dimensions.clear()
+	if is_instance_valid(wall_dimensions):
+		wall_dimensions.text = ""
 	if is_instance_valid(wall_thickness_input):
 		wall_thickness_input.release_focus()
 	queue_redraw()
@@ -433,6 +442,7 @@ func _select_wall(screen_position: Vector2) -> bool:
 	selected_wall = wall
 	selected_wall_outside = outside
 	selected_segment = piece
+	dimensions.clear()
 	dragging_wall = true
 	drag_start = cursor
 	drag_distance = 0.0
@@ -466,9 +476,13 @@ func _update_wall_drag(screen_position: Vector2) -> void:
 	drag_distance = (cursor - drag_start).dot(drag_axis)
 	var floor_edit := _selected_floor_edit()
 	var thickness := _selected_wall_thickness(floor_edit)
+	var previous_error: String = drag_result.get("error", "")
 	drag_result = world.building_edits.prepare_wall_change(building.get_meta("measurement_way"), int(floor_number.value), selected_wall_outside, selected_wall, drag_distance, thickness, selected_segment)
+	dimensions.clear()
 	if drag_result.has("error"):
 		message.text = drag_result.error
+	elif not previous_error.is_empty() and message.text == previous_error:
+		message.text = ""
 	queue_redraw()
 
 
@@ -647,6 +661,157 @@ func _drag_floor_edit(building: StaticBody3D) -> Dictionary:
 	return {}
 
 
+func _floor_geometry(building: StaticBody3D, preview: MeshInstance3D) -> Dictionary:
+	var offset: Vector2 = preview.get_meta("wall_origin", Vector2.ZERO)
+	var interior := PackedVector2Array()
+	for point in preview.get_meta("interior_points", PackedVector2Array()):
+		interior.append(point - offset)
+	var geometry := {
+		"outline": preview.get_meta("local_outline"),
+		"interior": interior,
+		"offset": offset,
+		"polygons": preview.get_meta("wall_polygons", []),
+		"plans": preview.get_meta("wall_plans", []),
+		"regions": preview.get_meta("wall_regions", []),
+		"edges": preview.get_meta("outer_edges", []),
+		"edit": _selected_floor_edit(),
+	}
+	var drag_edit := _drag_floor_edit(building) if dragging_wall else {}
+	if not drag_edit.is_empty():
+		var way: Dictionary = building.get_meta("measurement_way")
+		var original := OSMMap._building_points(way, way.geometry[0])
+		var footprint := BuildingWalls.floor_outline(original, drag_edit)
+		if not footprint.has("error"):
+			var drag_inner := OSMMap._building_interior(footprint.outline, float(drag_edit.wall_thickness))
+			var drag_walls := BuildingWalls.build(drag_inner, drag_edit.get("walls", []))
+			if not drag_walls.has("error"):
+				geometry.outline = footprint.outline
+				geometry.interior = drag_inner
+				geometry.polygons = drag_walls.walls
+				geometry.plans = drag_walls.plans
+				geometry.regions = drag_walls.regions
+				geometry.edges = footprint.edges
+				geometry.edit = drag_edit
+	return geometry
+
+
+static func _wall_line(a: Vector2, b: Vector2, radius: float, outside: bool, wall: int, piece: int, connector := false) -> Dictionary:
+	return {"start": a, "end": b, "radius": radius, "outside": outside, "wall": wall, "piece": piece, "connector": connector}
+
+
+static func _walls_touch(first: Dictionary, second: Dictionary) -> bool:
+	var a: Vector2 = first.start
+	var b: Vector2 = first.end
+	var c: Vector2 = second.start
+	var d: Vector2 = second.end
+	var epsilon := BuildingWalls.EPSILON * 10.0
+	if absf((b - a).normalized().cross((d - c).normalized())) < 0.001:
+		return minf(minf(a.distance_to(c), a.distance_to(d)), minf(b.distance_to(c), b.distance_to(d))) <= epsilon
+	for point in [c, d]:
+		if point.distance_to(Geometry2D.get_closest_point_to_segment(point, a, b)) <= float(first.radius) + epsilon:
+			return true
+	for point in [a, b]:
+		if point.distance_to(Geometry2D.get_closest_point_to_segment(point, c, d)) <= float(second.radius) + epsilon:
+			return true
+	return false
+
+
+static func _region_touches_wall(region: PackedVector2Array, wall: Dictionary) -> bool:
+	var start: Vector2 = wall.start
+	var end: Vector2 = wall.end
+	var length := start.distance_to(end)
+	var direction := (end - start).normalized()
+	for index in region.size():
+		var a := region[index]
+		var b := region[(index + 1) % region.size()]
+		if a.distance_to(b) <= BuildingWalls.EPSILON or absf((b - a).normalized().cross(direction)) > 0.001:
+			continue
+		if absf((a - start).cross(direction)) > float(wall.radius) + BuildingWalls.EPSILON * 10.0:
+			continue
+		var from := (a - start).dot(direction)
+		var to := (b - start).dot(direction)
+		if minf(length, maxf(from, to)) - maxf(0.0, minf(from, to)) > BuildingWalls.EPSILON * 10.0:
+			return true
+	return false
+
+
+static func _wall_dimensions(geometry: Dictionary, outside: bool, wall_index: int, segment_index: int) -> Dictionary:
+	var outline: PackedVector2Array = geometry.outline
+	var edges: Array = geometry.edges
+	var edit: Dictionary = geometry.edit
+	var plans: Array = geometry.plans
+	var lines := []
+	for index in edges.size():
+		var edge: Dictionary = edges[index]
+		lines.append(_wall_line(outline[index], outline[(index + 1) % outline.size()], float(edit.wall_thickness), true, int(edge.edge), int(edge.segment), edge.connector))
+	for index in plans.size():
+		var segments: Array = plans[index].segments
+		var wall: Dictionary = edit.walls[index]
+		var widths: Array = wall.get("thicknesses", [])
+		for part in segments.size():
+			var width: float = float(widths[part]) if not widths.is_empty() else float(wall.thickness)
+			if part > 0 and segments[part - 1][1].distance_to(segments[part][0]) > BuildingWalls.EPSILON:
+				var previous_width: float = float(widths[part - 1]) if not widths.is_empty() else float(wall.thickness)
+				lines.append(_wall_line(segments[part - 1][1], segments[part][0], maxf(width, previous_width) * 0.5, false, index, -1, true))
+			lines.append(_wall_line(segments[part][0], segments[part][1], width * 0.5, false, index, part if segments.size() > 1 else -1))
+	var selected_line := {}
+	for line in lines:
+		if not line.connector and line.outside == outside and int(line.wall) == wall_index and int(line.piece) == segment_index:
+			selected_line = line
+			break
+	if selected_line.is_empty():
+		return {"walls": [], "rooms": []}
+	var walls := [selected_line]
+	for line in lines:
+		if not is_same(line, selected_line) and _walls_touch(selected_line, line):
+			walls.append(line)
+	var room_lines := []
+	var room_number := 0
+	for region in geometry.regions:
+		if not _region_touches_wall(region, selected_line):
+			continue
+		room_number += 1
+		for index in region.size():
+			var a: Vector2 = region[index]
+			var b: Vector2 = region[(index + 1) % region.size()]
+			if a.distance_to(b) > BuildingWalls.EPSILON:
+				room_lines.append({"start": a, "end": b, "room": room_number})
+	return {"walls": walls, "rooms": room_lines}
+
+
+func _update_dimensions() -> void:
+	dimensions.clear()
+	if selected_wall < 0 or selected.size() != 1 or not is_instance_valid(selected[0]):
+		wall_dimensions.text = ""
+		return
+	var building := selected[0]
+	var preview := building.get_node_or_null("FloorPreview_%d" % int(floor_number.value)) as MeshInstance3D
+	if preview == null or not preview.has_meta("wall_regions"):
+		wall_dimensions.text = ""
+		return
+	var geometry := _floor_geometry(building, preview)
+	dimensions = _wall_dimensions(geometry, selected_wall_outside, selected_wall, selected_segment)
+	if dimensions.walls.is_empty():
+		wall_dimensions.text = "Die ausgewählte Wand konnte nicht vermessen werden."
+		return
+	var factor: float = building.get_meta("measurement_scale")
+	var text := PackedStringArray()
+	for index in dimensions.walls.size():
+		var line: Dictionary = dimensions.walls[index]
+		var length: float = line.start.distance_to(line.end)
+		var description := " (ausgewählt)" if index == 0 else ""
+		text.append("W%d: %.2f m | %.2f SE%s" % [index + 1, length, length * factor, description])
+	for index in dimensions.rooms.size():
+		var line: Dictionary = dimensions.rooms[index]
+		var length: float = line.start.distance_to(line.end)
+		text.append("R%d: %.2f m | %.2f SE (Raum %d)" % [index + 1, length, length * factor, line.room])
+	if dimensions.rooms.is_empty():
+		text.append("Kein angrenzender Raum konnte vermessen werden.")
+	var formatted := "\n".join(text)
+	if wall_dimensions.text != formatted:
+		wall_dimensions.text = formatted
+
+
 static func _clip_selection_side(polygon: PackedVector2Array, origin: Vector2, direction: Vector2, inside: Vector2) -> PackedVector2Array:
 	var clipped := PackedVector2Array()
 	var sign := signf(direction.cross(inside - origin))
@@ -724,34 +889,19 @@ func _draw() -> void:
 			height = float(floor_number.value) * OSMMap.LEVEL_HEIGHT * factor
 			var preview := building.get_node_or_null("FloorPreview_%d" % int(floor_number.value)) as MeshInstance3D
 			if preview != null:
-				var inner: PackedVector2Array = preview.get_meta("interior_points")
-				points = preview.get_meta("outer_points", points)
-				var offset: Vector2 = preview.get_meta("wall_origin", Vector2.ZERO)
-				var polygons: Array = preview.get_meta("wall_polygons", [])
-				var plans: Array = preview.get_meta("wall_plans", [])
-				var outer_edges: Array = preview.get_meta("outer_edges", [])
+				var geometry := _floor_geometry(building, preview)
+				var offset: Vector2 = geometry.offset
+				var inner := PackedVector2Array()
+				points = PackedVector2Array()
+				for point in geometry.outline:
+					points.append(point + offset)
+				for point in geometry.interior:
+					inner.append(point + offset)
+				var polygons: Array = geometry.polygons
+				var plans: Array = geometry.plans
+				var outer_edges: Array = geometry.edges
 				selection_edges = outer_edges
-				var floor_edit := _selected_floor_edit()
-				var drag_edit := _drag_floor_edit(building) if dragging_wall else {}
-				if not drag_edit.is_empty():
-					floor_edit = drag_edit
-					var way: Dictionary = building.get_meta("measurement_way")
-					var original := OSMMap._building_points(way, way.geometry[0])
-					var footprint := BuildingWalls.floor_outline(original, drag_edit)
-					if not footprint.has("error"):
-						var drag_inner := OSMMap._building_interior(footprint.outline, float(drag_edit.wall_thickness))
-						var drag_walls := BuildingWalls.build(drag_inner, drag_edit.get("walls", []))
-						if not drag_walls.has("error"):
-							points = PackedVector2Array()
-							inner = PackedVector2Array()
-							for point in footprint.outline:
-								points.append(point + offset)
-							for point in drag_inner:
-								inner.append(point + offset)
-							polygons = drag_walls.walls
-							plans = drag_walls.plans
-							outer_edges = footprint.edges
-							selection_edges = outer_edges
+				var floor_edit: Dictionary = geometry.edit
 				var outer_screen := PackedVector2Array()
 				var inner_screen := PackedVector2Array()
 				var visible := true
@@ -812,6 +962,30 @@ func _draw() -> void:
 			var end := building.to_global(Vector3(b.x, height + 0.05, b.y))
 			if not camera.is_position_behind(start) and not camera.is_position_behind(end):
 				draw_line(camera.unproject_position(start), camera.unproject_position(end), Color.CYAN, 3.0)
+		if selected.size() == 1 and not dimensions.is_empty() and selected_wall >= 0:
+			var preview := building.get_node_or_null("FloorPreview_%d" % int(floor_number.value)) as MeshInstance3D
+			if preview != null:
+				var offset: Vector2 = preview.get_meta("wall_origin", Vector2.ZERO)
+				_draw_dimensions(building, dimensions.get("walls", []), offset, factor, height, "W", Color.ORANGE)
+				_draw_dimensions(building, dimensions.get("rooms", []), offset, factor, height, "R", Color.CYAN)
+
+
+func _draw_dimensions(building: StaticBody3D, lines: Array, offset: Vector2, factor: float, height: float, prefix: String, color: Color) -> void:
+	var font := ThemeDB.fallback_font
+	for index in lines.size():
+		var line: Dictionary = lines[index]
+		var screen := _screen_polygon(building, PackedVector2Array([line.start, line.end]), offset, factor, height)
+		if screen.size() != 2 or screen[0].distance_to(screen[1]) < 0.1:
+			continue
+		var normal := (screen[1] - screen[0]).normalized().orthogonal()
+		draw_line(screen[0], screen[1], color, 2.0)
+		draw_line(screen[0] - normal * 4.0, screen[0] + normal * 4.0, color, 2.0)
+		draw_line(screen[1] - normal * 4.0, screen[1] + normal * 4.0, color, 2.0)
+		var midpoint := (screen[0] + screen[1]) * 0.5 + normal * (14.0 if prefix == "R" else -14.0)
+		var number := prefix + str(index + 1)
+		var text_size := font.get_string_size(number, HORIZONTAL_ALIGNMENT_LEFT, -1, 14)
+		draw_circle(midpoint, maxf(10.0, text_size.x * 0.5 + 4.0), Color(0, 0, 0, 0.85))
+		draw_string(font, midpoint + Vector2(-text_size.x * 0.5, 5.0), number, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
 
 
 func _screen_polygon(building: StaticBody3D, points: PackedVector2Array, offset: Vector2, factor: float, height: float) -> PackedVector2Array:

@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.31.0
+- Bei ausgewählter Wand zeigen Maßlinien die Längen der Wand und ihrer Anschlüsse sowie die Innenmaße angrenzender Räume. Die Maße folgen auch der Verschiebevorschau.
+
 ## 0.30.1
 - Ausgewählte Innen- und Außenwände sowie Wandteilstücke werden einheitlich über ihre gesamte Fläche markiert.
 

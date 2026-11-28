@@ -59,15 +59,84 @@ func _contains(polygons: Array[PackedVector2Array], point: Vector2) -> bool:
 	return false
 
 
+func _has_dimension(lines: Array, length: float) -> bool:
+	for line in lines:
+		if absf(line.start.distance_to(line.end) - length) < 0.02:
+			return true
+	return false
+
+
 func _test() -> void:
 	var outline := PackedVector2Array([Vector2(0, 0), Vector2(10, 0), Vector2(10, 10), Vector2(0, 10)])
 	var interior := OSMMap._building_interior(outline, 0.3)
+	var outer_geometry := BuildingWalls.floor_outline(outline, {})
+	var dimension_geometry := {
+		"outline": outline,
+		"edges": outer_geometry.edges,
+		"edit": {"wall_thickness": 0.3, "walls": []},
+		"plans": [],
+		"regions": [interior],
+	}
+	var outside_dimensions := BuildingEditor._wall_dimensions(dimension_geometry, true, 0, -1)
+	if outside_dimensions.walls.size() != 3 or outside_dimensions.rooms.size() != 4 or not _has_dimension(outside_dimensions.walls, 10.0) or not _has_dimension(outside_dimensions.rooms, 9.4):
+		_fail("Exterior wall and adjoining room dimensions were incorrect: %s" % outside_dimensions)
+		return
+	var dimension_walls := [
+		{"cursor": [3.0, 0.5], "thickness": 0.3},
+		{"cursor": [0.5, 5.0], "thickness": 0.3},
+	]
+	var built_dimensions := BuildingWalls.build(interior, dimension_walls)
+	if built_dimensions.has("error"):
+		_fail("Could not build rooms for dimension tests: %s" % built_dimensions)
+		return
+	dimension_geometry.edit.walls = dimension_walls
+	dimension_geometry.plans = built_dimensions.plans
+	dimension_geometry.regions = built_dimensions.regions
+	var wall_dimensions := BuildingEditor._wall_dimensions(dimension_geometry, false, 0, -1)
+	if wall_dimensions.walls.size() != 4 or not _has_dimension(wall_dimensions.walls, 9.4) or not _has_dimension(wall_dimensions.rooms, 2.55) or not _has_dimension(wall_dimensions.rooms, 6.55):
+		_fail("Interior wall, connected wall or room dimensions were incorrect: %s" % wall_dimensions)
+		return
+	var moved_dimensions := BuildingWalls.adjust_walls(interior, interior, dimension_walls, 0, 1.0, 0.3)
+	if moved_dimensions.has("error"):
+		_fail("Could not move a wall for dimension tests: %s" % moved_dimensions)
+		return
+	var moved_build := BuildingWalls.build(interior, moved_dimensions.walls)
+	dimension_geometry.edit.walls = moved_dimensions.walls
+	dimension_geometry.plans = moved_build.plans
+	dimension_geometry.regions = moved_build.regions
+	var shifted_dimensions := BuildingEditor._wall_dimensions(dimension_geometry, false, 0, -1)
+	if not _has_dimension(shifted_dimensions.rooms, 3.55) or not _has_dimension(shifted_dimensions.rooms, 5.55):
+		_fail("Room dimensions did not change with the shifted partition: %s" % shifted_dimensions)
+		return
+	var piece_walls := [{"cursor": [3.0, 0.5], "thickness": 0.3, "cuts": [0.5], "offsets": [0.0, 1.0], "thicknesses": [0.3, 0.6]}]
+	var built_piece := BuildingWalls.build(interior, piece_walls)
+	if built_piece.has("error"):
+		_fail("Could not build a stepped wall for dimension tests: %s" % built_piece)
+		return
+	dimension_geometry.edit.walls = piece_walls
+	dimension_geometry.plans = built_piece.plans
+	dimension_geometry.regions = built_piece.regions
+	var interior_piece_dimensions := BuildingEditor._wall_dimensions(dimension_geometry, false, 0, 1)
+	if interior_piece_dimensions.walls.is_empty() or not _has_dimension(interior_piece_dimensions.walls, 4.7) or not _has_dimension(interior_piece_dimensions.walls, 1.0) or interior_piece_dimensions.rooms.is_empty():
+		_fail("A selected interior wall piece and its connector were not measured: %s" % interior_piece_dimensions)
+		return
 	var outer_selection := BuildingEditor._exterior_wall_selection(outline, interior, 0, 0.3)
 	if not _contains(outer_selection, Vector2(5, 0.01)) or not _contains(outer_selection, Vector2(5, 0.29)) or not _contains(outer_selection, Vector2(0.25, 0.1)) or _contains(outer_selection, Vector2(0.1, 0.25)) or _contains(outer_selection, Vector2(5, 0.31)):
 		_fail("The exterior selection does not cover exactly the selected wall surface.")
 		return
 	var stepped := BuildingWalls.floor_outline(outline, {"outer_splits": [{"edge": 0, "cuts": [0.5], "offsets": [0.0, -1.0]}]})
 	var stepped_interior := OSMMap._building_interior(stepped.outline, 0.3)
+	var stepped_geometry := {
+		"outline": stepped.outline,
+		"edges": stepped.edges,
+		"edit": {"wall_thickness": 0.3, "walls": []},
+		"plans": [],
+		"regions": [stepped_interior],
+	}
+	var piece_dimensions := BuildingEditor._wall_dimensions(stepped_geometry, true, 0, 0)
+	if piece_dimensions.walls.size() != 3 or not _has_dimension(piece_dimensions.walls, 5.0) or not _has_dimension(piece_dimensions.walls, 1.0) or piece_dimensions.rooms.is_empty():
+		_fail("The selected exterior piece and its connector were not measured: %s" % piece_dimensions)
+		return
 	var exterior_selection_piece := BuildingEditor._exterior_wall_selection(stepped.outline, stepped_interior, 0, 0.3)
 	if not _contains(exterior_selection_piece, Vector2(2.5, 0.15)) or _contains(exterior_selection_piece, Vector2(7.5, -0.85)):
 		_fail("An exterior wall piece did not receive its own selection surface.")
@@ -79,6 +148,24 @@ func _test() -> void:
 	var rotated_selection := BuildingEditor._exterior_wall_selection(rotated, OSMMap._building_interior(rotated, 0.3), 2, 0.3)
 	if not _contains(rotated_selection, Vector2(5, 0.15).rotated(0.6)) or _contains(rotated_selection, Vector2(5, 0.31).rotated(0.6)):
 		_fail("A reversed, rotated exterior wall did not receive the correct selection surface.")
+		return
+	var rotated_cursor := Vector2(3, 0.5).rotated(0.6)
+	var rotated_walls := [{"cursor": [rotated_cursor.x, rotated_cursor.y], "thickness": 0.3}]
+	var rotated_interior := OSMMap._building_interior(rotated, 0.3)
+	var rotated_build := BuildingWalls.build(rotated_interior, rotated_walls)
+	if rotated_build.has("error"):
+		_fail("Could not build a rotated wall for dimension tests: %s" % rotated_build)
+		return
+	var rotated_geometry := {
+		"outline": rotated,
+		"edges": BuildingWalls.floor_outline(rotated, {}).edges,
+		"edit": {"wall_thickness": 0.3, "walls": rotated_walls},
+		"plans": rotated_build.plans,
+		"regions": rotated_build.regions,
+	}
+	var rotated_dimensions := BuildingEditor._wall_dimensions(rotated_geometry, false, 0, -1)
+	if rotated_dimensions.walls.size() != 3 or not _has_dimension(rotated_dimensions.rooms, 2.55) or not _has_dimension(rotated_dimensions.rooms, 6.55):
+		_fail("Measurements changed for a rotated, reversed outline: %s" % rotated_dimensions)
 		return
 	var concave := PackedVector2Array([Vector2(0, 0), Vector2(10, 0), Vector2(10, 3), Vector2(4, 3), Vector2(4, 8), Vector2(0, 8)])
 	var concave_selection := BuildingEditor._exterior_wall_selection(concave, OSMMap._building_interior(concave, 0.3), 3, 0.3)
@@ -345,10 +432,40 @@ func _test() -> void:
 	if editor.selected_wall != 0 or editor.selected_wall_outside or not editor.wall_properties.visible:
 		_fail("Clicking the interior wall did not select it and show its properties.")
 		return
+	await process_frame
+	await process_frame
+	var dimensions_before: String = editor.wall_dimensions.text
+	if editor.dimensions.is_empty() or editor.dimensions.walls.is_empty():
+		_fail("The selected wall did not produce dimension data.")
+		return
+	var first_line: Dictionary = editor.dimensions.walls[0]
+	var first_length: float = first_line.start.distance_to(first_line.end)
+	var expected_wall_text := "W1: %.2f m | %.2f SE" % [first_length, first_length * float(merged_building.get_meta("measurement_scale"))]
+	if not dimensions_before.contains(expected_wall_text) or not dimensions_before.contains("R1:"):
+		_fail("Wall and room dimensions were not displayed in both units.")
+		return
 	move.position = camera.unproject_position(Vector3(11.7, 7.8, -6.0))
 	root.push_input(move, true)
 	if editor.drag_result.has("error") or editor.drag_result.is_empty():
 		_fail("Dragging the interior wall did not produce a valid preview: %s; positions %s -> %s; dragging %s" % [editor.drag_result, select_wall.position, move.position, editor.dragging_wall])
+		return
+	await process_frame
+	await process_frame
+	if editor.wall_dimensions.text == dimensions_before:
+		_fail("Room measurements did not update during the drag preview.")
+		return
+	var valid_preview_dimensions: String = editor.wall_dimensions.text
+	editor._update_wall_drag(camera.unproject_position(Vector3(100.0, 7.8, -6.0)))
+	await process_frame
+	await process_frame
+	if not editor.drag_result.has("error") or editor.wall_dimensions.text != dimensions_before:
+		_fail("An invalid drag did not retain the saved wall dimensions.")
+		return
+	editor._update_wall_drag(move.position)
+	await process_frame
+	await process_frame
+	if editor.drag_result.has("error") or editor.wall_dimensions.text != valid_preview_dimensions or not editor.message.text.is_empty():
+		_fail("Valid preview dimensions were not restored after an invalid drag.")
 		return
 	var release_wall := InputEventMouseButton.new()
 	release_wall.button_index = MOUSE_BUTTON_LEFT
@@ -395,10 +512,21 @@ func _test() -> void:
 		return
 	select_wall.position = camera.unproject_position(Vector3(0.26, 7.8, -4.0))
 	root.push_input(select_wall, true)
+	await process_frame
+	await process_frame
+	var exterior_dimensions_before: String = editor.wall_dimensions.text
+	if not exterior_dimensions_before.contains("W1:") or not exterior_dimensions_before.contains("R1:"):
+		_fail("The exterior wall selection did not show wall and room dimensions.")
+		return
 	move.position = camera.unproject_position(Vector3(-0.39, 7.8, -4.0))
 	root.push_input(move, true)
 	if editor.drag_result.has("error") or editor.drag_result.is_empty():
 		_fail("Dragging the exterior wall did not produce a valid preview: %s" % editor.drag_result)
+		return
+	await process_frame
+	await process_frame
+	if editor.wall_dimensions.text == exterior_dimensions_before:
+		_fail("Room dimensions did not update during the exterior wall preview.")
 		return
 	release_wall.position = move.position
 	root.push_input(release_wall, true)
@@ -413,6 +541,11 @@ func _test() -> void:
 		_fail("The moved exterior wall did not rebuild its collision: %s" % moved_outer_hit)
 		return
 	editor._clear_wall_selection()
+	await process_frame
+	await process_frame
+	if not editor.wall_dimensions.text.is_empty() or editor.dimensions_panel.visible:
+		_fail("Wall measurements remained visible after clearing the selection.")
+		return
 	select_wall.position = camera.unproject_position(Vector3(11.7, 7.8, -5.0))
 	root.push_input(select_wall, true)
 	release_wall.position = select_wall.position

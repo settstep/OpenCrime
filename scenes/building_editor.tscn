@@ -141,3 +141,33 @@ text = "Teilung abbrechen"
 [node name="Close" type="Button" parent="WallProperties/Layout"]
 layout_mode = 2
 text = "Schließen"
+
+[node name="DimensionsPanel" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -300.0
+offset_top = 90.0
+offset_right = -20.0
+offset_bottom = 310.0
+grow_horizontal = 0
+
+[node name="Layout" type="VBoxContainer" parent="DimensionsPanel"]
+layout_mode = 2
+
+[node name="Info" type="Label" parent="DimensionsPanel/Layout"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Orange W: Wandlänge · Türkis R: Innenmaß (Meter / Spieleinheiten)"
+
+[node name="Scroll" type="ScrollContainer" parent="DimensionsPanel/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Dimensions" type="Label" parent="DimensionsPanel/Layout/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+autowrap_mode = 2

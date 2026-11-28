@@ -229,6 +229,13 @@ linken Maustaste auswählen und seitlich ziehen. Die ausgewählte Wandfläche
 wird gelb markiert. Beim Loslassen wird die
 gültige Position gespeichert; angeschlossene Wände werden dabei angepasst.
 Die Wandeigenschaften erlauben die Eingabe der Dicke in Zentimetern.
+Maßlinien und die Maßliste zeigen die ausgewählte Wand und direkt
+anschließende Wände (orange **W**) sowie die Innenkanten der angrenzenden
+Räume (türkis **R**). Die Werte stehen in Metern vor Kartenskalierung und
+in Spieleinheiten. Außenwandlängen werden an der Außenkante, Innenwandlängen
+an der Wandmitte und Raummaße zwischen den inneren Wandflächen gemessen.
+Bei einer gültigen Verschiebevorschau aktualisieren sich die Maße sofort;
+bei einer ungültigen Verschiebung bleiben die gespeicherten Maße sichtbar.
 Bei Außenwänden gilt diese Dicke für den gesamten Außenwandring der gewählten
 Etage, nicht für andere Etagen. Änderungen, die Verbindungen lösen oder
 ungültige Räume erzeugen würden, werden mit einer Meldung abgelehnt.
