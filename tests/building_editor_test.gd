@@ -506,6 +506,7 @@ func _test() -> void:
 	editor.wall_apply.pressed.emit()
 	await physics_frame
 	await physics_frame
+	merged_building = world.get_node("OSMMap/Building_1")
 	edited_floor = world.building_edits.merges[0].hollow_floors[0]
 	if editor.message.text != world.BUILDING_WALL_CHANGE_SUCCESS or absf(float(edited_floor.wall_thickness) - 0.4) > 0.001:
 		_fail("The exterior wall thickness was not saved for the floor: " + editor.message.text)
@@ -528,6 +529,65 @@ func _test() -> void:
 	if editor.wall_dimensions.text == exterior_dimensions_before:
 		_fail("Room dimensions did not update during the exterior wall preview.")
 		return
+	var saved_before_interrupted_drag := JSON.stringify(world.building_edits.data())
+	editor.floor_number.set_value_no_signal(1)
+	release_wall.position = move.position
+	root.push_input(release_wall, true)
+	if editor.dragging_wall or editor.selected_wall != -1 or not editor.drag_result.is_empty() or editor.message.text.is_empty() or JSON.stringify(world.building_edits.data()) != saved_before_interrupted_drag:
+		_fail("An unavailable floor did not cancel the wall drag without saving.")
+		return
+	editor.floor_number.set_value_no_signal(2)
+	editor._update_floor_preview()
+	select_wall.position = camera.unproject_position(Vector3(0.26, 7.8, -4.0))
+	root.push_input(select_wall, true)
+	root.push_input(move, true)
+	if not editor.dragging_wall or editor.drag_result.is_empty() or editor.drag_result.has("error"):
+		_fail("The exterior wall could not be dragged again after cancellation.")
+		return
+	var original_way: Dictionary = merged_building.get_meta("measurement_way").duplicate(true)
+	var unavailable_way := original_way.duplicate(true)
+	unavailable_way.erase("_hollow_floors")
+	merged_building.set_meta("measurement_way", unavailable_way)
+	root.push_input(move, true)
+	if editor.dragging_wall or editor.selected_wall != -1 or editor.message.text.is_empty() or JSON.stringify(world.building_edits.data()) != saved_before_interrupted_drag:
+		_fail("Missing floor metadata did not cancel the wall drag without saving.")
+		return
+	var block_key: Variant = editor._selected_block_key(merged_building)
+	if editor._restore_building_selection(block_key, 1, 2) or not editor.selected.is_empty() or editor.message.text.is_empty():
+		_fail("A building without the edited floor was incorrectly restored.")
+		return
+	merged_building.set_meta("measurement_way", original_way)
+	if not editor._restore_building_selection(block_key, 1, 2):
+		_fail("The building selection could not be restored after the floor returned.")
+		return
+	root.push_input(select_wall, true)
+	editor.selected_segment = 99
+	root.push_input(move, true)
+	if editor.dragging_wall or editor.selected_wall != -1 or editor.message.text.is_empty() or JSON.stringify(world.building_edits.data()) != saved_before_interrupted_drag:
+		_fail("An unavailable wall segment did not cancel the wall drag without saving.")
+		return
+	root.push_input(select_wall, true)
+	editor.selected_wall_outside = false
+	editor.selected_wall = 99
+	root.push_input(move, true)
+	if editor.dragging_wall or editor.selected_wall != -1 or editor.message.text.is_empty() or JSON.stringify(world.building_edits.data()) != saved_before_interrupted_drag:
+		_fail("An unavailable interior wall did not cancel the wall drag without saving.")
+		return
+	root.push_input(select_wall, true)
+	root.push_input(move, true)
+	if not editor.dragging_wall or editor.drag_result.is_empty() or editor.drag_result.has("error"):
+		_fail("The exterior wall could not be dragged after restoring its floor.")
+		return
+	var camera_transform := camera.global_transform
+	camera.global_rotation = Vector3.ZERO
+	release_wall.position = root.get_visible_rect().get_center()
+	root.push_input(release_wall, true)
+	camera.global_transform = camera_transform
+	if editor.dragging_wall or not editor.drag_result.has("error") or editor.message.text.is_empty() or JSON.stringify(world.building_edits.data()) != saved_before_interrupted_drag:
+		_fail("An unreachable floor cursor committed a stale wall drag preview.")
+		return
+	root.push_input(select_wall, true)
+	root.push_input(move, true)
 	release_wall.position = move.position
 	root.push_input(release_wall, true)
 	await physics_frame

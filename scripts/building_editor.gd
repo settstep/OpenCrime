@@ -307,17 +307,23 @@ func _selected_block_key(building: StaticBody3D) -> Variant:
 
 
 func _restore_building_selection(block_key: Variant, id: int, chosen_floor: int) -> bool:
-	if block_key == null or not world.map_block_stream.loaded_blocks.has(block_key):
-		return false
 	_clear_selection()
+	if block_key == null or not world.map_block_stream.loaded_blocks.has(block_key):
+		message.text = "Änderung gespeichert, aber das Gebäude ist nicht mehr geladen. Bitte erneut auswählen."
+		return false
 	var map: Node3D = world.map_block_stream.loaded_blocks[block_key].node
 	var replacement := map.get_node_or_null("Building_%d" % id) as StaticBody3D
 	if replacement == null:
+		message.text = "Änderung gespeichert, aber das Gebäude ist nicht mehr geladen. Bitte erneut auswählen."
 		return false
 	selected.append(replacement)
 	replacement.tree_exiting.connect(_clear_selection)
 	floor_number.set_value_no_signal(chosen_floor)
 	_update_selection()
+	if int(floor_number.value) != chosen_floor or _selected_floor_edit().is_empty() or not replacement.has_node("FloorPreview_%d" % chosen_floor):
+		_clear_selection()
+		message.text = "Änderung gespeichert, aber die bearbeitete Etage ist nicht verfügbar. Bitte Gebäude und Etage erneut auswählen."
+		return false
 	return true
 
 
@@ -517,54 +523,89 @@ func _merge_walls() -> void:
 		selected_wall = wall
 		selected_wall_outside = outside
 		selected_segment = int(prepared.segment)
-		wall_thickness_input.text = str(_selected_wall_thickness(_selected_floor_edit()) * 100.0)
+		var thickness: Variant = _selected_wall_thickness(_selected_floor_edit())
+		if thickness == null:
+			return
+		wall_thickness_input.text = str(float(thickness) * 100.0)
 		wall_properties.show()
 	queue_redraw()
 
 
-func _update_wall_drag(screen_position: Vector2) -> void:
-	if not dragging_wall or selected.size() != 1 or not is_instance_valid(selected[0]):
-		return
+func _update_wall_drag(screen_position: Vector2) -> bool:
+	if not dragging_wall:
+		return false
+	if selected.size() != 1 or not is_instance_valid(selected[0]) or not selected[0].is_inside_tree():
+		_clear_selection()
+		message.text = "Das Gebäude ist nicht mehr geladen. Bitte erneut auswählen."
+		return false
 	var building := selected[0]
 	var preview := building.get_node_or_null("FloorPreview_%d" % int(floor_number.value)) as MeshInstance3D
 	if preview == null:
-		return
+		_clear_wall_selection()
+		message.text = "Die ausgewählte Etage ist nicht mehr verfügbar. Bitte die Wand erneut auswählen."
+		return false
 	var cursor: Variant = _floor_cursor(screen_position, building, preview)
 	if cursor == null:
-		return
+		message.text = "Die Mausposition auf der Etage konnte nicht bestimmt werden."
+		drag_result = {"error": message.text}
+		queue_redraw()
+		return false
 	drag_distance = (cursor - drag_start).dot(drag_axis)
 	var floor_edit := _selected_floor_edit()
-	var thickness := _selected_wall_thickness(floor_edit)
+	var thickness: Variant = _selected_wall_thickness(floor_edit)
+	if thickness == null:
+		return false
 	var previous_error: String = drag_result.get("error", "")
-	drag_result = world.building_edits.prepare_wall_change(building.get_meta("measurement_way"), int(floor_number.value), selected_wall_outside, selected_wall, drag_distance, thickness, selected_segment)
+	drag_result = world.building_edits.prepare_wall_change(building.get_meta("measurement_way"), int(floor_number.value), selected_wall_outside, selected_wall, drag_distance, float(thickness), selected_segment)
 	dimensions.clear()
 	if drag_result.has("error"):
 		message.text = drag_result.error
 	elif not previous_error.is_empty() and message.text == previous_error:
 		message.text = ""
 	queue_redraw()
+	return true
 
 
 func _finish_wall_drag(screen_position: Vector2) -> void:
-	_update_wall_drag(screen_position)
+	if not _update_wall_drag(screen_position):
+		dragging_wall = false
+		return
 	dragging_wall = false
 	if absf(drag_distance) < 0.01 or drag_result.is_empty() or drag_result.has("error"):
 		drag_result.clear()
 		queue_redraw()
 		return
 	var floor_edit := _selected_floor_edit()
-	var thickness := _selected_wall_thickness(floor_edit)
-	_commit_wall_change(drag_distance, thickness)
+	var thickness: Variant = _selected_wall_thickness(floor_edit)
+	if thickness == null:
+		return
+	_commit_wall_change(drag_distance, float(thickness))
 
 
-func _selected_wall_thickness(floor_edit: Dictionary) -> float:
-	if selected_wall_outside:
-		return float(floor_edit.wall_thickness)
-	var wall: Dictionary = floor_edit.walls[selected_wall]
-	var widths: Array = wall.get("thicknesses", [])
-	if selected_segment >= 0 and not widths.is_empty():
-		return float(widths[selected_segment])
-	return float(wall.thickness)
+func _selected_wall_thickness(floor_edit: Dictionary) -> Variant:
+	if not floor_edit.is_empty() and selected.size() == 1 and is_instance_valid(selected[0]) and selected[0].is_inside_tree():
+		var preview := selected[0].get_node_or_null("FloorPreview_%d" % int(floor_number.value)) as MeshInstance3D
+		if preview != null and selected_wall_outside and floor_edit.has("wall_thickness"):
+			for edge in preview.get_meta("outer_edges", []):
+				if not edge.connector and int(edge.edge) == selected_wall and int(edge.segment) == selected_segment:
+					return float(floor_edit.wall_thickness)
+		elif preview != null and not selected_wall_outside:
+			var walls: Array = floor_edit.get("walls", [])
+			var plans: Array = preview.get_meta("wall_plans", [])
+			if selected_wall >= 0 and selected_wall < walls.size() and selected_wall < plans.size():
+				var wall: Dictionary = walls[selected_wall]
+				var segments: Array = plans[selected_wall].segments
+				var widths: Array = wall.get("thicknesses", [])
+				if selected_segment == -1 and segments.size() == 1:
+					return float(wall.thickness)
+				if selected_segment >= 0 and selected_segment < segments.size():
+					if widths.is_empty():
+						return float(wall.thickness)
+					if selected_segment < widths.size():
+						return float(widths[selected_segment])
+	_clear_wall_selection()
+	message.text = "Die ausgewählte Wand oder Etage ist nicht mehr verfügbar. Bitte die Wand erneut auswählen."
+	return null
 
 
 func _preview_wall_split() -> void:
@@ -616,7 +657,10 @@ func _confirm_wall_split() -> void:
 		selected_wall = wall
 		selected_wall_outside = outside
 		selected_segment = maxi(piece, 0)
-		wall_thickness_input.text = str(_selected_wall_thickness(_selected_floor_edit()) * 100.0)
+		var thickness: Variant = _selected_wall_thickness(_selected_floor_edit())
+		if thickness == null:
+			return
+		wall_thickness_input.text = str(float(thickness) * 100.0)
 		wall_properties.show()
 	else:
 		_cancel_wall_split()
@@ -650,6 +694,8 @@ func _commit_wall_change(distance: float, thickness: float) -> void:
 		selected_wall = wall
 		selected_wall_outside = outside
 		selected_segment = piece
+		if _selected_wall_thickness(_selected_floor_edit()) == null:
+			return
 		wall_thickness_input.text = str(thickness * 100.0)
 		wall_properties.show()
 	queue_redraw()

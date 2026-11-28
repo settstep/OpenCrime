@@ -54,3 +54,4 @@
 | 28.11.2026 | 15:20 | 77      | highlight entire selected wall surfaces                     |
 | 28.11.2026 | 15:42 | 79      | show wall and room dimensions                               |
 | 28.11.2026 | 16:25 | 82      | merge adjacent wall segments                                |
+| 28.11.2026 | 16:46 | 83      | cancel wall drag when selection becomes invalid             |

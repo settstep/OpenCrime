@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.32.1
+- Wandverschiebungen werden bei nicht mehr verfügbaren Etagen oder Wänden sicher abgebrochen, statt den Editor durch einen Skriptfehler anzuhalten.
+
 ## 0.32.0
 - Benachbarte Teilstücke derselben aufgeteilten Innen- oder Außenwand können mit Shift ausgewählt und wieder verbunden werden. Position und Dicke des ersten Stücks bleiben erhalten.
 
