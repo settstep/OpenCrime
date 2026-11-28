@@ -4,6 +4,8 @@ const MainScene = preload("res://scenes/main.tscn")
 const OSMMap = preload("res://scripts/osm_map.gd")
 const Grid = preload("res://scripts/map_block_grid.gd")
 const DataPaths = preload("res://scripts/data_paths.gd")
+const BuildingEditor = preload("res://scripts/building_editor.gd")
+const BuildingWalls = preload("res://scripts/building_walls.gd")
 
 
 func _initialize() -> void:
@@ -50,7 +52,44 @@ func _has_floors(building: StaticBody3D, count: int, scale_factor: float) -> boo
 	return true
 
 
+func _contains(polygons: Array[PackedVector2Array], point: Vector2) -> bool:
+	for polygon in polygons:
+		if Geometry2D.is_point_in_polygon(point, polygon):
+			return true
+	return false
+
+
 func _test() -> void:
+	var outline := PackedVector2Array([Vector2(0, 0), Vector2(10, 0), Vector2(10, 10), Vector2(0, 10)])
+	var interior := OSMMap._building_interior(outline, 0.3)
+	var outer_selection := BuildingEditor._exterior_wall_selection(outline, interior, 0, 0.3)
+	if not _contains(outer_selection, Vector2(5, 0.01)) or not _contains(outer_selection, Vector2(5, 0.29)) or not _contains(outer_selection, Vector2(0.25, 0.1)) or _contains(outer_selection, Vector2(0.1, 0.25)) or _contains(outer_selection, Vector2(5, 0.31)):
+		_fail("The exterior selection does not cover exactly the selected wall surface.")
+		return
+	var stepped := BuildingWalls.floor_outline(outline, {"outer_splits": [{"edge": 0, "cuts": [0.5], "offsets": [0.0, -1.0]}]})
+	var stepped_interior := OSMMap._building_interior(stepped.outline, 0.3)
+	var exterior_selection_piece := BuildingEditor._exterior_wall_selection(stepped.outline, stepped_interior, 0, 0.3)
+	if not _contains(exterior_selection_piece, Vector2(2.5, 0.15)) or _contains(exterior_selection_piece, Vector2(7.5, -0.85)):
+		_fail("An exterior wall piece did not receive its own selection surface.")
+		return
+	var rotated := PackedVector2Array()
+	for point in outline:
+		rotated.append(point.rotated(0.6))
+	rotated.reverse()
+	var rotated_selection := BuildingEditor._exterior_wall_selection(rotated, OSMMap._building_interior(rotated, 0.3), 2, 0.3)
+	if not _contains(rotated_selection, Vector2(5, 0.15).rotated(0.6)) or _contains(rotated_selection, Vector2(5, 0.31).rotated(0.6)):
+		_fail("A reversed, rotated exterior wall did not receive the correct selection surface.")
+		return
+	var concave := PackedVector2Array([Vector2(0, 0), Vector2(10, 0), Vector2(10, 3), Vector2(4, 3), Vector2(4, 8), Vector2(0, 8)])
+	var concave_selection := BuildingEditor._exterior_wall_selection(concave, OSMMap._building_interior(concave, 0.3), 3, 0.3)
+	if not _contains(concave_selection, Vector2(3.71, 5)) or not _contains(concave_selection, Vector2(3.99, 5)) or _contains(concave_selection, Vector2(3.69, 5)):
+		_fail("A concave exterior wall was not marked across its full thickness.")
+		return
+	var split_wall := BuildingWalls.build(outline, [{"cursor": [3.0, 0.5], "thickness": 0.3, "cuts": [0.5], "offsets": [0.0, 1.0], "thicknesses": [0.3, 0.6]}])
+	var interior_piece := BuildingEditor._interior_piece_selection(split_wall.walls[0], split_wall.plans[0].segments[1], 0.6)
+	if not _contains(interior_piece, Vector2(4.29, 8)) or not _contains(interior_piece, Vector2(3.71, 8)) or _contains(interior_piece, Vector2(3, 2)) or _contains(interior_piece, Vector2(4.31, 8)):
+		_fail("The interior piece selection did not match its individual thickness.")
+		return
 	var directory := ProjectSettings.globalize_path("user://building_editor_test_" + Crypto.new().generate_random_bytes(8).hex_encode())
 	DataPaths.root_override = directory
 	var origin := [47.7748417, 10.6034933]

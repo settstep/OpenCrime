@@ -225,7 +225,8 @@ Stellen, etwa zu nah an einer Ecke oder wenn der Raum nicht eindeutig in
 zwei Räume geteilt werden kann, wird keine Wand gesetzt.
 
 Nach Beenden des Wandmodus lässt sich eine Innen- oder Außenwand mit der
-linken Maustaste auswählen und seitlich ziehen. Beim Loslassen wird die
+linken Maustaste auswählen und seitlich ziehen. Die ausgewählte Wandfläche
+wird gelb markiert. Beim Loslassen wird die
 gültige Position gespeichert; angeschlossene Wände werden dabei angepasst.
 Die Wandeigenschaften erlauben die Eingabe der Dicke in Zentimetern.
 Bei Außenwänden gilt diese Dicke für den gesamten Außenwandring der gewählten

@@ -647,6 +647,69 @@ func _drag_floor_edit(building: StaticBody3D) -> Dictionary:
 	return {}
 
 
+static func _clip_selection_side(polygon: PackedVector2Array, origin: Vector2, direction: Vector2, inside: Vector2) -> PackedVector2Array:
+	var clipped := PackedVector2Array()
+	var sign := signf(direction.cross(inside - origin))
+	for index in polygon.size():
+		var a := polygon[index]
+		var b := polygon[(index + 1) % polygon.size()]
+		var side_a := direction.cross(a - origin) * sign
+		var side_b := direction.cross(b - origin) * sign
+		if side_a >= 0.0:
+			clipped.append(a)
+		if (side_a < 0.0 and side_b > 0.0) or (side_a > 0.0 and side_b < 0.0):
+			clipped.append(a.lerp(b, side_a / (side_a - side_b)))
+	return clipped
+
+
+static func _exterior_wall_selection(outline: PackedVector2Array, interior: PackedVector2Array, edge: int, thickness: float) -> Array[PackedVector2Array]:
+	var start := outline[edge]
+	var end := outline[(edge + 1) % outline.size()]
+	var tangent := (end - start).normalized()
+	var inward := tangent.orthogonal()
+	if not Geometry2D.is_point_in_polygon((start + end) * 0.5 + inward * BuildingWalls.EPSILON * 10.0, outline):
+		inward = -inward
+	var previous := (start - outline[(edge + outline.size() - 1) % outline.size()]).normalized().orthogonal()
+	var next := (outline[(edge + 2) % outline.size()] - end).normalized().orthogonal()
+	# All edge normals must face the same side of the outline.
+	if tangent.orthogonal().dot(inward) < 0.0:
+		previous = -previous
+		next = -next
+	if (previous + inward).length() < 0.001:
+		previous = inward
+	if (next + inward).length() < 0.001:
+		next = inward
+	var reach := 0.0
+	for point in outline:
+		reach = maxf(reach, point.distance_to(start))
+	reach += thickness + 1.0
+	var strip := PackedVector2Array([
+		start - tangent * reach, end + tangent * reach,
+		end + tangent * reach + inward * thickness, start - tangent * reach + inward * thickness,
+	])
+	var midpoint := (start + end) * 0.5
+	strip = _clip_selection_side(strip, start, (inward + previous).normalized(), midpoint)
+	strip = _clip_selection_side(strip, end, (inward + next).normalized(), midpoint)
+	var result: Array[PackedVector2Array] = []
+	if strip.size() < 3:
+		return result
+	for section in Geometry2D.intersect_polygons(outline, strip):
+		for wall in Geometry2D.clip_polygons(section, interior):
+			if wall.size() >= 3:
+				result.append(wall)
+	return result
+
+
+static func _interior_piece_selection(polygon: PackedVector2Array, segment: Array, thickness: float) -> Array[PackedVector2Array]:
+	var direction: Vector2 = (segment[1] - segment[0]).normalized()
+	var half_width := direction.orthogonal() * thickness * 0.5
+	var strip := PackedVector2Array([
+		segment[0] - half_width, segment[1] - half_width,
+		segment[1] + half_width, segment[0] + half_width,
+	])
+	return Geometry2D.intersect_polygons(polygon, strip)
+
+
 func _draw() -> void:
 	if not active or not measurement._can_interact():
 		return
@@ -656,6 +719,7 @@ func _draw() -> void:
 		var points: PackedVector2Array = building.get_meta("measurement_points")
 		var factor: float = building.get_meta("measurement_scale")
 		var height: float = building.get_meta("measurement_height")
+		var selection_edges: Array = []
 		if selected.size() == 1 and floor_number.editable:
 			height = float(floor_number.value) * OSMMap.LEVEL_HEIGHT * factor
 			var preview := building.get_node_or_null("FloorPreview_%d" % int(floor_number.value)) as MeshInstance3D
@@ -666,8 +730,11 @@ func _draw() -> void:
 				var polygons: Array = preview.get_meta("wall_polygons", [])
 				var plans: Array = preview.get_meta("wall_plans", [])
 				var outer_edges: Array = preview.get_meta("outer_edges", [])
+				selection_edges = outer_edges
+				var floor_edit := _selected_floor_edit()
 				var drag_edit := _drag_floor_edit(building) if dragging_wall else {}
 				if not drag_edit.is_empty():
+					floor_edit = drag_edit
 					var way: Dictionary = building.get_meta("measurement_way")
 					var original := OSMMap._building_points(way, way.geometry[0])
 					var footprint := BuildingWalls.floor_outline(original, drag_edit)
@@ -684,6 +751,7 @@ func _draw() -> void:
 							polygons = drag_walls.walls
 							plans = drag_walls.plans
 							outer_edges = footprint.edges
+							selection_edges = outer_edges
 				var outer_screen := PackedVector2Array()
 				var inner_screen := PackedVector2Array()
 				var visible := true
@@ -705,14 +773,21 @@ func _draw() -> void:
 						if wall_screen.size() >= 3:
 							draw_colored_polygon(wall_screen, Color.YELLOW if not selected_wall_outside and selected_wall == index and selected_segment < 0 else Color(0.31, 0.24, 0.17))
 					if not selected_wall_outside and selected_segment >= 0 and selected_wall >= 0 and selected_wall < plans.size() and selected_segment < plans[selected_wall].segments.size():
-						var selected_line := _screen_polygon(building, PackedVector2Array(plans[selected_wall].segments[selected_segment]), offset, factor, height)
-						if selected_line.size() == 2:
-							draw_line(selected_line[0], selected_line[1], Color.YELLOW, 5.0)
+						var wall: Dictionary = floor_edit.walls[selected_wall]
+						var widths: Array = wall.get("thicknesses", [])
+						var thickness: float = float(widths[selected_segment]) if not widths.is_empty() else float(wall.thickness)
+						for piece in _interior_piece_selection(polygons[selected_wall], plans[selected_wall].segments[selected_segment], thickness):
+							var selected_polygon := _screen_polygon(building, piece, offset, factor, height)
+							if selected_polygon.size() >= 3:
+								draw_colored_polygon(selected_polygon, Color.YELLOW)
 					if selected_wall_outside and selected_wall >= 0:
 						for index in outer_edges.size():
 							var edge: Dictionary = outer_edges[index]
 							if not edge.connector and int(edge.edge) == selected_wall and int(edge.segment) == selected_segment:
-								draw_line(outer_screen[index], outer_screen[(index + 1) % points.size()], Color.YELLOW, 5.0)
+								for piece in _exterior_wall_selection(points, inner, index, float(floor_edit.wall_thickness)):
+									var selected_polygon := _screen_polygon(building, piece, Vector2.ZERO, factor, height)
+									if selected_polygon.size() >= 3:
+										draw_colored_polygon(selected_polygon, Color.YELLOW)
 					if not split_preview.is_empty():
 						var colors := [Color.CORNFLOWER_BLUE, Color.ORANGE, Color.LIME_GREEN, Color.MEDIUM_PURPLE]
 						for index in split_preview.preview.size():
@@ -727,6 +802,10 @@ func _draw() -> void:
 						if source.size() == 2:
 							draw_line(source[0], source[1], Color.YELLOW, 3.0)
 		for index in points.size():
+			if index < selection_edges.size() and selected_wall_outside and selected_wall >= 0:
+				var edge: Dictionary = selection_edges[index]
+				if not edge.connector and int(edge.edge) == selected_wall and int(edge.segment) == selected_segment:
+					continue
 			var a := points[index] * factor
 			var b := points[(index + 1) % points.size()] * factor
 			var start := building.to_global(Vector3(a.x, height + 0.05, a.y))

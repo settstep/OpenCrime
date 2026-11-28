@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.30.1
+- Ausgewählte Innen- und Außenwände sowie Wandteilstücke werden einheitlich über ihre gesamte Fläche markiert.
+
 ## 0.30.0
 - Ausgewählte Innen- und Außenwände lassen sich an zusätzlichen Wandanschlüssen oder mittig teilen. Eine farbige Vorschau kann bestätigt oder abgebrochen werden.
 - Wandteilstücke lassen sich verschieben; erforderliche Verbindungsstücke entstehen automatisch. Die Änderungen werden gespeichert und im Multiplayer synchronisiert.
